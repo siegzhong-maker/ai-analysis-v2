@@ -5199,24 +5199,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     }
 
     // 2. Resume logic (Auto resume for demo if environment fixed)
-
-    if (transferStep === 'paused') {
-
-        if (transferStep === 'downloading' && falconState === 'connected') {
-
-             setTransferStep('downloading'); // Resume
-
-        }
-
-        if ((transferStep === 'uploading' || transferStep === 'analyzing') && networkState === 'wifi') {
-
-             setTransferStep(transferStep === 'analyzing' ? 'analyzing' : 'uploading'); // Resume
-
-        }
-
-        return; 
-
-    }
+    // Note: This logic is disabled as it requires tracking previous state
+    // if (transferStep === 'paused') {
+    //     // Resume logic would need a previousState variable to track what step was paused
+    //     return; 
+    // }
 
     const interval = setInterval(() => {
 

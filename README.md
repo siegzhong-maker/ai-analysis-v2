@@ -89,8 +89,24 @@ npm run build
 4. 在结果页面可以切换标签页查看不同内容
 5. 支持从高阶分析跳转到基础集锦
 
+## 在线部署
+
+### 使用Vercel部署（推荐）
+
+1. 访问 [vercel.com](https://vercel.com) 并使用GitHub账号登录
+2. 点击 "Add New Project"
+3. 导入仓库 `siegzhong-maker/ai-analysis-v2`
+4. Vercel会自动检测Vite项目配置
+5. 点击 "Deploy" 开始部署
+6. 部署完成后会获得一个URL（如：`https://ai-analysis-v2.vercel.app`）
+
+### 在线访问
+
+部署完成后，可以通过Vercel提供的URL访问应用，分享给其他研发同学查看。
+
 ## 注意事项
 
 - 这是一个原型演示，数据为模拟数据
 - 需要网络连接以加载Tailwind CSS CDN
 - 建议使用现代浏览器（Chrome、Firefox、Safari、Edge）
+- 每次推送到GitHub的main分支，Vercel会自动重新部署
