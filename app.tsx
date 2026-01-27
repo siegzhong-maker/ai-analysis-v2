@@ -1247,7 +1247,34 @@ const TaskCenterScreen = () => {
   // Get paused tasks from history
   const pausedTasks = HISTORY_TASKS.filter(task => task.status === 'paused');
 
-  
+  // Task title editing state
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [taskTitles, setTaskTitles] = useState<Record<string, string>>(() => {
+    const titles: Record<string, string> = {};
+    HISTORY_TASKS.forEach(task => {
+      titles[task.id] = task.title;
+    });
+    return titles;
+  });
+
+  // Edit handlers
+  const handleStartEdit = (taskId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setEditingTaskId(taskId);
+  };
+
+  const handleSaveEdit = (taskId: string, newTitle: string) => {
+    if (newTitle.trim()) {
+      setTaskTitles(prev => ({ ...prev, [taskId]: newTitle.trim() }));
+    }
+    setEditingTaskId(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTaskId(null);
+  };
 
   return (
 
@@ -1354,33 +1381,98 @@ const TaskCenterScreen = () => {
               {pausedTasks.map(task => (
                   <div key={task.id} className="rounded-2xl p-4 shadow-sm border bg-white border-yellow-100 mb-3">
                       <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-yellow-100 text-yellow-600">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-yellow-100 text-yellow-600 shrink-0">
                                   <Minimize2 className="w-5 h-5" />
                               </div>
-                              <div>
-                                  <h4 className="text-sm font-bold text-slate-800">{task.title}</h4>
-                                  <p className="text-xs text-slate-400">
-                                      {task.date} · {task.type === 'highlight' ? '基础集锦' : '高阶分析'}
-                                  </p>
+                              <div className="flex-1 min-w-0">
+                                  {editingTaskId === task.id ? (
+                                      <div onClick={(e) => e.stopPropagation()}>
+                                          <div className="flex items-center gap-2 mb-2">
+                                              <input
+                                                  type="text"
+                                                  defaultValue={taskTitles[task.id] || task.title}
+                                                  autoFocus
+                                                  onKeyDown={(e) => {
+                                                      if (e.key === 'Enter') {
+                                                          handleSaveEdit(task.id, e.currentTarget.value);
+                                                      } else if (e.key === 'Escape') {
+                                                          handleCancelEdit();
+                                                      }
+                                                  }}
+                                                  onBlur={(e) => {
+                                                      handleSaveEdit(task.id, e.currentTarget.value);
+                                                  }}
+                                                  className="flex-1 text-sm font-bold px-2 py-1.5 border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                              />
+                                              <button
+                                                  onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      const input = e.currentTarget.parentElement?.querySelector('input');
+                                                      if (input) {
+                                                          handleSaveEdit(task.id, input.value);
+                                                      }
+                                                  }}
+                                                  className="px-3 py-1.5 bg-blue-500 text-white text-xs font-bold rounded hover:bg-blue-600 transition-colors shrink-0"
+                                              >
+                                                  保存
+                                              </button>
+                                              <button
+                                                  onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleCancelEdit();
+                                                  }}
+                                                  className="px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300 transition-colors shrink-0"
+                                              >
+                                                  取消
+                                              </button>
+                                          </div>
+                                          <p className="text-xs text-slate-400">
+                                              {task.date} · {task.type === 'highlight' ? '基础集锦' : '高阶分析'}
+                                          </p>
+                                      </div>
+                                  ) : (
+                                      <>
+                                          <div className="flex items-center gap-2 mb-1">
+                                              <h4 className="text-sm font-bold text-slate-800 truncate flex-1">
+                                                  {taskTitles[task.id] || task.title}
+                                              </h4>
+                                              <button
+                                                  onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleStartEdit(task.id, e);
+                                                  }}
+                                                  className="p-1 text-slate-400 hover:text-slate-600 transition-colors shrink-0"
+                                                  title="编辑名称"
+                                              >
+                                                  <Edit3 className="w-3.5 h-3.5" />
+                                              </button>
+                                          </div>
+                                          <p className="text-xs text-slate-400">
+                                              {task.date} · {task.type === 'highlight' ? '基础集锦' : '高阶分析'}
+                                          </p>
+                                      </>
+                                  )}
                               </div>
                           </div>
                       </div>
-                      <div className="flex justify-end gap-2">
-                          <button 
-                              onClick={() => {
-                                  // Restart the task
-                                  setTargetAnalysisType(task.type as any);
-                                  setResultSport(task.cover);
-                                  setTransferStep('downloading');
-                                  setTransferProgress(0);
-                                  pushView('home');
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold"
-                          >
-                              重新发起
-                          </button>
-                      </div>
+                      {editingTaskId !== task.id && (
+                          <div className="flex justify-end gap-2">
+                              <button 
+                                  onClick={() => {
+                                      // Restart the task
+                                      setTargetAnalysisType(task.type as any);
+                                      setResultSport(task.cover);
+                                      setTransferStep('downloading');
+                                      setTransferProgress(0);
+                                      pushView('home');
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold"
+                              >
+                                  重新发起
+                              </button>
+                          </div>
+                      )}
                   </div>
               ))}
 
@@ -1410,7 +1502,7 @@ const TaskCenterScreen = () => {
                         <div 
                             key={task.id} 
                             onClick={() => { 
-                                if (task.status === 'completed') {
+                                if (task.status === 'completed' && editingTaskId !== task.id) {
                                     setTargetAnalysisType(task.type as any); 
                                     setAiMode('cloud'); 
                                     setIsTaskCompleted(true); 
@@ -1418,25 +1510,89 @@ const TaskCenterScreen = () => {
                                     pushView(task.type === 'highlight' ? 'ai_result_highlight' : 'ai_result_analysis'); 
                                 }
                             }} 
-                            className={`bg-white rounded-xl p-3 flex items-center gap-3 shadow-sm border ${task.status === 'failed' ? 'border-red-100' : task.status === 'paused' ? 'border-yellow-100' : 'border-slate-100'} ${task.status === 'completed' ? 'active:scale-95 transition-transform cursor-pointer' : 'opacity-75'}`}
+                            className={`bg-white rounded-xl p-3 flex items-center gap-3 shadow-sm border ${task.status === 'failed' ? 'border-red-100' : task.status === 'paused' ? 'border-yellow-100' : 'border-slate-100'} ${task.status === 'completed' && editingTaskId !== task.id ? 'active:scale-95 transition-transform cursor-pointer' : 'opacity-75'}`}
                         >
                             <div className={`w-14 h-14 rounded-lg flex items-center justify-center text-white shrink-0 ${task.status === 'failed' ? 'bg-red-500/80' : task.status === 'paused' ? 'bg-yellow-500/80' : (task.type === 'highlight' ? 'bg-gradient-to-br from-orange-400 to-red-500' : 'bg-gradient-to-br from-blue-500 to-indigo-600')}`}>
                                 {task.status === 'failed' ? <AlertTriangle className="w-6 h-6" /> : task.status === 'paused' ? <Minimize2 className="w-6 h-6" /> : (task.type === 'highlight' ? <Film className="w-6 h-6" /> : <BarChart3 className="w-6 h-6" />)}
                             </div>
 
                             <div className="flex-1 min-w-0">
-                                <h4 className={`text-sm font-bold truncate mb-1 ${task.status === 'failed' ? 'text-red-800' : task.status === 'paused' ? 'text-yellow-800' : 'text-slate-800'}`}>{task.title}</h4>
-                                <div className="flex items-center gap-2 text-xs text-slate-400">
-                                    <span>{task.date}</span>
-                                    <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                    <span>{task.type === 'highlight' ? '基础集锦' : '高阶分析'}</span>
-                                </div>
+                                {editingTaskId === task.id ? (
+                                    <div className="mb-1" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <input
+                                                type="text"
+                                                defaultValue={taskTitles[task.id] || task.title}
+                                                autoFocus
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        handleSaveEdit(task.id, e.currentTarget.value);
+                                                    } else if (e.key === 'Escape') {
+                                                        handleCancelEdit();
+                                                    }
+                                                }}
+                                                onBlur={(e) => {
+                                                    handleSaveEdit(task.id, e.currentTarget.value);
+                                                }}
+                                                className="flex-1 text-sm font-bold px-2 py-1.5 border border-blue-500 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const input = e.currentTarget.parentElement?.querySelector('input');
+                                                    if (input) {
+                                                        handleSaveEdit(task.id, input.value);
+                                                    }
+                                                }}
+                                                className="px-3 py-1.5 bg-blue-500 text-white text-xs font-bold rounded hover:bg-blue-600 transition-colors shrink-0"
+                                            >
+                                                保存
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleCancelEdit();
+                                                }}
+                                                className="px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300 transition-colors shrink-0"
+                                            >
+                                                取消
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                                            <span>{task.date}</span>
+                                            <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                            <span>{task.type === 'highlight' ? '基础集锦' : '高阶分析'}</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <h4 className={`text-sm font-bold truncate flex-1 ${task.status === 'failed' ? 'text-red-800' : task.status === 'paused' ? 'text-yellow-800' : 'text-slate-800'}`}>
+                                                {taskTitles[task.id] || task.title}
+                                            </h4>
+                                            <button
+                                                onClick={(e) => handleStartEdit(task.id, e)}
+                                                className="p-1 text-slate-400 hover:text-slate-600 transition-colors shrink-0"
+                                                title="编辑名称"
+                                            >
+                                                <Edit3 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                                            <span>{task.date}</span>
+                                            <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                            <span>{task.type === 'highlight' ? '基础集锦' : '高阶分析'}</span>
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
-                            <div className="flex flex-col items-end gap-1">
-                                <span className={`${status.bg} ${status.text} text-[9px] font-bold px-1.5 py-0.5 rounded`}>{status.label}</span>
-                                {task.status === 'completed' && <ChevronRight className="w-4 h-4 text-slate-300" />}
-                            </div>
+                            {editingTaskId !== task.id && (
+                                <div className="flex flex-col items-end gap-1 shrink-0">
+                                    <span className={`${status.bg} ${status.text} text-[9px] font-bold px-1.5 py-0.5 rounded`}>{status.label}</span>
+                                    {task.status === 'completed' && <ChevronRight className="w-4 h-4 text-slate-300" />}
+                                </div>
+                            )}
                         </div>
                     );
                 })}
