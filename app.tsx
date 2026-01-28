@@ -35,7 +35,19 @@ import {
 
 // --- Types ---
 
-type ViewState = 'home' | 'media_picker' | 'editor_manual' | 'templates_list' | 'template_detail' | 'ai_processing' | 'ai_result_highlight' | 'ai_result_analysis' | 'task_submitted' | 'task_center' | 'merge_preview';
+type ViewState =
+  | 'home'
+  | 'media_picker'
+  | 'editor_manual'
+  | 'templates_list'
+  | 'template_detail'
+  | 'ai_processing'
+  | 'ai_result_highlight'
+  | 'ai_result_analysis'
+  | 'task_submitted'
+  | 'task_center'
+  | 'merge_preview'
+  | 'aigc_preview';
 
 type AIMode = 'cloud'; 
 
@@ -58,6 +70,13 @@ type HomeTabType = 'recent' | 'templates' | 'drafts';
 type NetworkState = 'wifi' | '4g' | 'offline';
 
 type FalconState = 'connected' | 'disconnected';
+
+type ShareContext =
+  | { type: 'all' | 'selected' | 'report' }
+  | { type: 'player_clips'; playerLabel?: string }
+  | { type: 'player_dashboard'; playerLabel?: string }
+  | { type: 'aigc_one_click_video'; selectedClipIds: number[] }
+  | { type: 'aigc_coach_clip'; clipId: number; aiCoachComment?: string };
 
 // --- Context ---
 
@@ -207,6 +226,10 @@ const TEAM_MATCH_STATS = {
     { label: '两分命中率', a: '52.1%', b: '48.9%' },
 
     { label: '三分命中率', a: '31.8%', b: '24.0%' },
+
+    { label: '篮板', a: 42, b: 38 },
+
+    { label: '抢断', a: 8, b: 6 },
 
   ]
 
@@ -814,7 +837,7 @@ const UpsellModal = () => {
 
             <p className="text-sm text-slate-400 mb-6 leading-relaxed">
 
-               升级到 Pro 后，您将解锁高阶数据功能（全场战术热图、高阶赛事数据及个人球员数据），并自动拥有基础版的所有功能。
+               升级到 Pro 后，您将解锁高级视频编辑、数据导出、历史对比、无限存储等专业功能，并自动拥有基础版的所有功能。
 
              </p>
 
@@ -1878,12 +1901,19 @@ const HighlightResultScreen = () => {
     const handleEditDuration = (clipId: number, currentDuration: string) => {
         // Parse duration string like "10s" to seconds
         const seconds = parseInt(currentDuration.replace('s', '')) || 0;
-        setEditingDuration(seconds);
+        setEditingDuration(Math.min(15, seconds));
         setEditingClipId(clipId);
     };
 
     const handleSaveDuration = () => {
         if (editingClipId === null) return;
+        
+        if (editingDuration > 15) {
+            setToastMessage('高光片段最多15秒');
+            setTimeout(() => setToastMessage(null), 2000);
+            setEditingDuration(15);
+            return;
+        }
         
         setClips(prevClips => 
             prevClips.map(clip => 
@@ -2254,7 +2284,7 @@ const HighlightResultScreen = () => {
                                                      </button>
                                                      <span className="text-[10px] font-bold text-white font-mono min-w-[35px] text-center">{editingDuration}s</span>
                                                      <button 
-                                                         onClick={() => setEditingDuration(editingDuration + 1)}
+                                                         onClick={() => setEditingDuration(Math.min(15, editingDuration + 1))}
                                                          className="w-6 h-6 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-white transition-colors flex-shrink-0"
                                                      >
                                                          <Plus className="w-3 h-3" />
@@ -2338,41 +2368,112 @@ const HighlightResultScreen = () => {
 
                  <div className="p-4 space-y-4">
 
-                     {/* Simplified Basic Stats Content */}
+                     {/* Personal Player Stats Dashboard (Priority Display) */}
+                     {(() => {
+                         const playerStats = calculatePlayerStats(resultSport || 'basketball', eventClaims);
+                         
+                         if (playerStats.length > 0) {
+                             return (
+                                 <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
+                                     <div className="px-4 py-3 bg-white/5 text-[10px] font-bold text-slate-400 border-b border-white/5">
+                                         <span className="flex items-center gap-2">
+                                             <User className="w-3 h-3" />
+                                             <span>个人数据看板</span>
+                                         </span>
+                                     </div>
+                                     <div className="p-4 space-y-3">
+                                         {playerStats.map((player) => (
+                                             <div key={player.key} className="bg-slate-800/50 rounded-xl p-3 border border-white/5">
+                                                 <div className="flex items-center justify-between mb-2">
+                                                     <div className="flex items-center gap-2">
+                                                         <div className={`w-2 h-2 rounded-full ${player.color}`}></div>
+                                                         <span className="text-sm font-bold text-white">{player.label}</span>
+                                                         <span className="text-[10px] text-slate-400">{player.team}队</span>
+                                                     </div>
+                                                 </div>
+                                                 {isSoccer ? (
+                                                     <div className="grid grid-cols-4 gap-2">
+                                                         <div className="text-center">
+                                                             <div className="text-xs text-slate-400">进球</div>
+                                                             <div className="text-lg font-bold text-white">{player.goals || 0}</div>
+                                                         </div>
+                                                         <div className="text-center">
+                                                             <div className="text-xs text-slate-400">角球</div>
+                                                             <div className="text-lg font-bold text-white">{player.corners || 0}</div>
+                                                         </div>
+                                                         <div className="text-center">
+                                                             <div className="text-xs text-slate-400">定位球</div>
+                                                             <div className="text-lg font-bold text-white">{player.setpieces || 0}</div>
+                                                         </div>
+                                                         <div className="text-center">
+                                                             <div className="text-xs text-slate-400">点球</div>
+                                                             <div className="text-lg font-bold text-white">{player.penalties || 0}</div>
+                                                         </div>
+                                                     </div>
+                                                ) : (
+                                                    <div className="grid grid-cols-4 gap-2">
+                                                        <div className="text-center">
+                                                            <div className="text-xs text-slate-400">得分</div>
+                                                            <div className="text-lg font-bold text-white">{player.pts || 0}</div>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <div className="text-xs text-slate-400">篮板</div>
+                                                            <div className="text-lg font-bold text-white">{player.reb || 0}</div>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <div className="text-xs text-slate-400">助攻</div>
+                                                            <div className="text-lg font-bold text-white">{player.ast || 0}</div>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <div className="text-xs text-slate-400">抢断</div>
+                                                            <div className="text-lg font-bold text-white">{player.stl || 0}</div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                             </div>
+                                         ))}
+                                     </div>
+                                 </div>
+                             );
+                         }
+                         return null;
+                     })()}
 
-                     <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
-
-                         <div className="flex justify-between items-center px-4 py-3 bg-white/5 text-[10px] font-bold text-slate-400 border-b border-white/5">
-
+                     {/* Team Comparison Stats (Collapsible/Secondary) */}
+                     <details className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
+                         <summary className="flex justify-between items-center px-4 py-3 bg-white/5 text-[10px] font-bold text-slate-400 border-b border-white/5 cursor-pointer hover:bg-white/10 transition-colors">
                              <span className="flex items-center gap-2">
                                  <span>{statsData.teamA.name}</span>
                                  <span className={`text-sm font-bold ${statsData.teamA.color}`}>{statsData.teamA.score}</span>
                              </span>
-
-                             <span>基础数据</span>
-
+                             <span>团队对比</span>
                              <span className="flex items-center gap-2">
                                  <span className={`text-sm font-bold ${statsData.teamB.color}`}>{statsData.teamB.score}</span>
                                  <span>{statsData.teamB.name}</span>
                              </span>
-
+                         </summary>
+                         <div>
+                             {basicStatsComparison.map((item, index) => (
+                                 <div key={index} className={`flex justify-between items-center px-4 py-3 border-b border-white/5 last:border-0`}>
+                                     <span className={`w-12 text-left font-mono font-bold ${item.a > item.b ? statsData.teamA.color : 'text-slate-400'}`}>{item.a}</span>
+                                     <span className="flex-1 text-center text-xs text-slate-300">{item.label}</span>
+                                     <span className={`w-12 text-right font-mono font-bold ${item.b > item.a ? statsData.teamB.color : 'text-slate-400'}`}>{item.b}</span>
+                                 </div>
+                             ))}
+                             {/* Add rebound and steal to team comparison for basketball */}
+                             {!isSoccer && (
+                                 <>
+                                     {statsData.comparison.filter(i => ['篮板', '抢断'].includes(i.label)).map((item, index) => (
+                                         <div key={`extra-${index}`} className={`flex justify-between items-center px-4 py-3 border-b border-white/5 last:border-0`}>
+                                             <span className={`w-12 text-left font-mono font-bold ${item.a > item.b ? statsData.teamA.color : 'text-slate-400'}`}>{item.a}</span>
+                                             <span className="flex-1 text-center text-xs text-slate-300">{item.label}</span>
+                                             <span className={`w-12 text-right font-mono font-bold ${item.b > item.a ? statsData.teamB.color : 'text-slate-400'}`}>{item.b}</span>
+                                         </div>
+                                     ))}
+                                 </>
+                             )}
                          </div>
-
-                         {basicStatsComparison.map((item, index) => (
-
-                             <div key={index} className={`flex justify-between items-center px-4 py-3 border-b border-white/5 last:border-0`}>
-
-                                 <span className={`w-12 text-left font-mono font-bold ${item.a > item.b ? statsData.teamA.color : 'text-slate-400'}`}>{item.a}</span>
-
-                                 <span className="flex-1 text-center text-xs text-slate-300">{item.label}</span>
-
-                                 <span className={`w-12 text-right font-mono font-bold ${item.b > item.a ? statsData.teamB.color : 'text-slate-400'}`}>{item.b}</span>
-
-                             </div>
-
-                         ))}
-
-                    </div>
+                     </details>
                     
                     {/* Heatmap in Basic Version */}
                     {isSoccer ? (
@@ -2561,9 +2662,9 @@ const HighlightResultScreen = () => {
 
                          <div>
 
-                             <h4 className="text-xs font-bold text-white mb-1 flex items-center gap-1"><Crown className="w-3 h-3 text-amber-300" /> 解锁高阶数据</h4>
+                             <h4 className="text-xs font-bold text-white mb-1 flex items-center gap-1"><Crown className="w-3 h-3 text-amber-300" /> 升级 Pro 版</h4>
 
-                             <p className="text-[10px] text-slate-400">查看投篮热图、球员跑动轨迹等专业分析</p>
+                             <p className="text-[10px] text-slate-400">解锁高级视频编辑、数据导出、历史对比等专业功能</p>
 
                          </div>
 
@@ -2853,11 +2954,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
 // --- New Internal Components for Advanced Analysis Views ---
 
-  const BasketballAdvancedView = () => {
-
-    const { eventClaims, expandedPlayerKey, setExpandedPlayerKey } = useAppContext();
-    const playerStats = calculatePlayerStats('basketball', eventClaims);
-
+  // Basketball Heatmap Component (extracted for stats tab)
+  const BasketballHeatmap = () => {
     const [teamAName, setTeamAName] = useState('A队');
     const [teamBName, setTeamBName] = useState('B队');
     const [editingTeam, setEditingTeam] = useState<'A' | 'B' | null>(null);
@@ -2881,102 +2979,242 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     };
 
     return (
-
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-          {/* 出手热力图 */}
-          <div className="bg-[#1E293B] rounded-2xl border border-white/10 p-4 relative overflow-hidden">
-              <div className="flex justify-between items-center mb-4 relative z-10">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2"><Flame className="w-4 h-4 text-orange-500" /> 出手热力图</h3>
-                  <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5">
-                          <button onClick={() => setHeatmapMode('both')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'both' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}>全部</button>
-                          <button onClick={() => setHeatmapMode('teamA')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamA' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamAName}</button>
-                          <button onClick={() => setHeatmapMode('teamB')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamB' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamBName}</button>
-                      </div>
-                      <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-slate-300">本场</span>
+      <div className="bg-[#1E293B] rounded-2xl border border-white/10 p-4 relative overflow-hidden">
+          <div className="flex justify-between items-center mb-4 relative z-10">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2"><Flame className="w-4 h-4 text-orange-500" /> 出手热力图</h3>
+              <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5">
+                      <button onClick={() => setHeatmapMode('both')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'both' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}>全部</button>
+                      <button onClick={() => setHeatmapMode('teamA')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamA' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamAName}</button>
+                      <button onClick={() => setHeatmapMode('teamB')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamB' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamBName}</button>
                   </div>
-              </div>
-              <div className="aspect-[4/3] bg-orange-600/20 rounded-xl relative border border-white/5 overflow-hidden">
-                  <svg width="100%" height="100%" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet" className="absolute inset-0">
-                      <rect x="0" y="0" width="200" height="200" fill="#FF6B35" fillOpacity="0.1" />
-                      <line x1="0" y1="200" x2="200" y2="200" stroke="white" strokeWidth="2" />
-                      <rect x="60" y="120" width="80" height="80" fill="none" stroke="white" strokeWidth="2" />
-                      <line x1="60" y1="120" x2="140" y2="120" stroke="white" strokeWidth="2" />
-                      <circle cx="100" cy="120" r="20" fill="none" stroke="white" strokeWidth="2" />
-                      <path d="M 10 200 Q 100 20 190 200" fill="none" stroke="white" strokeWidth="2" strokeDasharray="4,4" />
-                      <path d="M 80 200 Q 100 170 120 200" fill="none" stroke="white" strokeWidth="2" />
-                      <circle cx="100" cy="190" r="3" fill="white" />
-                      <defs>
-                          <radialGradient id="advTeamAHeat" cx="50%" cy="50%">
-                              <stop offset="0%" stopColor="rgba(59, 130, 246, 0.8)" />
-                              <stop offset="50%" stopColor="rgba(59, 130, 246, 0.5)" />
-                              <stop offset="100%" stopColor="rgba(59, 130, 246, 0)" />
-                          </radialGradient>
-                          <radialGradient id="advTeamBHeat" cx="50%" cy="50%">
-                              <stop offset="0%" stopColor="rgba(239, 68, 68, 0.8)" />
-                              <stop offset="50%" stopColor="rgba(239, 68, 68, 0.5)" />
-                              <stop offset="100%" stopColor="rgba(239, 68, 68, 0)" />
-                          </radialGradient>
-                      </defs>
-                      {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
-                          <g opacity={heatmapMode === 'both' ? 0.8 : 1}>
-                              <ellipse cx="25" cy="185" rx="18" ry="15" fill="url(#advTeamAHeat)" />
-                              <ellipse cx="20" cy="190" rx="15" ry="12" fill="url(#advTeamAHeat)" />
-                              <ellipse cx="175" cy="185" rx="18" ry="15" fill="url(#advTeamAHeat)" />
-                              <ellipse cx="180" cy="190" rx="15" ry="12" fill="url(#advTeamAHeat)" />
-                              <ellipse cx="30" cy="120" rx="20" ry="18" fill="url(#advTeamAHeat)" />
-                              <ellipse cx="25" cy="110" rx="18" ry="16" fill="url(#advTeamAHeat)" />
-                              <ellipse cx="170" cy="120" rx="20" ry="18" fill="url(#advTeamAHeat)" />
-                              <ellipse cx="175" cy="110" rx="18" ry="16" fill="url(#advTeamAHeat)" />
-                              <ellipse cx="50" cy="50" rx="22" ry="20" fill="url(#advTeamAHeat)" />
-                              <ellipse cx="150" cy="50" rx="22" ry="20" fill="url(#advTeamAHeat)" />
-                          </g>
-                      )}
-                      {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
-                          <g opacity={heatmapMode === 'both' ? 0.8 : 1}>
-                              <ellipse cx="100" cy="190" rx="25" ry="20" fill="url(#advTeamBHeat)" />
-                              <ellipse cx="95" cy="185" rx="22" ry="18" fill="url(#advTeamBHeat)" />
-                              <ellipse cx="105" cy="185" rx="20" ry="16" fill="url(#advTeamBHeat)" />
-                              <ellipse cx="100" cy="175" rx="20" ry="18" fill="url(#advTeamBHeat)" />
-                              <ellipse cx="85" cy="150" rx="18" ry="16" fill="url(#advTeamBHeat)" />
-                              <ellipse cx="115" cy="150" rx="18" ry="16" fill="url(#advTeamBHeat)" />
-                              <ellipse cx="100" cy="125" rx="16" ry="14" fill="url(#advTeamBHeat)" />
-                              <ellipse cx="75" cy="160" rx="15" ry="13" fill="url(#advTeamBHeat)" />
-                              <ellipse cx="125" cy="160" rx="15" ry="13" fill="url(#advTeamBHeat)" />
-                          </g>
-                      )}
-                  </svg>
-              </div>
-              <div className="flex justify-center gap-4 mt-3">
-                  {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
-                      <div className="flex items-center gap-1.5 bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/20">
-                          <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                          {editingTeam === 'A' ? (
-                              <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[9px] font-bold text-blue-400 bg-blue-500/20 border border-blue-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
-                          ) : (
-                              <div className="flex items-center gap-1 cursor-pointer hover:bg-blue-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('A')}>
-                                  <span className="text-[9px] font-bold text-blue-400">{teamAName}</span>
-                                  <Edit3 className="w-3 h-3 text-blue-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                          )}
-                      </div>
-                  )}
-                  {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
-                      <div className="flex items-center gap-1.5 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20">
-                          <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                          {editingTeam === 'B' ? (
-                              <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[9px] font-bold text-red-400 bg-red-500/20 border border-red-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
-                          ) : (
-                              <div className="flex items-center gap-1 cursor-pointer hover:bg-red-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('B')}>
-                                  <span className="text-[9px] font-bold text-red-400">{teamBName}</span>
-                                  <Edit3 className="w-3 h-3 text-red-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                          )}
-                      </div>
-                  )}
+                  <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-slate-300">本场</span>
               </div>
           </div>
+          <div className="aspect-[4/3] bg-orange-600/20 rounded-xl relative border border-white/5 overflow-hidden">
+              <svg width="100%" height="100%" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet" className="absolute inset-0">
+                  <rect x="0" y="0" width="200" height="200" fill="#FF6B35" fillOpacity="0.1" />
+                  <line x1="0" y1="200" x2="200" y2="200" stroke="white" strokeWidth="2" />
+                  <rect x="60" y="120" width="80" height="80" fill="none" stroke="white" strokeWidth="2" />
+                  <line x1="60" y1="120" x2="140" y2="120" stroke="white" strokeWidth="2" />
+                  <circle cx="100" cy="120" r="20" fill="none" stroke="white" strokeWidth="2" />
+                  <path d="M 10 200 Q 100 20 190 200" fill="none" stroke="white" strokeWidth="2" strokeDasharray="4,4" />
+                  <path d="M 80 200 Q 100 170 120 200" fill="none" stroke="white" strokeWidth="2" />
+                  <circle cx="100" cy="190" r="3" fill="white" />
+                  <defs>
+                      <radialGradient id="advTeamAHeat" cx="50%" cy="50%">
+                          <stop offset="0%" stopColor="rgba(59, 130, 246, 0.8)" />
+                          <stop offset="50%" stopColor="rgba(59, 130, 246, 0.5)" />
+                          <stop offset="100%" stopColor="rgba(59, 130, 246, 0)" />
+                      </radialGradient>
+                      <radialGradient id="advTeamBHeat" cx="50%" cy="50%">
+                          <stop offset="0%" stopColor="rgba(239, 68, 68, 0.8)" />
+                          <stop offset="50%" stopColor="rgba(239, 68, 68, 0.5)" />
+                          <stop offset="100%" stopColor="rgba(239, 68, 68, 0)" />
+                      </radialGradient>
+                  </defs>
+                  {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
+                      <g opacity={heatmapMode === 'both' ? 0.8 : 1}>
+                          <ellipse cx="25" cy="185" rx="18" ry="15" fill="url(#advTeamAHeat)" />
+                          <ellipse cx="20" cy="190" rx="15" ry="12" fill="url(#advTeamAHeat)" />
+                          <ellipse cx="175" cy="185" rx="18" ry="15" fill="url(#advTeamAHeat)" />
+                          <ellipse cx="180" cy="190" rx="15" ry="12" fill="url(#advTeamAHeat)" />
+                          <ellipse cx="30" cy="120" rx="20" ry="18" fill="url(#advTeamAHeat)" />
+                          <ellipse cx="25" cy="110" rx="18" ry="16" fill="url(#advTeamAHeat)" />
+                          <ellipse cx="170" cy="120" rx="20" ry="18" fill="url(#advTeamAHeat)" />
+                          <ellipse cx="175" cy="110" rx="18" ry="16" fill="url(#advTeamAHeat)" />
+                          <ellipse cx="50" cy="50" rx="22" ry="20" fill="url(#advTeamAHeat)" />
+                          <ellipse cx="150" cy="50" rx="22" ry="20" fill="url(#advTeamAHeat)" />
+                      </g>
+                  )}
+                  {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
+                      <g opacity={heatmapMode === 'both' ? 0.8 : 1}>
+                          <ellipse cx="100" cy="190" rx="25" ry="20" fill="url(#advTeamBHeat)" />
+                          <ellipse cx="95" cy="185" rx="22" ry="18" fill="url(#advTeamBHeat)" />
+                          <ellipse cx="105" cy="185" rx="20" ry="16" fill="url(#advTeamBHeat)" />
+                          <ellipse cx="100" cy="175" rx="20" ry="18" fill="url(#advTeamBHeat)" />
+                          <ellipse cx="85" cy="150" rx="18" ry="16" fill="url(#advTeamBHeat)" />
+                          <ellipse cx="115" cy="150" rx="18" ry="16" fill="url(#advTeamBHeat)" />
+                          <ellipse cx="100" cy="125" rx="16" ry="14" fill="url(#advTeamBHeat)" />
+                          <ellipse cx="75" cy="160" rx="15" ry="13" fill="url(#advTeamBHeat)" />
+                          <ellipse cx="125" cy="160" rx="15" ry="13" fill="url(#advTeamBHeat)" />
+                      </g>
+                  )}
+              </svg>
+          </div>
+          <div className="flex justify-center gap-4 mt-3">
+              {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
+                  <div className="flex items-center gap-1.5 bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/20">
+                      <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                      {editingTeam === 'A' ? (
+                          <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[9px] font-bold text-blue-400 bg-blue-500/20 border border-blue-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
+                      ) : (
+                          <div className="flex items-center gap-1 cursor-pointer hover:bg-blue-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('A')}>
+                              <span className="text-[9px] font-bold text-blue-400">{teamAName}</span>
+                              <Edit3 className="w-3 h-3 text-blue-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                      )}
+                  </div>
+              )}
+              {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
+                  <div className="flex items-center gap-1.5 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20">
+                      <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                      {editingTeam === 'B' ? (
+                          <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[9px] font-bold text-red-400 bg-red-500/20 border border-red-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
+                      ) : (
+                          <div className="flex items-center gap-1 cursor-pointer hover:bg-red-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('B')}>
+                              <span className="text-[9px] font-bold text-red-400">{teamBName}</span>
+                              <Edit3 className="w-3 h-3 text-red-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                      )}
+                  </div>
+              )}
+          </div>
+      </div>
+    );
+  };
+
+  // Soccer Heatmap Component (extracted for stats tab)
+  const SoccerHeatmap = () => {
+    const [teamAName, setTeamAName] = useState('A队');
+    const [teamBName, setTeamBName] = useState('B队');
+    const [editingTeam, setEditingTeam] = useState<'A' | 'B' | null>(null);
+    const [editValue, setEditValue] = useState('');
+    const [heatmapMode, setHeatmapMode] = useState<'both' | 'teamA' | 'teamB'>('both');
+
+    const handleStartEdit = (team: 'A' | 'B') => {
+      setEditingTeam(team);
+      setEditValue(team === 'A' ? teamAName : teamBName);
+    };
+    const handleSaveEdit = () => {
+      if (editingTeam === 'A') setTeamAName(editValue.trim() || 'A队');
+      else if (editingTeam === 'B') setTeamBName(editValue.trim() || 'B队');
+      setEditingTeam(null);
+      setEditValue('');
+    };
+    const handleCancelEdit = () => { setEditingTeam(null); setEditValue(''); };
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') handleSaveEdit();
+      else if (e.key === 'Escape') handleCancelEdit();
+    };
+
+    return (
+      <div className="bg-[#1E293B] rounded-2xl border border-white/10 p-4 relative overflow-hidden">
+          <div className="flex justify-between items-center mb-4 relative z-10">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2"><Map className="w-4 h-4 text-emerald-500" /> 跑动热力图</h3>
+              <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5">
+                      <button onClick={() => setHeatmapMode('both')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'both' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}>全部</button>
+                      <button onClick={() => setHeatmapMode('teamA')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamA' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamAName}</button>
+                      <button onClick={() => setHeatmapMode('teamB')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamB' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamBName}</button>
+                  </div>
+                  <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-slate-300">全场</span>
+              </div>
+          </div>
+          <div className="aspect-[16/9] bg-emerald-900/40 rounded-xl relative border border-white/5 overflow-hidden">
+              <svg width="100%" height="100%" viewBox="0 0 100 50" preserveAspectRatio="none" className="absolute inset-0">
+                  <defs>
+                      <radialGradient id="advGreenHeatLow" cx="50%" cy="50%">
+                          <stop offset="0%" stopColor="rgba(34, 197, 94, 0.3)" />
+                          <stop offset="50%" stopColor="rgba(34, 197, 94, 0.15)" />
+                          <stop offset="100%" stopColor="rgba(34, 197, 94, 0)" />
+                      </radialGradient>
+                      <radialGradient id="advGreenHeatMid" cx="50%" cy="50%">
+                          <stop offset="0%" stopColor="rgba(22, 163, 74, 0.6)" />
+                          <stop offset="50%" stopColor="rgba(22, 163, 74, 0.3)" />
+                          <stop offset="100%" stopColor="rgba(22, 163, 74, 0)" />
+                      </radialGradient>
+                      <radialGradient id="advGreenHeatHigh" cx="50%" cy="50%">
+                          <stop offset="0%" stopColor="rgba(20, 83, 45, 0.8)" />
+                          <stop offset="50%" stopColor="rgba(20, 83, 45, 0.5)" />
+                          <stop offset="100%" stopColor="rgba(20, 83, 45, 0)" />
+                      </radialGradient>
+                  </defs>
+                  <rect x="0" y="0" width="100" height="50" fill="rgba(34, 197, 94, 0.05)" />
+                  <rect x="0" y="0" width="100" height="50" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
+                  <line x1="50" y1="0" x2="50" y2="50" stroke="white" strokeWidth="0.3" opacity="0.4" />
+                  <circle cx="50" cy="25" r="8" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
+                  <circle cx="50" cy="25" r="0.5" fill="white" opacity="0.4" />
+                  <rect x="0" y="12" width="18" height="26" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
+                  <rect x="0" y="18" width="6" height="14" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
+                  <circle cx="12" cy="25" r="0.4" fill="white" opacity="0.4" />
+                  <path d="M 18 25 A 6 6 0 0 1 18 15" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
+                  <rect x="82" y="12" width="18" height="26" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
+                  <rect x="94" y="18" width="6" height="14" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
+                  <circle cx="88" cy="25" r="0.4" fill="white" opacity="0.4" />
+                  <path d="M 82 25 A 6 6 0 0 0 82 15" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
+                  {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
+                      <g opacity={heatmapMode === 'both' ? 0.7 : 1}>
+                          <ellipse cx="15" cy="20" rx="8" ry="6" fill="url(#advGreenHeatHigh)" />
+                          <ellipse cx="12" cy="18" rx="6" ry="4" fill="url(#advGreenHeatHigh)" />
+                          <ellipse cx="25" cy="25" rx="10" ry="8" fill="url(#advGreenHeatMid)" />
+                          <ellipse cx="22" cy="23" rx="8" ry="6" fill="url(#advGreenHeatMid)" />
+                          <ellipse cx="8" cy="25" rx="6" ry="5" fill="url(#advGreenHeatHigh)" />
+                          <ellipse cx="6" cy="27" rx="5" ry="4" fill="url(#advGreenHeatHigh)" />
+                          <ellipse cx="5" cy="15" rx="4" ry="3" fill="url(#advGreenHeatLow)" />
+                          <ellipse cx="5" cy="35" rx="4" ry="3" fill="url(#advGreenHeatLow)" />
+                      </g>
+                  )}
+                  {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
+                      <g opacity={heatmapMode === 'both' ? 0.7 : 1}>
+                          <ellipse cx="85" cy="20" rx="8" ry="6" fill="url(#advGreenHeatHigh)" />
+                          <ellipse cx="88" cy="18" rx="6" ry="4" fill="url(#advGreenHeatHigh)" />
+                          <ellipse cx="75" cy="25" rx="10" ry="8" fill="url(#advGreenHeatMid)" />
+                          <ellipse cx="78" cy="23" rx="8" ry="6" fill="url(#advGreenHeatMid)" />
+                          <ellipse cx="92" cy="25" rx="6" ry="5" fill="url(#advGreenHeatHigh)" />
+                          <ellipse cx="94" cy="27" rx="5" ry="4" fill="url(#advGreenHeatHigh)" />
+                          <ellipse cx="95" cy="15" rx="4" ry="3" fill="url(#advGreenHeatLow)" />
+                          <ellipse cx="95" cy="35" rx="4" ry="3" fill="url(#advGreenHeatLow)" />
+                      </g>
+                  )}
+              </svg>
+          </div>
+          <div className="flex justify-center gap-4 mt-3">
+              <div className="flex items-center gap-2 text-[9px] text-slate-400">
+                  <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded" style={{ background: 'linear-gradient(to right, rgba(34, 197, 94, 0.2), rgba(20, 83, 45, 0.8))' }} />
+                      <span>颜色越深表示跑动频率越高</span>
+                  </div>
+              </div>
+              {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
+                  <div className="flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      {editingTeam === 'A' ? (
+                          <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
+                      ) : (
+                          <div className="flex items-center gap-1 cursor-pointer hover:bg-emerald-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('A')}>
+                              <span className="text-[10px] font-bold text-emerald-400">{teamAName}</span>
+                              <Edit3 className="w-3 h-3 text-emerald-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                      )}
+                  </div>
+              )}
+              {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
+                  <div className="flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      {editingTeam === 'B' ? (
+                          <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
+                      ) : (
+                          <div className="flex items-center gap-1 cursor-pointer hover:bg-emerald-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('B')}>
+                              <span className="text-[10px] font-bold text-emerald-400">{teamBName}</span>
+                              <Edit3 className="w-3 h-3 text-emerald-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                      )}
+                  </div>
+              )}
+          </div>
+      </div>
+    );
+  };
+
+  const BasketballAdvancedView = () => {
+
+    const { eventClaims, expandedPlayerKey, setExpandedPlayerKey } = useAppContext();
+    const playerStats = calculatePlayerStats('basketball', eventClaims);
+
+    return (
+
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
           {/* Player Efficiency List */}
 
@@ -3053,138 +3291,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const { eventClaims, expandedPlayerKey, setExpandedPlayerKey } = useAppContext();
     const playerStats = calculatePlayerStats('soccer', eventClaims);
 
-    const [teamAName, setTeamAName] = useState('A队');
-    const [teamBName, setTeamBName] = useState('B队');
-    const [editingTeam, setEditingTeam] = useState<'A' | 'B' | null>(null);
-    const [editValue, setEditValue] = useState('');
-    const [heatmapMode, setHeatmapMode] = useState<'both' | 'teamA' | 'teamB'>('both');
-
-    const handleStartEdit = (team: 'A' | 'B') => {
-      setEditingTeam(team);
-      setEditValue(team === 'A' ? teamAName : teamBName);
-    };
-    const handleSaveEdit = () => {
-      if (editingTeam === 'A') setTeamAName(editValue.trim() || 'A队');
-      else if (editingTeam === 'B') setTeamBName(editValue.trim() || 'B队');
-      setEditingTeam(null);
-      setEditValue('');
-    };
-    const handleCancelEdit = () => { setEditingTeam(null); setEditValue(''); };
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') handleSaveEdit();
-      else if (e.key === 'Escape') handleCancelEdit();
-    };
-
     return (
 
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-          {/* 跑动热力图 */}
-          <div className="bg-[#1E293B] rounded-2xl border border-white/10 p-4 relative overflow-hidden">
-              <div className="flex justify-between items-center mb-4 relative z-10">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2"><Map className="w-4 h-4 text-emerald-500" /> 跑动热力图</h3>
-                  <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5">
-                          <button onClick={() => setHeatmapMode('both')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'both' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}>全部</button>
-                          <button onClick={() => setHeatmapMode('teamA')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamA' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamAName}</button>
-                          <button onClick={() => setHeatmapMode('teamB')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamB' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamBName}</button>
-                      </div>
-                      <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-slate-300">全场</span>
-                  </div>
-              </div>
-              <div className="aspect-[16/9] bg-emerald-900/40 rounded-xl relative border border-white/5 overflow-hidden">
-                  <svg width="100%" height="100%" viewBox="0 0 100 50" preserveAspectRatio="none" className="absolute inset-0">
-                      <defs>
-                          <radialGradient id="advGreenHeatLow" cx="50%" cy="50%">
-                              <stop offset="0%" stopColor="rgba(34, 197, 94, 0.3)" />
-                              <stop offset="50%" stopColor="rgba(34, 197, 94, 0.15)" />
-                              <stop offset="100%" stopColor="rgba(34, 197, 94, 0)" />
-                          </radialGradient>
-                          <radialGradient id="advGreenHeatMid" cx="50%" cy="50%">
-                              <stop offset="0%" stopColor="rgba(22, 163, 74, 0.6)" />
-                              <stop offset="50%" stopColor="rgba(22, 163, 74, 0.3)" />
-                              <stop offset="100%" stopColor="rgba(22, 163, 74, 0)" />
-                          </radialGradient>
-                          <radialGradient id="advGreenHeatHigh" cx="50%" cy="50%">
-                              <stop offset="0%" stopColor="rgba(20, 83, 45, 0.8)" />
-                              <stop offset="50%" stopColor="rgba(20, 83, 45, 0.5)" />
-                              <stop offset="100%" stopColor="rgba(20, 83, 45, 0)" />
-                          </radialGradient>
-                      </defs>
-                      <rect x="0" y="0" width="100" height="50" fill="rgba(34, 197, 94, 0.05)" />
-                      <rect x="0" y="0" width="100" height="50" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
-                      <line x1="50" y1="0" x2="50" y2="50" stroke="white" strokeWidth="0.3" opacity="0.4" />
-                      <circle cx="50" cy="25" r="8" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
-                      <circle cx="50" cy="25" r="0.5" fill="white" opacity="0.4" />
-                      <rect x="0" y="12" width="18" height="26" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
-                      <rect x="0" y="18" width="6" height="14" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
-                      <circle cx="12" cy="25" r="0.4" fill="white" opacity="0.4" />
-                      <path d="M 18 25 A 6 6 0 0 1 18 15" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
-                      <rect x="82" y="12" width="18" height="26" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
-                      <rect x="94" y="18" width="6" height="14" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
-                      <circle cx="88" cy="25" r="0.4" fill="white" opacity="0.4" />
-                      <path d="M 82 25 A 6 6 0 0 0 82 15" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
-                      {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
-                          <g opacity={heatmapMode === 'both' ? 0.7 : 1}>
-                              <ellipse cx="15" cy="20" rx="8" ry="6" fill="url(#advGreenHeatHigh)" />
-                              <ellipse cx="12" cy="18" rx="6" ry="4" fill="url(#advGreenHeatHigh)" />
-                              <ellipse cx="25" cy="25" rx="10" ry="8" fill="url(#advGreenHeatMid)" />
-                              <ellipse cx="22" cy="23" rx="8" ry="6" fill="url(#advGreenHeatMid)" />
-                              <ellipse cx="8" cy="25" rx="6" ry="5" fill="url(#advGreenHeatHigh)" />
-                              <ellipse cx="6" cy="27" rx="5" ry="4" fill="url(#advGreenHeatHigh)" />
-                              <ellipse cx="5" cy="15" rx="4" ry="3" fill="url(#advGreenHeatLow)" />
-                              <ellipse cx="5" cy="35" rx="4" ry="3" fill="url(#advGreenHeatLow)" />
-                          </g>
-                      )}
-                      {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
-                          <g opacity={heatmapMode === 'both' ? 0.7 : 1}>
-                              <ellipse cx="85" cy="20" rx="8" ry="6" fill="url(#advGreenHeatHigh)" />
-                              <ellipse cx="88" cy="18" rx="6" ry="4" fill="url(#advGreenHeatHigh)" />
-                              <ellipse cx="75" cy="25" rx="10" ry="8" fill="url(#advGreenHeatMid)" />
-                              <ellipse cx="78" cy="23" rx="8" ry="6" fill="url(#advGreenHeatMid)" />
-                              <ellipse cx="92" cy="25" rx="6" ry="5" fill="url(#advGreenHeatHigh)" />
-                              <ellipse cx="94" cy="27" rx="5" ry="4" fill="url(#advGreenHeatHigh)" />
-                              <ellipse cx="95" cy="15" rx="4" ry="3" fill="url(#advGreenHeatLow)" />
-                              <ellipse cx="95" cy="35" rx="4" ry="3" fill="url(#advGreenHeatLow)" />
-                          </g>
-                      )}
-                  </svg>
-              </div>
-              <div className="flex justify-center gap-4 mt-3">
-                  <div className="flex items-center gap-2 text-[9px] text-slate-400">
-                      <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 rounded" style={{ background: 'linear-gradient(to right, rgba(34, 197, 94, 0.2), rgba(20, 83, 45, 0.8))' }} />
-                          <span>颜色越深表示跑动频率越高</span>
-                      </div>
-                  </div>
-                  {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
-                      <div className="flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
-                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                          {editingTeam === 'A' ? (
-                              <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
-                          ) : (
-                              <div className="flex items-center gap-1 cursor-pointer hover:bg-emerald-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('A')}>
-                                  <span className="text-[10px] font-bold text-emerald-400">{teamAName}</span>
-                                  <Edit3 className="w-3 h-3 text-emerald-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                          )}
-                      </div>
-                  )}
-                  {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
-                      <div className="flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
-                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                          {editingTeam === 'B' ? (
-                              <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
-                          ) : (
-                              <div className="flex items-center gap-1 cursor-pointer hover:bg-emerald-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('B')}>
-                                  <span className="text-[10px] font-bold text-emerald-400">{teamBName}</span>
-                                  <Edit3 className="w-3 h-3 text-emerald-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                          )}
-                      </div>
-                  )}
-              </div>
-          </div>
 
           {/* 球员数据 */}
 
@@ -3262,7 +3371,23 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   const AnalysisResultScreen = () => {
 
-    const { popToHome, replaceView, resultSport, setProgressModal, pushView, setShowShareModal, setShareType, setMergedVideoUrl, setShareContext, setSelectedEventForClaim, setShowPlayerSelector, eventClaims, setEventClaims, setToastMessage } = useAppContext();
+    const {
+      popToHome,
+      replaceView,
+      resultSport,
+      setProgressModal,
+      pushView,
+      setShowShareModal,
+      setShareType,
+      setMergedVideoUrl,
+      setShareContext,
+      setSelectedEventForClaim,
+      setShowPlayerSelector,
+      eventClaims,
+      setEventClaims,
+      setToastMessage,
+      setAigcPreviewMode,
+    } = useAppContext();
 
     const [currentTime, setCurrentTime] = useState('00:00');
 
@@ -3270,9 +3395,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const [activeEventTab, setActiveEventTab] = useState<EventFilterType>('all');
 
-    // New: Tab State for Analysis Screen - Add clips tab
+    // New: Tab State for Analysis Screen - clips / stats / advanced / AIGC
 
-    const [activeTab, setActiveTab] = useState<'clips' | 'stats' | 'advanced'>('clips');
+    const [activeTab, setActiveTab] = useState<'clips' | 'stats' | 'advanced' | 'aigc'>('clips');
 
     const [editingClipId, setEditingClipId] = useState<number | null>(null);
     const [editingDuration, setEditingDuration] = useState<number>(0);
@@ -3297,6 +3422,24 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const [openPlayerMenuId, setOpenPlayerMenuId] = useState<number | null>(null);
     // Event type correction dropdown state
     const [openTypeMenuId, setOpenTypeMenuId] = useState<number | null>(null);
+
+    // AIGC & history tabs state
+    const [aiStoryTone, setAiStoryTone] = useState<'pro' | 'passion' | 'fun'>('pro');
+    const [aiStoryVariant, setAiStoryVariant] = useState<number>(0);
+    const [selectedHistoryMatches, setSelectedHistoryMatches] = useState<string[]>([]);
+
+    // AIGC Lab: 换背景换元素 & AI Coach
+    const [oneClickSelectedClipId, setOneClickSelectedClipId] = useState<number | null>(null);
+    const [oneClickBackgroundType, setOneClickBackgroundType] = useState<string | null>(null);
+    const [oneClickElementType, setOneClickElementType] = useState<string | null>(null);
+    const [oneClickGenerating, setOneClickGenerating] = useState(false);
+    const [oneClickHasPreview, setOneClickHasPreview] = useState(false);
+
+    const [aiCoachSelectedClipId, setAiCoachSelectedClipId] = useState<number | null>(null);
+    const [aiCoachComment, setAiCoachComment] = useState('');
+    const [aiCoachLoading, setAiCoachLoading] = useState(false);
+    const [aiCoachHasVideo, setAiCoachHasVideo] = useState(false);
+    
     type DropdownRect = { top?: number; bottom?: number; left: number; minWidth: number; placement: 'above' | 'below' };
     const typeTriggerRefs = useRef<Record<number, HTMLButtonElement | null>>({});
     const playerTriggerRefs = useRef<Record<number, HTMLButtonElement | null>>({});
@@ -3421,12 +3564,19 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const handleEditDuration = (clipId: number, currentDuration: string) => {
         const seconds = parseInt(currentDuration.replace('s', '')) || 0;
-        setEditingDuration(seconds);
+        setEditingDuration(Math.min(15, seconds));
         setEditingClipId(clipId);
     };
 
     const handleSaveDuration = () => {
         if (editingClipId === null) return;
+        
+        if (editingDuration > 15) {
+            setToastMessage('高光片段最多15秒');
+            setTimeout(() => setToastMessage(null), 2000);
+            setEditingDuration(15);
+            return;
+        }
         
         setClipsState(prevClips => 
             prevClips.map(clip => 
@@ -3799,6 +3949,46 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         return true; 
     });
 
+    // AIGC Lab helpers
+    const handleGenerateOneClickAIGC = () => {
+        if (!oneClickSelectedClipId) {
+            setToastMessage('请先选择一个片段');
+            setTimeout(() => setToastMessage(null), 2000);
+            return;
+        }
+        if (!oneClickBackgroundType && !oneClickElementType) {
+            setToastMessage('请至少选择背景或元素中的一项');
+            setTimeout(() => setToastMessage(null), 2000);
+            return;
+        }
+        setOneClickGenerating(true);
+        setOneClickHasPreview(false);
+        setTimeout(() => {
+            setOneClickHasPreview(true);
+            setOneClickGenerating(false);
+        }, 800);
+    };
+
+    const handleGenerateClipCoach = () => {
+        if (!aiCoachSelectedClipId) {
+            setToastMessage('请先选择一个片段');
+            setTimeout(() => setToastMessage(null), 2000);
+            return;
+        }
+        setAiCoachLoading(true);
+        const clip = displayClips.find(c => c.id === aiCoachSelectedClipId);
+        setTimeout(() => {
+            setAiCoachComment(
+                clip
+                    ? `片段 ${clip.time}「${clip.label}」中，你的决策选择整体不错。\n` +
+                      `建议注意提前观察队友站位，在完成这次进攻的同时，为下一回合创造更好的空间。`
+                    : '未找到对应片段，但可以围绕投篮选择、防守位置和配合默契三个维度做针对性复盘。'
+            );
+            setAiCoachHasVideo(true);
+            setAiCoachLoading(false);
+        }, 800);
+    };
+
     const toggleClipSelection = (id: number) => { 
         if (selectedClipIds.includes(id)) { 
             setSelectedClipIds(selectedClipIds.filter(cid => cid !== id)); 
@@ -3896,13 +4086,21 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
              </button>
 
-             <button onClick={() => setActiveTab('advanced')} className={`flex-1 py-3 text-xs font-bold relative transition-colors ${activeTab === 'advanced' ? 'text-white' : 'text-slate-500'}`}>
+            <button onClick={() => setActiveTab('advanced')} className={`flex-1 py-3 text-xs font-bold relative transition-colors ${activeTab === 'advanced' ? 'text-white' : 'text-slate-500'}`}>
 
-                 <span className="flex items-center justify-center gap-1"><Sparkles className="w-3 h-3 text-amber-400" /> 高阶分析</span>
+                <span className="flex items-center justify-center gap-1"><Sparkles className="w-3 h-3 text-amber-400" /> 高阶分析</span>
 
-                 {activeTab === 'advanced' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-400 rounded-full"></div>}
+                {activeTab === 'advanced' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-400 rounded-full"></div>}
 
-             </button>
+            </button>
+
+            <button onClick={() => setActiveTab('aigc')} className={`flex-1 py-3 text-xs font-bold relative transition-colors ${activeTab === 'aigc' ? 'text-white' : 'text-slate-500'}`}>
+
+                <span className="flex items-center justify-center gap-1"><Scissors className="w-3 h-3 text-purple-400" /> AIGC 实验室</span>
+
+                {activeTab === 'aigc' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-purple-400 rounded-full"></div>}
+
+            </button>
 
          </div>
 
@@ -3969,19 +4167,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                              </div>
                          )}
 
-                         {/* Selection Toggle */}
-
-                         <div className="flex justify-end mb-2">
-
+                         {/* Selection Toggle - 移到列表上方，更接近操作对象 */}
+                         <div className="flex justify-end mb-3">
                              <button onClick={(e) => { e.stopPropagation(); setIsSelectionMode(!isSelectionMode); }} className={`text-xs font-bold flex items-center gap-1 transition-colors ${isSelectionMode ? 'text-orange-400' : 'text-slate-500'}`}>
-
                                  {isSelectionMode ? '取消选择' : '选择片段'}
-
                              </button>
-
                          </div>
-
-                         
 
                          {/* Clip List */}
 
@@ -4057,7 +4248,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                          </button>
                                                          <span className="text-[10px] font-bold text-white font-mono min-w-[35px] text-center">{editingDuration}s</span>
                                                          <button 
-                                                             onClick={() => setEditingDuration(editingDuration + 1)}
+                                                             onClick={() => setEditingDuration(Math.min(15, editingDuration + 1))}
                                                              className="w-6 h-6 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-white transition-colors flex-shrink-0"
                                                          >
                                                              <Plus className="w-3 h-3" />
@@ -4143,7 +4334,40 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                      <>
 
-                        <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
+                        {/* 关键时间轴 - 放在最上面，最直观的回顾方式 */}
+                        <div className="mb-4">
+                            <div className="flex justify-between items-center mb-3 px-1"><h3 className="text-sm font-bold text-slate-300">关键时间轴</h3><div className="flex gap-1">{eventTabs.map(f => (<button key={f.id} onClick={() => setActiveEventTab(f.id as EventFilterType)} className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-colors ${activeEventTab === f.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>{f.label}</button>))}</div></div>
+
+                            <div className="space-y-2">
+
+                                {filteredEvents.map(clip => {
+
+                                    return (
+                                        <div key={clip.id} onClick={() => handleClipClick(clip.time)} className="group bg-[#1E293B] p-3 rounded-xl flex items-center justify-between active:bg-blue-900/20 transition-colors cursor-pointer">
+
+                                            <div className="flex items-center gap-3">
+
+                                                <div className={`w-1 h-8 rounded-full ${clip.team === 'A' ? 'bg-blue-500' : 'bg-red-500'}`} />
+
+                                                <div className="flex-1">
+                                                    <div className="text-sm font-bold text-slate-200">{clip.label}</div>
+                                                </div>
+
+                                            </div>
+
+                                            {/* 数据概览关键事件轴：仅用于回顾，不提供编辑时长功能 */}
+
+                                        </div>
+                                    );
+                                })}
+
+                                {filteredEvents.length === 0 && <div className="text-center text-slate-600 text-xs py-4">无此类型事件</div>}
+
+                            </div>
+                        </div>
+
+                        {/* 团队数据对比 */}
+                        <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden mb-4">
                             <div className="flex justify-between items-center px-4 py-3 bg-white/5 text-[10px] font-bold text-slate-400 border-b border-white/5">
                                 <span>{statsData.teamA.name}</span>
                                 <span>数据项</span>
@@ -4178,49 +4402,21 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             })}
                         </div>
 
-                        
-
-                        <div className="pt-2">
-
-                            <div className="flex justify-between items-center mb-3 px-1 mt-2"><h3 className="text-sm font-bold text-slate-300">关键时间轴</h3><div className="flex gap-1">{eventTabs.map(f => (<button key={f.id} onClick={() => setActiveEventTab(f.id as EventFilterType)} className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-colors ${activeEventTab === f.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>{f.label}</button>))}</div></div>
-
-                            <div className="space-y-2">
-
-                                {filteredEvents.map(clip => {
-
-                                    return (
-                                        <div key={clip.id} onClick={() => handleClipClick(clip.time)} className="group bg-[#1E293B] p-3 rounded-xl flex items-center justify-between active:bg-blue-900/20 transition-colors cursor-pointer">
-
-                                            <div className="flex items-center gap-3">
-
-                                                <div className={`w-1 h-8 rounded-full ${clip.team === 'A' ? 'bg-blue-500' : 'bg-red-500'}`} />
-
-                                                <div className="flex-1">
-                                                    <div className="text-sm font-bold text-slate-200">{clip.label}</div>
-                                                </div>
-
-                                            </div>
-
-                                            {/* 数据概览关键事件轴：仅用于回顾，不提供编辑时长功能 */}
-
-                                        </div>
-                                    );
-                                })}
-
-                                {filteredEvents.length === 0 && <div className="text-center text-slate-600 text-xs py-4">无此类型事件</div>}
-
-                            </div>
-
-                        </div>
+                        {/* 热力图 - 详细可视化放在最后 */}
+                        {isSoccer ? <SoccerHeatmap /> : <BasketballHeatmap />}
 
                      </>
 
-                 ) : (
+                 ) : activeTab === 'advanced' ? (
 
                      // --- Advanced Analysis View（仅个人球员；分享仅支持所选球员数据看板）---
 
                      <div className="pb-24 space-y-4">
 
+                        {/* 球员数据/效率榜 - 先看数据 */}
+                        {isSoccer ? <SoccerAdvancedView /> : <BasketballAdvancedView />}
+
+                        {/* 球员选择器（用于分享）- 看完数据后选择分享 */}
                         <div>
                             <p className="text-[10px] text-slate-400 mb-2">选择球员以分享其数据看板</p>
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
@@ -4242,11 +4438,311 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             </div>
                         </div>
 
-                        {isSoccer ? <SoccerAdvancedView /> : <BasketballAdvancedView />}
+                        {/* AI 解说 & 文案 */}
+                        <div className="mt-4 bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
+                            <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
+                                <h3 className="text-sm font-bold text-slate-200">AI 解说 & 文案</h3>
+                                <div className="flex gap-1">
+                                    {[
+                                        { id: 'pro', label: '专业解说' },
+                                        { id: 'passion', label: '热血现场' },
+                                        { id: 'fun', label: '轻松搞笑' },
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.id}
+                                            onClick={() => setAiStoryTone(opt.id as 'pro' | 'passion' | 'fun')}
+                                            className={`px-2 py-1 rounded-full text-[9px] font-bold border transition-colors ${
+                                                aiStoryTone === opt.id
+                                                    ? 'bg-blue-500 text-white border-blue-400'
+                                                    : 'bg-white/5 text-slate-300 border-white/10 hover:border-white/30'
+                                            }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="p-4 space-y-2 text-[11px] text-slate-200">
+                                <div className="font-bold text-slate-100">解说大纲</div>
+                                <p className="leading-relaxed">
+                                    {aiStoryTone === 'pro'
+                                        ? '开场先交代双方战绩与关键对位，重点突出本场的节奏转换与攻防效率变化。'
+                                        : aiStoryTone === 'passion'
+                                        ? '今天这场比赛火花四溅，进攻一波接一波，关键回合完全是意志力的对决！'
+                                        : '这场球就像周末球局升级版，一边是“永不防守队”，一边是“快乐投篮队”。'}
+                                </p>
+                                <div className="pt-2 border-t border-white/10">
+                                    <div className="font-bold text-slate-100 mb-1">社交平台文案示例</div>
+                                    <ul className="space-y-1 text-[10px] text-slate-300 list-disc list-inside">
+                                        <li>
+                                            {aiStoryTone === 'pro'
+                                                ? '【技术拆解】用一场球看懂节奏、空间与决策，关键回合逐帧复盘。'
+                                                : aiStoryTone === 'passion'
+                                                ? '【燃爆高光】这一场，我只看进球和大帽！每一回合都值得循环播放🔥'
+                                                : '【周末必看】一群人假装打职业，其实是在给朋友圈贡献表情包。'}
+                                        </li>
+                                        <li>
+                                            {aiStoryTone === 'pro'
+                                                ? '数据支撑 + 画面演示，适合分享给队友一起复盘。'
+                                                : aiStoryTone === 'passion'
+                                                ? '适合发到朋友圈 / 小红书，配上 30 秒 AI 精彩集锦效果更佳。'
+                                                : '文案一键复制，配合表情包与短视频使用效果更好。'}
+                                        </li>
+                                    </ul>
+                                    <button
+                                        onClick={() => setAiStoryVariant(v => v + 1)}
+                                        className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-bold bg-white/5 border border-white/15 text-slate-200 hover:bg-white/10 transition-colors"
+                                    >
+                                        <RefreshCw className="w-3 h-3" /> 换一版
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
                      </div>
 
-                 )}
+                ) : activeTab === 'aigc' ? (
+
+                    // --- AIGC 实验室 Tab：一键成片 & AI Coach（前端演示） ---
+
+                    <div className="pb-24 space-y-4">
+
+                        {/* 换背景换元素（AIGC） */}
+                        <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
+                            <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-200">换背景换元素（AIGC）</h3>
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                        选择一个高光片段，AI 自动更换背景和添加元素。
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="p-4 space-y-4">
+                                {/* 片段选择 - 单选 */}
+                                <div className="space-y-2">
+                                    <p className="text-[11px] text-slate-400">选择一个高光片段：</p>
+                                    <div className="space-y-1.5 max-h-28 overflow-y-auto">
+                                        {displayClips.slice(0, 10).map(clip => {
+                                            const active = oneClickSelectedClipId === clip.id;
+                                            return (
+                                                <button
+                                                    key={clip.id}
+                                                    type="button"
+                                                    onClick={() => setOneClickSelectedClipId(clip.id)}
+                                                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg border text-[11px] ${
+                                                        active
+                                                            ? 'border-purple-400 bg-purple-500/15 text-slate-50'
+                                                            : 'border-white/10 bg-black/30 text-slate-200 hover:border-white/30'
+                                                    }`}
+                                                >
+                                                    <span className="truncate flex-1 min-w-0">{clip.label}</span>
+                                                    <span className="ml-2 text-[10px] text-slate-400">{clip.duration}</span>
+                                                </button>
+                                            );
+                                        })}
+                                        {displayClips.length === 0 && (
+                                            <div className="text-[11px] text-slate-500 text-center py-4">
+                                                暂无可用高光片段，请先完成智能集锦分析。
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* 背景选择 */}
+                                <div className="space-y-2">
+                                    <p className="text-[11px] text-slate-400">选择背景类型：</p>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {[
+                                            { id: 'court', label: '球场背景' },
+                                            { id: 'effect', label: '特效背景' },
+                                            { id: 'solid', label: '纯色背景' },
+                                            { id: 'gradient', label: '渐变背景' },
+                                        ].map(bg => (
+                                            <button
+                                                key={bg.id}
+                                                type="button"
+                                                onClick={() => setOneClickBackgroundType(oneClickBackgroundType === bg.id ? null : bg.id)}
+                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-colors ${
+                                                    oneClickBackgroundType === bg.id
+                                                        ? 'border-purple-400 bg-purple-500/20 text-purple-300'
+                                                        : 'border-white/10 bg-black/30 text-slate-300 hover:border-white/30'
+                                                }`}
+                                            >
+                                                {bg.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 元素选择 */}
+                                <div className="space-y-2">
+                                    <p className="text-[11px] text-slate-400">选择元素类型：</p>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {[
+                                            { id: 'effect', label: '特效' },
+                                            { id: 'text', label: '文字叠加' },
+                                            { id: 'sticker', label: '贴纸' },
+                                            { id: 'filter', label: '滤镜' },
+                                        ].map(elem => (
+                                            <button
+                                                key={elem.id}
+                                                type="button"
+                                                onClick={() => setOneClickElementType(oneClickElementType === elem.id ? null : elem.id)}
+                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-colors ${
+                                                    oneClickElementType === elem.id
+                                                        ? 'border-purple-400 bg-purple-500/20 text-purple-300'
+                                                        : 'border-white/10 bg-black/30 text-slate-300 hover:border-white/30'
+                                                }`}
+                                            >
+                                                {elem.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 生成按钮 */}
+                                <button
+                                    type="button"
+                                    onClick={handleGenerateOneClickAIGC}
+                                    disabled={oneClickGenerating}
+                                    className={`w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 ${
+                                        oneClickGenerating
+                                            ? 'bg-slate-700 text-slate-400 cursor-wait'
+                                            : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-500/20 transition-colors'
+                                    }`}
+                                >
+                                    {oneClickGenerating ? '生成中…' : '生成 AIGC 效果'}
+                                </button>
+
+                                {/* 预览显示 */}
+                                {oneClickHasPreview && oneClickSelectedClipId && (
+                                    <div className="mt-2 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[11px] font-bold text-slate-200">
+                                                AIGC 效果预览
+                                            </span>
+                                        </div>
+                                        <div className="h-20 rounded-lg border border-dashed border-white/15 bg-gradient-to-br from-purple-500/20 via-slate-900 to-black flex items-center justify-center text-[11px] text-slate-100">
+                                            AI 已为所选片段应用背景和元素效果。
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShareContext({
+                                                    type: 'aigc_one_click_video',
+                                                    selectedClipIds: oneClickSelectedClipId ? [oneClickSelectedClipId] : [],
+                                                });
+                                                setAigcPreviewMode('one_click');
+                                                pushView('aigc_preview');
+                                            }}
+                                            className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 transition-colors"
+                                        >
+                                            预览成片
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* AI Coach 点评（AIGC） */}
+                        <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
+                            <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-200">AI Coach 点评（AIGC）</h3>
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                        针对单个高光片段给出战术与表现点评。
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="p-4 space-y-3">
+                                <div className="space-y-2">
+                                    <p className="text-[11px] text-slate-400">选择一个需要详细点评的高光片段：</p>
+                                    <div className="space-y-1.5 max-h-28 overflow-y-auto">
+                                        {displayClips.slice(0, 10).map(clip => {
+                                            const active = aiCoachSelectedClipId === clip.id;
+                                            return (
+                                                <button
+                                                    key={clip.id}
+                                                    type="button"
+                                                    onClick={() => setAiCoachSelectedClipId(clip.id)}
+                                                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg border text-[11px] ${
+                                                        active
+                                                            ? 'border-emerald-400 bg-emerald-500/15 text-slate-50'
+                                                            : 'border-white/10 bg-black/30 text-slate-200 hover:border-white/30'
+                                                    }`}
+                                                >
+                                                    <span className="truncate flex-1 min-w-0">{clip.label}</span>
+                                                    <span className="ml-2 text-[10px] text-slate-400">{clip.duration}</span>
+                                                </button>
+                                            );
+                                        })}
+                                        {displayClips.length === 0 && (
+                                            <div className="text-[11px] text-slate-500 text-center py-4">
+                                                暂无可点评片段，请先完成智能集锦分析。
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateClipCoach}
+                                        disabled={aiCoachLoading}
+                                        className={`flex-1 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 ${
+                                            aiCoachLoading
+                                                ? 'bg-slate-700 text-slate-400 cursor-wait'
+                                                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 transition-colors'
+                                        }`}
+                                    >
+                                        {aiCoachLoading ? '点评生成中…' : '生成 AI Coach 点评'}
+                                    </button>
+                                </div>
+
+                                {aiCoachComment && (
+                                    <div className="mt-2 space-y-2">
+                                        <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-[11px] text-slate-100 leading-relaxed whitespace-pre-wrap">
+                                            {aiCoachComment}
+                                        </div>
+                                        {aiCoachHasVideo && aiCoachSelectedClipId && (
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-[11px] font-bold text-slate-200">
+                                                        战术点评短视频
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-500">
+                                                        目标片段 ID：{aiCoachSelectedClipId}
+                                                    </span>
+                                                </div>
+                                                <div className="h-20 rounded-lg border border-dashed border-white/15 bg-gradient-to-br from-emerald-500/20 via-slate-900 to-black flex items-center justify-center text-[11px] text-slate-100">
+                                                    已为该高光片段合成画面 + AI 解说音轨预览。
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (!aiCoachSelectedClipId) return;
+                                                        setShareContext({
+                                                            type: 'aigc_coach_clip',
+                                                            clipId: aiCoachSelectedClipId,
+                                                            aiCoachComment,
+                                                        });
+                                                        setAigcPreviewMode('coach_clip');
+                                                        pushView('aigc_preview');
+                                                    }}
+                                                    className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 transition-colors"
+                                                >
+                                                    预览解说视频
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                    </div>
+
+               ) : null}
 
              </div>
 
@@ -4386,6 +4882,157 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     );
 
+  };
+
+  // --- AIGC Preview Screen Component ---
+
+  const AigcPreviewScreen = () => {
+
+    const { popView, shareContext, setShowShareModal, setShareType, resultSport, aigcPreviewMode } = useAppContext();
+
+    const clipsForSport = AI_CLIPS_ADVANCED.filter(
+      (clip) => clip.sport === (resultSport || 'basketball')
+    );
+
+    let title = 'AIGC 预览';
+    if (aigcPreviewMode === 'one_click') {
+      title = '换背景换元素预览';
+    } else if (aigcPreviewMode === 'coach_clip') {
+      title = 'AI 解说短视频预览';
+    }
+
+    const handleShare = () => {
+      setShareType('all');
+      setShowShareModal(true);
+    };
+
+    const parseDurationSeconds = (duration: string | undefined) => {
+      if (!duration) return 0;
+      const num = parseInt(duration.replace(/\D/g, ''), 10);
+      return Number.isFinite(num) ? num : 0;
+    };
+
+    const selectedClips =
+      shareContext.type === 'aigc_one_click_video'
+        ? clipsForSport.filter((c) =>
+            shareContext.selectedClipIds.includes(c.id)
+          )
+        : [];
+
+    const totalSeconds =
+      aigcPreviewMode === 'one_click'
+        ? selectedClips.reduce(
+            (sum, c) => sum + parseDurationSeconds((c as any).duration),
+            0
+          )
+        : 0;
+
+    const targetClip =
+      shareContext.type === 'aigc_coach_clip'
+        ? clipsForSport.find((c) => c.id === shareContext.clipId)
+        : undefined;
+
+    return (
+      <div className="h-full bg-[#020617] flex flex-col">
+        {/* Top Navigation */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10 bg-black/40 backdrop-blur">
+          <button
+            onClick={popView}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-white" />
+          </button>
+          <h2 className="text-sm font-bold text-white">{title}</h2>
+          <div className="w-9" />
+        </div>
+
+        {/* Preview Area */}
+        <div className="flex-1 flex items-center justify-center bg-black relative overflow-hidden">
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-700/40 via-slate-900 to-black relative">
+            <div className="text-center px-8">
+              <Film className="w-16 h-16 text-purple-300 mx-auto mb-4" />
+              <p className="text-slate-100 text-sm mb-1">
+                {aigcPreviewMode === 'one_click'
+                  ? 'AI 已为所选片段应用背景和元素效果。'
+                  : 'AI 已为该片段合成画面 + 解说音轨预览。'}
+              </p>
+              {aigcPreviewMode === 'one_click' && selectedClips.length > 0 && (
+                <p className="text-slate-300 text-xs mt-3">
+                  片段：{(selectedClips[0] as any).label} · {(selectedClips[0] as any).time}
+                </p>
+              )}
+              {aigcPreviewMode === 'coach_clip' && targetClip && (
+                <p className="text-slate-300 text-xs mt-3">
+                  片段时间：{(targetClip as any).time} · 标题：
+                  {(targetClip as any).label}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Info & Actions */}
+        <div className="p-4 bg-[#020617] border-t border-white/10 space-y-3">
+          {aigcPreviewMode === 'one_click' && selectedClips.length > 0 && (
+            <div className="bg-slate-900/70 border border-white/10 rounded-2xl p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-slate-100">
+                  片段信息
+                </span>
+              </div>
+              <div className="space-y-1">
+                {selectedClips.map((clip) => (
+                  <div
+                    key={clip.id}
+                    className="flex items-center justify-between text-[11px] text-slate-200"
+                  >
+                    <span className="text-slate-400 mr-2">
+                      片段：
+                    </span>
+                    <span className="flex-1 min-w-0 truncate">
+                      {(clip as any).label}
+                    </span>
+                    <span className="ml-2 text-slate-500 text-[10px]">
+                      {(clip as any).time}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {aigcPreviewMode === 'coach_clip' && targetClip && (
+            <div className="bg-slate-900/70 border border-white/10 rounded-2xl p-3 space-y-2 max-h-36 overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-100">
+                  战术点评摘要
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  片段时间：{(targetClip as any).time}
+                </span>
+              </div>
+              {shareContext.type === 'aigc_coach_clip' &&
+              shareContext.aiCoachComment ? (
+                <p className="text-[11px] text-slate-200 whitespace-pre-wrap leading-relaxed">
+                  {shareContext.aiCoachComment}
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-300">
+                  AI 已叠加解说音轨和画面剪辑，适合用于社交平台战术点评短视频。
+                </p>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={handleShare}
+            className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 transition-colors"
+          >
+            <Share2 className="w-4 h-4" /> 分享短视频
+          </button>
+        </div>
+      </div>
+    );
   };
 
   // --- Merge Preview Screen Component ---
@@ -4686,37 +5333,33 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                          <h3 className="text-lg font-black text-white leading-tight mb-2">AI 高阶分析</h3>
 
-                         <div className="space-y-1.5">
+                        <div className="space-y-1.5">
 
-                             <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5">
 
-                                 <Map className="w-3 h-3 text-indigo-400" />
+                                <Film className="w-3 h-3 text-indigo-400" />
 
-                                 <span className="text-[10px] text-indigo-100/80">🔥 战术热区</span>
+                                <span className="text-[10px] text-indigo-100/80">🎬 智能集锦</span>
 
-                             </div>
+                            </div>
 
-                             <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5">
 
-                                 <Footprints className="w-3 h-3 text-indigo-400" />
+                                <Download className="w-3 h-3 text-indigo-400" />
 
-                                 <span className="text-[10px] text-indigo-100/80 flex items-center gap-1">
+                                <span className="text-[10px] text-indigo-100/80">📊 球员看板</span>
 
-                                     🏃‍♂️ 球员数据 <span className="text-[8px] bg-indigo-500/30 px-1 rounded text-indigo-200">Beta</span>
+                            </div>
 
-                                 </span>
+                            <div className="flex items-center gap-1.5">
 
-                             </div>
+                                <TrendingUp className="w-3 h-3 text-indigo-400" />
 
-                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-indigo-100/80">🎧 AI 成片</span>
 
-                                 <AreaChart className="w-3 h-3 text-indigo-400" />
+                            </div>
 
-                                 <span className="text-[10px] text-indigo-100/80">📊 深度统计</span>
-
-                             </div>
-
-                         </div>
+                        </div>
 
                      </div>
 
@@ -4974,13 +5617,15 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
 
-  const [shareContext, setShareContext] = useState<{ type: 'all' | 'selected' | 'player_clips' | 'report' | 'player_dashboard'; playerLabel?: string }>({ type: 'all' });
+  const [shareContext, setShareContext] = useState<ShareContext>({ type: 'all' });
 
   // Player claim state management: eventId -> user-defined label (e.g. "7号", "小明")
   const [eventClaims, setEventClaims] = useState<Record<number, string>>({});
   const [expandedPlayerKey, setExpandedPlayerKey] = useState<string | null>(null); // "team_label" e.g. "A_7号"
   const [selectedEventForClaim, setSelectedEventForClaim] = useState<number | null>(null);
   const [showPlayerSelector, setShowPlayerSelector] = useState(false);
+
+  const [aigcPreviewMode, setAigcPreviewMode] = useState<'one_click' | 'coach_clip'>('one_click');
 
   const pushView = (view: ViewState) => setViewStack([...viewStack, view]);
 
@@ -5476,6 +6121,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       selectedEventForClaim, setSelectedEventForClaim,
       showPlayerSelector, setShowPlayerSelector,
 
+      aigcPreviewMode, setAigcPreviewMode,
+
     }}>
 
       <div className="flex justify-center items-center min-h-screen bg-gray-100 font-sans text-slate-800">
@@ -5494,7 +6141,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
              {currentView === 'ai_result_analysis' && <AnalysisResultScreen />}
 
-             {currentView === 'merge_preview' && <MergePreviewScreen />}
+            {currentView === 'merge_preview' && <MergePreviewScreen />}
+            {currentView === 'aigc_preview' && <AigcPreviewScreen />}
 
              {currentView === 'task_center' && <TaskCenterScreen />}
 
