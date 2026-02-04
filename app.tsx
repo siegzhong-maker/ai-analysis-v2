@@ -65,6 +65,19 @@ type EventFilterType = 'all' | 'score' | 'highlight' | 3 | 2 | 1 | 'goal' | 'cor
 
 type TransferStep = 'idle' | 'downloading' | 'uploading' | 'analyzing' | 'completed' | 'failed' | 'paused';
 
+type CloudTaskStatus = 'uploading' | 'queued' | 'analyzing' | 'completed' | 'failed' | 'paused';
+
+interface CloudTask {
+  id: string;
+  videoId: number;
+  videoName: string;
+  type: 'highlight' | 'analysis';
+  status: CloudTaskStatus;
+  progress: number;
+  queuePosition?: number; // 排队位置
+  createdAt: number;
+}
+
 type HomeTabType = 'recent' | 'templates' | 'drafts';
 
 type NetworkState = 'wifi' | '4g' | 'offline';
@@ -1125,6 +1138,14 @@ const ScenarioWizard = () => {
 
                     </button>
 
+                    <button onClick={() => { runScenario('cloud_queue_full'); setIsOpen(false); }} className="w-full p-3 bg-slate-50 hover:bg-slate-100 rounded-xl flex items-center gap-3 group text-left transition-colors">
+
+                        <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform text-slate-600"><Layers className="w-4 h-4" /></div>
+
+                        <div><div className="text-xs font-bold text-slate-800">云端队列已满</div><div className="text-[9px] text-slate-400">模拟云端已有5个任务在分析</div></div>
+
+                    </button>
+
                 </div>
 
             )}
@@ -1265,10 +1286,15 @@ const PlayerSelectorModal = () => {
 
 const TaskCenterScreen = () => {
 
-  const { transferStep, transferProgress, popView, setTargetAnalysisType, setAiMode, setIsTaskCompleted, pushView, failureReason, setResultSport, setTransferStep, setTransferProgress } = useAppContext();
+  const { transferStep, transferProgress, popView, setTargetAnalysisType, setAiMode, setIsTaskCompleted, pushView, failureReason, setResultSport, setTransferStep, setTransferProgress, cloudTasks, getAnalyzingTasksCount, getQueuedTasks, maxConcurrentTasks } = useAppContext();
 
   // Get paused tasks from history
   const pausedTasks = HISTORY_TASKS.filter(task => task.status === 'paused');
+  
+  // Get cloud tasks
+  const analyzingTasks = cloudTasks.filter(task => task.status === 'analyzing');
+  const queuedTasks = getQueuedTasks();
+  const analyzingCount = getAnalyzingTasksCount();
 
   // Task title editing state
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -1502,6 +1528,68 @@ const TaskCenterScreen = () => {
            </section>
 
          ) : null}
+
+         {/* Cloud Task Queue */}
+         {(analyzingTasks.length > 0 || queuedTasks.length > 0) && (
+           <section className="mb-4">
+             <div className="flex items-center justify-between mb-3 px-1">
+               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">云端分析队列</h3>
+               <div className="flex items-center gap-3 text-xs">
+                 <span className="text-blue-600 font-bold">正在分析：{analyzingCount}/{maxConcurrentTasks}</span>
+                 {queuedTasks.length > 0 && <span className="text-yellow-600 font-bold">排队中：{queuedTasks.length}</span>}
+               </div>
+             </div>
+
+             {/* Analyzing Tasks */}
+             {analyzingTasks.length > 0 && (
+               <div className="space-y-2 mb-3">
+                 {analyzingTasks.map(task => (
+                   <div key={task.id} className="rounded-xl p-3 bg-white border border-blue-100 shadow-sm">
+                     <div className="flex items-center justify-between mb-2">
+                       <div className="flex items-center gap-2 flex-1 min-w-0">
+                         <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                           {task.type === 'highlight' ? <Film className="w-4 h-4 text-blue-600" /> : <BarChart3 className="w-4 h-4 text-blue-600" />}
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <div className="text-sm font-bold text-slate-800 truncate">{task.videoName}</div>
+                           <div className="text-xs text-slate-400">{task.type === 'highlight' ? '精彩集锦' : '高阶分析'}</div>
+                         </div>
+                       </div>
+                       <span className="text-sm font-black text-blue-600">{Math.round(task.progress)}%</span>
+                     </div>
+                     <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                       <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${task.progress}%` }} />
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             )}
+
+             {/* Queued Tasks */}
+             {queuedTasks.length > 0 && (
+               <div className="space-y-2">
+                 {queuedTasks.map(task => (
+                   <div key={task.id} className="rounded-xl p-3 bg-white border border-yellow-100 shadow-sm">
+                     <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-2 flex-1 min-w-0">
+                         <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0">
+                           {task.type === 'highlight' ? <Film className="w-4 h-4 text-yellow-600" /> : <BarChart3 className="w-4 h-4 text-yellow-600" />}
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <div className="text-sm font-bold text-slate-800 truncate">{task.videoName}</div>
+                           <div className="text-xs text-slate-400">{task.type === 'highlight' ? '精彩集锦' : '高阶分析'}</div>
+                         </div>
+                       </div>
+                       <div className="text-xs font-bold text-yellow-600">
+                         队列第{task.queuePosition}位
+                       </div>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             )}
+           </section>
+         )}
 
          {/* Analysis History Only - Only show completed and failed */}
 
@@ -2954,42 +3042,49 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
 // --- New Internal Components for Advanced Analysis Views ---
 
-  // Basketball Heatmap Component (extracted for stats tab)
-  const BasketballHeatmap = () => {
-    const [teamAName, setTeamAName] = useState('A队');
-    const [teamBName, setTeamBName] = useState('B队');
-    const [editingTeam, setEditingTeam] = useState<'A' | 'B' | null>(null);
-    const [editValue, setEditValue] = useState('');
-    const [heatmapMode, setHeatmapMode] = useState<'both' | 'teamA' | 'teamB'>('both');
+  // Basketball Heatmap Component (personal view only, used in stats tab)
+  const BasketballHeatmap = ({ playerLabel }: { playerLabel: string | null }) => {
+    const { eventClaims, resultSport } = useAppContext();
 
-    const handleStartEdit = (team: 'A' | 'B') => {
-      setEditingTeam(team);
-      setEditValue(team === 'A' ? teamAName : teamBName);
-    };
-    const handleSaveEdit = () => {
-      if (editingTeam === 'A') setTeamAName(editValue.trim() || 'A队');
-      else if (editingTeam === 'B') setTeamBName(editValue.trim() || 'B队');
-      setEditingTeam(null);
-      setEditValue('');
-    };
-    const handleCancelEdit = () => { setEditingTeam(null); setEditValue(''); };
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') handleSaveEdit();
-      else if (e.key === 'Escape') handleCancelEdit();
-    };
+    const hasPlayer = resultSport === 'basketball' && playerLabel && playerLabel !== 'all';
+
+    // 根据球员事件简单推导出手分布：用 3 分 / 2 分 次数来映射外线 / 内线热度
+    let perimeterIntensity = 0; // 外线（三分）热度 0-1
+    let paintIntensity = 0;     // 内线（两分）热度 0-1
+
+    if (hasPlayer) {
+      const eventsForPlayer = AI_CLIPS_ADVANCED.filter(e => {
+        if (e.sport !== 'basketball') return false;
+        const label = (eventClaims[e.id] ?? e.player) as string | null | undefined;
+        return label === playerLabel;
+      });
+
+      const scored = (e: any) => (e as any).scored !== false;
+
+      const threeMade = eventsForPlayer.filter(e => e.type === 'score' && e.scoreType === 3 && scored(e)).length;
+      const twoMade   = eventsForPlayer.filter(e => e.type === 'score' && e.scoreType === 2 && scored(e)).length;
+
+      const total = Math.max(threeMade + twoMade, 1);
+      perimeterIntensity = threeMade / total; // 外线占比越高，越亮
+      paintIntensity     = twoMade   / total; // 内线占比越高，越亮
+    }
 
     return (
       <div className="bg-[#1E293B] rounded-2xl border border-white/10 p-4 relative overflow-hidden">
           <div className="flex justify-between items-center mb-4 relative z-10">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2"><Flame className="w-4 h-4 text-orange-500" /> 出手热力图</h3>
-              <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5">
-                      <button onClick={() => setHeatmapMode('both')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'both' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}>全部</button>
-                      <button onClick={() => setHeatmapMode('teamA')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamA' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamAName}</button>
-                      <button onClick={() => setHeatmapMode('teamB')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamB' ? 'bg-orange-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamBName}</button>
-                  </div>
-                  <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-slate-300">本场</span>
-              </div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-orange-500" />
+                  <span>{hasPlayer ? '个人出手热力图' : '出手热力图'}</span>
+              </h3>
+              {hasPlayer ? (
+                  <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-slate-300 max-w-[120px] truncate">
+                      {playerLabel}
+                  </span>
+              ) : (
+                  <span className="text-[10px] text-slate-400">
+                      从上方选择一名球员
+                  </span>
+              )}
           </div>
           <div className="aspect-[4/3] bg-orange-600/20 rounded-xl relative border border-white/5 overflow-hidden">
               <svg width="100%" height="100%" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet" className="absolute inset-0">
@@ -3013,8 +3108,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                           <stop offset="100%" stopColor="rgba(239, 68, 68, 0)" />
                       </radialGradient>
                   </defs>
-                  {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
-                      <g opacity={heatmapMode === 'both' ? 0.8 : 1}>
+                  {hasPlayer && (
+                      <g opacity={0.25 + 0.7 * perimeterIntensity}>
                           <ellipse cx="25" cy="185" rx="18" ry="15" fill="url(#advTeamAHeat)" />
                           <ellipse cx="20" cy="190" rx="15" ry="12" fill="url(#advTeamAHeat)" />
                           <ellipse cx="175" cy="185" rx="18" ry="15" fill="url(#advTeamAHeat)" />
@@ -3027,8 +3122,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                           <ellipse cx="150" cy="50" rx="22" ry="20" fill="url(#advTeamAHeat)" />
                       </g>
                   )}
-                  {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
-                      <g opacity={heatmapMode === 'both' ? 0.8 : 1}>
+                  {hasPlayer && (
+                      <g opacity={0.25 + 0.7 * paintIntensity}>
                           <ellipse cx="100" cy="190" rx="25" ry="20" fill="url(#advTeamBHeat)" />
                           <ellipse cx="95" cy="185" rx="22" ry="18" fill="url(#advTeamBHeat)" />
                           <ellipse cx="105" cy="185" rx="20" ry="16" fill="url(#advTeamBHeat)" />
@@ -3042,74 +3137,51 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   )}
               </svg>
           </div>
-          <div className="flex justify-center gap-4 mt-3">
-              {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
-                  <div className="flex items-center gap-1.5 bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/20">
-                      <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                      {editingTeam === 'A' ? (
-                          <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[9px] font-bold text-blue-400 bg-blue-500/20 border border-blue-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
-                      ) : (
-                          <div className="flex items-center gap-1 cursor-pointer hover:bg-blue-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('A')}>
-                              <span className="text-[9px] font-bold text-blue-400">{teamAName}</span>
-                              <Edit3 className="w-3 h-3 text-blue-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                      )}
-                  </div>
-              )}
-              {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
-                  <div className="flex items-center gap-1.5 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20">
-                      <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                      {editingTeam === 'B' ? (
-                          <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[9px] font-bold text-red-400 bg-red-500/20 border border-red-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
-                      ) : (
-                          <div className="flex items-center gap-1 cursor-pointer hover:bg-red-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('B')}>
-                              <span className="text-[9px] font-bold text-red-400">{teamBName}</span>
-                              <Edit3 className="w-3 h-3 text-red-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                      )}
-                  </div>
-              )}
+          <div className="flex justify-center gap-4 mt-3 text-[9px] text-slate-400">
+              <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 rounded-full bg-blue-500/60" />
+                  <span>深色区域表示该球员高频出手/停留位置</span>
+              </div>
           </div>
       </div>
     );
   };
 
-  // Soccer Heatmap Component (extracted for stats tab)
-  const SoccerHeatmap = () => {
-    const [teamAName, setTeamAName] = useState('A队');
-    const [teamBName, setTeamBName] = useState('B队');
-    const [editingTeam, setEditingTeam] = useState<'A' | 'B' | null>(null);
-    const [editValue, setEditValue] = useState('');
-    const [heatmapMode, setHeatmapMode] = useState<'both' | 'teamA' | 'teamB'>('both');
+  // Soccer Heatmap Component (personal view only, used in stats tab)
+  const SoccerHeatmap = ({ playerLabel }: { playerLabel: string | null }) => {
+    const { eventClaims, resultSport } = useAppContext();
 
-    const handleStartEdit = (team: 'A' | 'B') => {
-      setEditingTeam(team);
-      setEditValue(team === 'A' ? teamAName : teamBName);
-    };
-    const handleSaveEdit = () => {
-      if (editingTeam === 'A') setTeamAName(editValue.trim() || 'A队');
-      else if (editingTeam === 'B') setTeamBName(editValue.trim() || 'B队');
-      setEditingTeam(null);
-      setEditValue('');
-    };
-    const handleCancelEdit = () => { setEditingTeam(null); setEditValue(''); };
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') handleSaveEdit();
-      else if (e.key === 'Escape') handleCancelEdit();
-    };
+    const hasPlayer = resultSport === 'soccer' && playerLabel && playerLabel !== 'all';
+
+    // 只展示“进球”的热力情况：进球越多，禁区附近越亮
+    let goalIntensity = 0; // 0-1
+
+    if (hasPlayer) {
+      const eventsForPlayer = AI_CLIPS_ADVANCED.filter(e => {
+        if (e.sport !== 'soccer') return false;
+        const label = (eventClaims[e.id] ?? e.player) as string | null | undefined;
+        return label === playerLabel && e.scoreType === 'goal';
+      });
+      const goals = eventsForPlayer.length;
+      goalIntensity = Math.min(goals / 3, 1); // 简单归一化，多于 3 球就视为满格
+    }
 
     return (
       <div className="bg-[#1E293B] rounded-2xl border border-white/10 p-4 relative overflow-hidden">
           <div className="flex justify-between items-center mb-4 relative z-10">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2"><Map className="w-4 h-4 text-emerald-500" /> 跑动热力图</h3>
-              <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5">
-                      <button onClick={() => setHeatmapMode('both')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'both' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}>全部</button>
-                      <button onClick={() => setHeatmapMode('teamA')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamA' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamAName}</button>
-                      <button onClick={() => setHeatmapMode('teamB')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${heatmapMode === 'teamB' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}>{teamBName}</button>
-                  </div>
-                  <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-slate-300">全场</span>
-              </div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Map className="w-4 h-4 text-emerald-500" />
+                  <span>{hasPlayer ? '个人跑动热力图' : '跑动热力图'}</span>
+              </h3>
+              {hasPlayer ? (
+                  <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-slate-300 max-w-[120px] truncate">
+                      {playerLabel}
+                  </span>
+              ) : (
+                  <span className="text-[10px] text-slate-400">
+                      从上方选择一名球员
+                  </span>
+              )}
           </div>
           <div className="aspect-[16/9] bg-emerald-900/40 rounded-xl relative border border-white/5 overflow-hidden">
               <svg width="100%" height="100%" viewBox="0 0 100 50" preserveAspectRatio="none" className="absolute inset-0">
@@ -3143,8 +3215,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   <rect x="94" y="18" width="6" height="14" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
                   <circle cx="88" cy="25" r="0.4" fill="white" opacity="0.4" />
                   <path d="M 82 25 A 6 6 0 0 0 82 15" fill="none" stroke="white" strokeWidth="0.3" opacity="0.4" />
-                  {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
-                      <g opacity={heatmapMode === 'both' ? 0.7 : 1}>
+                  {hasPlayer && (
+                      <g opacity={0.3 + 0.6 * goalIntensity}>
                           <ellipse cx="15" cy="20" rx="8" ry="6" fill="url(#advGreenHeatHigh)" />
                           <ellipse cx="12" cy="18" rx="6" ry="4" fill="url(#advGreenHeatHigh)" />
                           <ellipse cx="25" cy="25" rx="10" ry="8" fill="url(#advGreenHeatMid)" />
@@ -3155,8 +3227,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                           <ellipse cx="5" cy="35" rx="4" ry="3" fill="url(#advGreenHeatLow)" />
                       </g>
                   )}
-                  {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
-                      <g opacity={heatmapMode === 'both' ? 0.7 : 1}>
+                  {hasPlayer && (
+                      <g opacity={0.25 + 0.6 * goalIntensity}>
                           <ellipse cx="85" cy="20" rx="8" ry="6" fill="url(#advGreenHeatHigh)" />
                           <ellipse cx="88" cy="18" rx="6" ry="4" fill="url(#advGreenHeatHigh)" />
                           <ellipse cx="75" cy="25" rx="10" ry="8" fill="url(#advGreenHeatMid)" />
@@ -3169,54 +3241,46 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   )}
               </svg>
           </div>
-          <div className="flex justify-center gap-4 mt-3">
-              <div className="flex items-center gap-2 text-[9px] text-slate-400">
-                  <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded" style={{ background: 'linear-gradient(to right, rgba(34, 197, 94, 0.2), rgba(20, 83, 45, 0.8))' }} />
-                      <span>颜色越深表示跑动频率越高</span>
-                  </div>
+          <div className="flex justify-center gap-4 mt-3 text-[9px] text-slate-400">
+              <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 rounded" style={{ background: 'linear-gradient(to right, rgba(34, 197, 94, 0.3), rgba(20, 83, 45, 0.8))' }} />
+                  <span>颜色越深表示该球员在该区域触球 / 跑动更频繁</span>
               </div>
-              {(heatmapMode === 'both' || heatmapMode === 'teamA') && (
-                  <div className="flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                      {editingTeam === 'A' ? (
-                          <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
-                      ) : (
-                          <div className="flex items-center gap-1 cursor-pointer hover:bg-emerald-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('A')}>
-                              <span className="text-[10px] font-bold text-emerald-400">{teamAName}</span>
-                              <Edit3 className="w-3 h-3 text-emerald-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                      )}
-                  </div>
-              )}
-              {(heatmapMode === 'both' || heatmapMode === 'teamB') && (
-                  <div className="flex items-center gap-1.5 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                      {editingTeam === 'B' ? (
-                          <input type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={handleSaveEdit} onKeyDown={handleKeyDown} autoFocus className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 rounded px-1.5 py-0.5 w-20 outline-none" />
-                      ) : (
-                          <div className="flex items-center gap-1 cursor-pointer hover:bg-emerald-500/20 rounded px-1 py-0.5 transition-colors group" onClick={() => handleStartEdit('B')}>
-                              <span className="text-[10px] font-bold text-emerald-400">{teamBName}</span>
-                              <Edit3 className="w-3 h-3 text-emerald-400/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                      )}
-                  </div>
-              )}
           </div>
       </div>
     );
   };
 
-  const BasketballAdvancedView = () => {
+ const BasketballAdvancedView = () => {
 
     const { eventClaims, expandedPlayerKey, setExpandedPlayerKey } = useAppContext();
     const playerStats = calculatePlayerStats('basketball', eventClaims);
+
+    const [sortField, setSortField] = useState<'pts' | 'reb' | 'ast' | 'stl'>('pts');
+    const [sortAsc, setSortAsc] = useState(false);
+
+    const handleSort = (field: 'pts' | 'reb' | 'ast' | 'stl') => {
+      setSortField(prev => {
+        if (prev === field) {
+          setSortAsc(a => !a);
+          return prev;
+        }
+        setSortAsc(false);
+        return field;
+      });
+    };
+
+    const sortedPlayerStats = [...playerStats].sort((a, b) => {
+      const av = (a as any)[sortField] ?? 0;
+      const bv = (b as any)[sortField] ?? 0;
+      return sortAsc ? av - bv : bv - av;
+    });
 
     return (
 
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-          {/* Player Efficiency List */}
+          {/* 球员效率榜 - 表格形式 */}
 
           <div className="bg-[#1E293B] rounded-2xl border border-white/10 overflow-hidden">
 
@@ -3226,57 +3290,134 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
               </div>
 
-              <div className="divide-y divide-white/5">
-
-                  {playerStats.map((p) => (
-
-                      <div key={p.key}>
-                          <div 
-                              onClick={() => setExpandedPlayerKey(expandedPlayerKey === p.key ? null : p.key)}
-                              className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 transition-colors"
-                          >
-                              <div className="flex items-center gap-3 flex-1">
-
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${p.color}`}>{p.label.slice(0, 2)}</div>
-
-                                  <div className="flex-1">
-
-                                      <div className="flex items-center gap-2">
-                                          <div className="text-xs font-bold text-white">{p.label}</div>
-                                      </div>
-
-                                      <div className="text-[9px] text-slate-400">效率值 {(p as any).eff || '+0'}</div>
-
-                                  </div>
-
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="bg-white/5 text-[10px] text-slate-300">
+                      <th className="px-3 py-2 text-left font-semibold">球员</th>
+                      <th className="px-2 py-2 text-center font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => handleSort('pts')}
+                          className="inline-flex items-center gap-0.5"
+                        >
+                          得分
+                          <span className="text-[8px]">
+                            {sortField === 'pts' ? (sortAsc ? '↑' : '↓') : ''}
+                          </span>
+                        </button>
+                      </th>
+                      <th className="px-2 py-2 text-center font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => handleSort('reb')}
+                          className="inline-flex items-center gap-0.5"
+                        >
+                          篮板
+                          <span className="text-[8px]">
+                            {sortField === 'reb' ? (sortAsc ? '↑' : '↓') : ''}
+                          </span>
+                        </button>
+                      </th>
+                      <th className="px-2 py-2 text-center font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => handleSort('ast')}
+                          className="inline-flex items-center gap-0.5"
+                        >
+                          助攻
+                          <span className="text-[8px]">
+                            {sortField === 'ast' ? (sortAsc ? '↑' : '↓') : ''}
+                          </span>
+                        </button>
+                      </th>
+                      <th className="px-2 py-2 text-center font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => handleSort('stl')}
+                          className="inline-flex items-center gap-0.5"
+                        >
+                          抢断
+                          <span className="text-[8px]">
+                            {sortField === 'stl' ? (sortAsc ? '↑' : '↓') : ''}
+                          </span>
+                        </button>
+                      </th>
+                      <th className="px-3 py-2 text-center font-semibold">效率值</th>
+                      <th className="px-3 py-2 text-center font-semibold">详情</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {sortedPlayerStats.map((p) => (
+                      <tr key={p.key} className="hover:bg-white/5">
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${p.color}`}>
+                              {p.label.slice(0, 2)}
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-white truncate max-w-[90px]">
+                                {p.label}
                               </div>
-
-                              <div className="flex gap-3 text-right">
-
-                                  <div className="flex flex-col items-end"><span className="text-[10px] text-slate-400">得分</span><span className="text-xs font-bold text-white font-mono">{(p as any).pts || 0}</span></div>
-
-                                  <div className="flex flex-col items-end"><span className="text-[10px] text-slate-400">助攻</span><span className="text-xs font-bold text-white font-mono">{(p as any).ast || 0}</span></div>
-
-                                  <div className="flex flex-col items-end"><span className="text-[10px] text-slate-400">篮板</span><span className="text-xs font-bold text-white font-mono">{(p as any).reb || 0}</span></div>
-
+                              <div className="text-[9px] text-slate-400">
+                                {(p as any).team === 'A' ? 'A 队' : 'B 队'}
                               </div>
-
-                              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expandedPlayerKey === p.key ? 'rotate-180' : ''}`} />
-
+                            </div>
                           </div>
-
-                          {expandedPlayerKey === p.key && (
-                              <PlayerDetailView 
-                                  player={p} 
-                                  sport="basketball" 
-                                  onClose={() => setExpandedPlayerKey(null)}
-                              />
-                          )}
-                      </div>
-
-                  ))}
-
+                        </td>
+                        <td className="px-2 py-2 text-center font-mono text-xs text-white">
+                          {(p as any).pts ?? 0}
+                        </td>
+                        <td className="px-2 py-2 text-center font-mono text-xs text-white">
+                          {(p as any).reb ?? 0}
+                        </td>
+                        <td className="px-2 py-2 text-center font-mono text-xs text-white">
+                          {(p as any).ast ?? 0}
+                        </td>
+                        <td className="px-2 py-2 text-center font-mono text-xs text-white">
+                          {(p as any).stl ?? 0}
+                        </td>
+                        <td className="px-3 py-2 text-center font-mono text-xs text-emerald-400">
+                          {(p as any).eff ?? '+0'}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedPlayerKey(
+                                expandedPlayerKey === p.key ? null : p.key
+                              )
+                            }
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold bg-white/5 text-slate-200 hover:bg-white/10 whitespace-nowrap"
+                          >
+                            查看详情
+                            <ChevronDown
+                              className={`w-3 h-3 transition-transform ${
+                                expandedPlayerKey === p.key ? 'rotate-180' : ''
+                              }`}
+                            />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+
+              {expandedPlayerKey && (
+                <div className="border-t border-white/10 bg-black/20">
+                  {sortedPlayerStats
+                    .filter((p) => p.key === expandedPlayerKey)
+                    .map((p) => (
+                      <PlayerDetailView
+                        key={p.key}
+                        player={p}
+                        sport="basketball"
+                        onClose={() => setExpandedPlayerKey(null)}
+                      />
+                    ))}
+                </div>
+              )}
 
           </div>
 
@@ -4336,26 +4477,142 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                         {/* 关键时间轴 - 放在最上面，最直观的回顾方式 */}
                         <div className="mb-4">
-                            <div className="flex justify-between items-center mb-3 px-1"><h3 className="text-sm font-bold text-slate-300">关键时间轴</h3><div className="flex gap-1">{eventTabs.map(f => (<button key={f.id} onClick={() => setActiveEventTab(f.id as EventFilterType)} className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-colors ${activeEventTab === f.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>{f.label}</button>))}</div></div>
+                            <div className="flex justify-between items-center mb-2 px-1">
+                                <h3 className="text-sm font-bold text-slate-300 whitespace-nowrap">关键时间轴</h3>
+                                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-nowrap">
+                                    <div className="flex gap-1 flex-nowrap">
+                                        {eventTabs.map(f => (
+                                            <button
+                                                key={f.id}
+                                                onClick={() => setActiveEventTab(f.id as EventFilterType)}
+                                                className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-colors shrink-0 ${
+                                                    activeEventTab === f.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
+                                                }`}
+                                            >
+                                                {f.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsSelectionMode(!isSelectionMode)}
+                                        className="px-2 py-1 rounded-full border border-white/10 text-[10px] font-bold text-slate-300 bg-slate-900/60 hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
+                                    >
+                                        {isSelectionMode ? '完成选择' : '选择导出'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {isSelectionMode && (
+                                <div className="flex justify-between items-center mb-2 px-1 text-[10px] text-slate-400">
+                                    <span>已选择 {selectedClipIds.length} 个片段</span>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setSelectedClipIds(
+                                                    selectedClipIds.length === filteredEvents.length
+                                                        ? []
+                                                        : filteredEvents.map(c => c.id)
+                                                )
+                                            }
+                                            className="text-blue-400 font-bold"
+                                        >
+                                            {selectedClipIds.length === filteredEvents.length ? '取消全选' : '全选本页'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleShare}
+                                            className="px-2 py-1 rounded-full bg-orange-500 hover:bg-orange-600 text-white font-bold"
+                                        >
+                                            导出片段
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="space-y-2">
 
                                 {filteredEvents.map(clip => {
+                                    const isSelected = selectedClipIds.includes(clip.id);
+                                    const teamName = clip.team === 'A' ? statsData.teamA.name : statsData.teamB.name;
+                                    const playerLabel = (eventClaims[clip.id] ?? clip.player) as string | null | undefined;
+
+                                    const handleRowClick = () => {
+                                        if (isSelectionMode) {
+                                            toggleClipSelection(clip.id);
+                                        } else {
+                                            handleClipClick(clip.time);
+                                        }
+                                    };
 
                                     return (
-                                        <div key={clip.id} onClick={() => handleClipClick(clip.time)} className="group bg-[#1E293B] p-3 rounded-xl flex items-center justify-between active:bg-blue-900/20 transition-colors cursor-pointer">
-
-                                            <div className="flex items-center gap-3">
-
-                                                <div className={`w-1 h-8 rounded-full ${clip.team === 'A' ? 'bg-blue-500' : 'bg-red-500'}`} />
-
-                                                <div className="flex-1">
-                                                    <div className="text-sm font-bold text-slate-200">{clip.label}</div>
+                                        <div
+                                            key={clip.id}
+                                            onClick={handleRowClick}
+                                            className={`group bg-[#1E293B] p-3 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
+                                                isSelectionMode
+                                                    ? isSelected
+                                                        ? 'border border-blue-500 bg-blue-900/40'
+                                                        : 'border border-white/5 active:bg-blue-900/20'
+                                                    : 'active:bg-blue-900/20'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3 flex-1">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <div
+                                                        className={`w-1 h-8 rounded-full ${
+                                                            clip.team === 'A' ? 'bg-blue-500' : 'bg-red-500'
+                                                        }`}
+                                                    />
+                                                    <span className="text-[9px] text-slate-400">
+                                                        {clip.time}
+                                                    </span>
                                                 </div>
 
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                        <span
+                                                            className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                                                                clip.team === 'A'
+                                                                    ? 'bg-blue-500/20 text-blue-300'
+                                                                    : 'bg-red-500/20 text-red-300'
+                                                            }`}
+                                                        >
+                                                            {teamName}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-400">
+                                                            {clip.type === 'score'
+                                                                ? `${clip.scoreType}分`
+                                                                : clip.label}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-xs font-bold text-slate-200 truncate">
+                                                        {clip.label}
+                                                    </div>
+                                                    {playerLabel && (
+                                                        <div className="mt-0.5 text-[10px] text-slate-400 truncate">
+                                                            相关球员：{playerLabel}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
 
-                                            {/* 数据概览关键事件轴：仅用于回顾，不提供编辑时长功能 */}
+                                            {isSelectionMode && (
+                                                <div className="ml-3">
+                                                    <div
+                                                        className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] font-bold ${
+                                                            isSelected
+                                                                ? 'border-blue-400 bg-blue-500 text-white'
+                                                                : 'border-slate-500 bg-slate-900 text-slate-400'
+                                                        }`}
+                                                    >
+                                                        {isSelected ? '✓' : ''}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* 数据概览关键事件轴：主要用于回顾与快速导出 */}
 
                                         </div>
                                     );
@@ -4388,22 +4645,104 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                         }
                                     }
                                 };
+
+                                const aValue = typeof item.a === 'number' ? item.a : parseFloat(String(item.a)) || 0;
+                                const bValue = typeof item.b === 'number' ? item.b : parseFloat(String(item.b)) || 0;
+                                const maxValue = Math.max(aValue, bValue, 1);
+                                const aIsHigher = aValue > bValue;
+                                const bIsHigher = bValue > aValue;
+                                const aPercent = (aValue / maxValue) * 100;
+                                const bPercent = (bValue / maxValue) * 100;
+
                                 return (
                                     <div 
                                         key={index} 
                                         onClick={isClickable ? handleRowClick : undefined}
-                                        className={`flex justify-between items-center px-4 py-3 border-b border-white/5 last:border-0 ${item.highlight ? 'bg-white/5' : ''} ${isClickable ? 'cursor-pointer hover:bg-white/10 active:bg-white/15 transition-colors' : ''}`}
+                                        className={`px-4 py-3 border-b border-white/5 last:border-0 ${item.highlight ? 'bg-white/5' : ''} ${isClickable ? 'cursor-pointer hover:bg-white/10 active:bg-white/15 transition-colors' : ''}`}
                                     >
-                                        <span className={`w-12 text-left font-mono font-bold ${item.a > item.b ? statsData.teamA.color : 'text-slate-400'}`}>{item.a}</span>
-                                        <span className="flex-1 text-center text-xs text-slate-300">{item.label}</span>
-                                        <span className={`w-12 text-right font-mono font-bold ${item.b > item.a ? statsData.teamB.color : 'text-slate-400'}`}>{item.b}</span>
+                                        {/* 顶部数值 + 指标文案 */}
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className={`w-12 text-left text-[11px] font-mono font-bold ${aIsHigher ? statsData.teamA.color : 'text-slate-500'}`}>
+                                                {item.a}
+                                            </span>
+                                            <span className="flex-1 text-center text-xs text-slate-300">
+                                                {item.label}
+                                            </span>
+                                            <span className={`w-12 text-right text-[11px] font-mono font-bold ${bIsHigher ? statsData.teamB.color : 'text-slate-500'}`}>
+                                                {item.b}
+                                            </span>
+                                        </div>
+
+                                        {/* 底部柱状图对比：左 A 队 / 右 B 队 */}
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="flex-1 h-2.5 rounded-full bg-slate-800/80 overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full ${
+                                                        aIsHigher
+                                                            ? statsData.teamA.color.replace('text-', 'bg-')
+                                                            : 'bg-slate-600/70'
+                                                    }`}
+                                                    style={{ width: `${aPercent}%` }}
+                                                />
+                                            </div>
+                                            <div className="flex-1 h-2.5 rounded-full bg-slate-800/80 overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full ${
+                                                        bIsHigher
+                                                            ? statsData.teamB.color.replace('text-', 'bg-')
+                                                            : 'bg-slate-600/70'
+                                                    }`}
+                                                    style={{ width: `${bPercent}%` }}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 );
                             })}
                         </div>
 
-                        {/* 热力图 - 详细可视化放在最后 */}
-                        {isSoccer ? <SoccerHeatmap /> : <BasketballHeatmap />}
+                        {/* 热力图球员选择器（就近控制个人视角） */}
+                        {availablePlayers.length > 0 && (
+                            <div className="mt-4 mb-2 px-1 flex items-center justify-between gap-3">
+                                <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                                    热力图球员
+                                </span>
+                                <div className="flex gap-1 overflow-x-auto scrollbar-hide flex-1 justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedPlayer('all')}
+                                        className={`px-2 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${
+                                            selectedPlayer === null || selectedPlayer === 'all'
+                                                ? 'bg-white text-slate-900 border-white'
+                                                : 'bg-transparent text-slate-400 border-slate-700'
+                                        }`}
+                                    >
+                                        全部
+                                    </button>
+                                    {availablePlayers.map((player) => (
+                                        <button
+                                            key={player}
+                                            type="button"
+                                            onClick={() => setSelectedPlayer(player)}
+                                            className={`px-2 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${
+                                                selectedPlayer === player
+                                                    ? 'bg-blue-500 text-white border-blue-400'
+                                                    : 'bg-transparent text-slate-400 border-slate-700'
+                                            }`}
+                                        >
+                                            {player}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 热力图 - 仅展示当前选择球员的个人数据 */}
+                        {isSoccer ? (
+                            <SoccerHeatmap playerLabel={selectedPlayer && selectedPlayer !== 'all' ? selectedPlayer : null} />
+                        ) : (
+                            <BasketballHeatmap playerLabel={selectedPlayer && selectedPlayer !== 'all' ? selectedPlayer : null} />
+                        )}
 
                      </>
 
@@ -4622,8 +4961,58 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                 AIGC 效果预览
                                             </span>
                                         </div>
-                                        <div className="h-20 rounded-lg border border-dashed border-white/15 bg-gradient-to-br from-purple-500/20 via-slate-900 to-black flex items-center justify-center text-[11px] text-slate-100">
-                                            AI 已为所选片段应用背景和元素效果。
+                                        <div className="h-24 rounded-xl border border-dashed border-white/15 bg-gradient-to-br from-purple-500/30 via-slate-900 to-black p-2 flex items-stretch gap-2">
+                                            {/* 左侧缩略图区域：模拟成片封面 */}
+                                            <div className="relative flex-1 rounded-lg bg-black/60 overflow-hidden flex items-center justify-center">
+                                                <div className="absolute inset-0 opacity-60 bg-[radial-gradient(circle_at_top,_#a855f7_0,_transparent_45%),radial-gradient(circle_at_bottom,_#22c55e_0,_transparent_55%)]" />
+                                                <div className="relative z-10 w-full h-full flex flex-col justify-between p-2">
+                                                    <div className="flex items-center justify-between text-[9px] font-bold text-slate-100">
+                                                        <span className="px-1.5 py-0.5 rounded-full bg-blue-500/40">
+                                                            {statsData.teamA.name}
+                                                        </span>
+                                                        <span className="text-[11px] font-black">VS</span>
+                                                        <span className="px-1.5 py-0.5 rounded-full bg-red-500/40">
+                                                            {statsData.teamB.name}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col gap-1 mt-1">
+                                                        <div className="h-1.5 rounded-full bg-slate-700/80 overflow-hidden">
+                                                            <div className="w-3/4 h-full bg-emerald-400/80" />
+                                                        </div>
+                                                        <div className="h-1 rounded-full bg-slate-700/60 overflow-hidden">
+                                                            <div className="w-1/2 h-full bg-purple-400/80" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center justify-between text-[9px] text-slate-200 mt-1">
+                                                        <span className="truncate max-w-[70%]">
+                                                            AI 精彩集锦 · 自动剪辑示例
+                                                        </span>
+                                                        <span className="px-1 py-0.5 rounded bg-black/60 border border-white/20">
+                                                            0:30
+                                                        </span>
+                                                    </div>
+                                                    <div className="absolute inset-0 flex items-center justify-center">
+                                                        <div className="w-8 h-8 rounded-full bg-white/10 border border-white/40 flex items-center justify-center">
+                                                            <Play className="w-3 h-3 text-white" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* 右侧文字说明：解释成片效果 */}
+                                            <div className="w-28 flex flex-col justify-between text-[10px] text-slate-200">
+                                                <div>
+                                                    <div className="font-bold text-slate-100 mb-0.5">
+                                                        成品效果示意
+                                                    </div>
+                                                    <p className="text-[10px] leading-snug text-slate-300">
+                                                        参考社交平台封面样式，自动叠加比分、队伍与视觉特效。
+                                                    </p>
+                                                </div>
+                                                <div className="mt-1 text-[9px] text-slate-400">
+                                                    最终导出视频会基于所选片段与参数生成类似效果。
+                                                </div>
+                                            </div>
                                         </div>
                                         <button
                                             type="button"
@@ -5627,6 +6016,105 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   const [aigcPreviewMode, setAigcPreviewMode] = useState<'one_click' | 'coach_clip'>('one_click');
 
+  // Cloud task queue management
+  const [cloudTasks, setCloudTasks] = useState<CloudTask[]>([]);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const maxConcurrentTasks = 5;
+
+  // Queue management functions
+  const getAnalyzingTasksCount = () => {
+    return cloudTasks.filter(task => task.status === 'analyzing').length;
+  };
+
+  const getQueuedTasks = () => {
+    return cloudTasks.filter(task => task.status === 'queued').sort((a, b) => a.createdAt - b.createdAt);
+  };
+
+  const addCloudTask = (videoId: number, videoName: string, type: 'highlight' | 'analysis'): string => {
+    const taskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const analyzingCount = getAnalyzingTasksCount();
+    
+    let status: CloudTaskStatus = 'uploading';
+    let queuePosition: number | undefined = undefined;
+    
+    if (analyzingCount >= maxConcurrentTasks) {
+      status = 'queued';
+      const queuedTasks = getQueuedTasks();
+      queuePosition = queuedTasks.length + 1;
+    }
+    
+    const newTask: CloudTask = {
+      id: taskId,
+      videoId,
+      videoName,
+      type,
+      status,
+      progress: 0,
+      queuePosition,
+      createdAt: Date.now(),
+    };
+    
+    setCloudTasks(prev => [...prev, newTask]);
+    setCurrentTaskId(taskId);
+    return taskId;
+  };
+
+  const startTaskAnalysis = (taskId: string) => {
+    setCloudTasks(prev => prev.map(task => {
+      if (task.id === taskId) {
+        return { ...task, status: 'analyzing' as CloudTaskStatus, progress: 0, queuePosition: undefined };
+      }
+      return task;
+    }));
+  };
+
+  const updateTaskProgress = (taskId: string, progress: number) => {
+    setCloudTasks(prev => prev.map(task => {
+      if (task.id === taskId) {
+        return { ...task, progress: Math.min(progress, 100) };
+      }
+      return task;
+    }));
+  };
+
+  const completeTask = (taskId: string) => {
+    setCloudTasks(prev => {
+      const updated = prev.map(task => {
+        if (task.id === taskId) {
+          return { ...task, status: 'completed' as CloudTaskStatus, progress: 100 };
+        }
+        return task;
+      });
+      
+      // Auto start next queued task
+      const analyzingCount = updated.filter(task => task.status === 'analyzing').length;
+      const queuedTasks = updated.filter(task => task.status === 'queued').sort((a, b) => a.createdAt - b.createdAt);
+      
+      if (analyzingCount < maxConcurrentTasks && queuedTasks.length > 0) {
+        const nextTask = queuedTasks[0];
+        const nextUpdated = updated.map(task => {
+          if (task.id === nextTask.id) {
+            return { ...task, status: 'analyzing' as CloudTaskStatus, progress: 0, queuePosition: undefined };
+          }
+          // Update queue positions for remaining queued tasks
+          if (task.status === 'queued' && task.id !== nextTask.id && task.createdAt > nextTask.createdAt) {
+            const newPosition = (task.queuePosition || 0) - 1;
+            return { ...task, queuePosition: newPosition > 0 ? newPosition : undefined };
+          }
+          return task;
+        });
+        return nextUpdated;
+      }
+      
+      return updated;
+    });
+    
+    // Clear current task if it's the completed one
+    if (currentTaskId === taskId) {
+      setCurrentTaskId(null);
+    }
+  };
+
   const pushView = (view: ViewState) => setViewStack([...viewStack, view]);
 
   const popView = () => setViewStack(viewStack.slice(0, -1));
@@ -5638,18 +6126,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
   const handleExport = () => { setShowExportToast(true); setTimeout(() => setShowExportToast(false), 2500); };
 
   const handleEntryClick = (type: AnalysisType) => { 
-
-      // Concurrency check logic
-
-      if (transferStep !== 'idle' && transferStep !== 'completed' && transferStep !== 'failed') {
-
-          setToastMessage('当前仅支持一个任务在分析');
-
-          setTimeout(() => setToastMessage(null), 3000);
-
-          return;
-
-      }
 
       // Storage check logic
 
@@ -5746,6 +6222,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
           } else if (selectedVideo.source === 'local') {
 
+              // Create cloud task
+              const taskId = addCloudTask(selectedVideo.id, selectedVideo.label, targetAnalysisType || 'highlight');
+              const analyzingCount = getAnalyzingTasksCount();
+              const queuedTasks = getQueuedTasks();
+              const isQueued = analyzingCount >= maxConcurrentTasks;
+
               // 4G check
 
               if (networkState === '4g') {
@@ -5767,6 +6249,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   setTransferProgress(0);
 
                   pushView('home');
+
+                  // Show queue status if queued
+                  if (isQueued) {
+                    setToastMessage('分析任务繁忙，等待排队分析');
+                    setTimeout(() => setToastMessage(null), 8000);
+                  }
 
               }
 
@@ -5965,6 +6453,56 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
       }
 
+      else if (type === 'cloud_queue_full') {
+
+          setToastMessage('开始演练：云端队列已满...');
+
+          setTimeout(() => setToastMessage(null), 2500); // Auto hide
+
+          // Create 5 mock analyzing tasks
+          const mockTasks: CloudTask[] = [];
+          const videoNames = ['周五下午球局', '晨练投篮记录', '全场回放', '上半场录像', '手机实拍片段'];
+          
+          for (let i = 0; i < 5; i++) {
+            mockTasks.push({
+              id: `mock_task_${i}_${Date.now()}`,
+              videoId: 100 + i,
+              videoName: videoNames[i] || `视频 ${i + 1}`,
+              type: i % 2 === 0 ? 'highlight' : 'analysis',
+              status: 'analyzing',
+              progress: Math.random() * 50 + 20, // Random progress between 20-70%
+              createdAt: Date.now() - i * 10000,
+            });
+          }
+
+          setCloudTasks(mockTasks);
+
+          pushView('home');
+
+          // After 1.5s, try to start a new task to trigger queue
+          setTimeout(() => {
+
+              setToastMessage('尝试启动新任务...');
+
+              setTimeout(() => setToastMessage(null), 1000);
+
+              // Simulate adding a new task that will be queued
+              const newTaskId = addCloudTask(200, '新视频任务', 'highlight');
+              const queuedTasks = getQueuedTasks();
+              const queuePosition = queuedTasks.length;
+
+              setTimeout(() => {
+
+                  setToastMessage('分析任务繁忙，等待排队分析');
+
+                  setTimeout(() => setToastMessage(null), 8000);
+
+              }, 500);
+
+          }, 1500);
+
+      }
+
   };
 
   // --- Exception Simulation Effect ---
@@ -6021,12 +6559,22 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                 } else if (transferStep === 'uploading') {
 
                      setTransferStep('analyzing');
+                     
+                     // Update cloud task status to analyzing
+                     if (currentTaskId) {
+                       startTaskAnalysis(currentTaskId);
+                     }
 
                      return 0;
 
                 } else if (transferStep === 'analyzing') {
 
                      setTransferStep('completed');
+                     
+                     // Complete cloud task
+                     if (currentTaskId) {
+                       completeTask(currentTaskId);
+                     }
 
                      // Show toast with action button instead of auto-navigation
                      const toastMsg = targetAnalysisType === 'highlight' ? 'AI 精彩集锦生成完成' : 'AI 高阶分析完成';
@@ -6048,16 +6596,38 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             }
 
             // FIX: Ensure progress increments during analyzing step
+            const newProgress = prev + 1;
+            
+            // Update cloud task progress
+            if (currentTaskId && transferStep === 'analyzing') {
+              updateTaskProgress(currentTaskId, newProgress);
+            }
 
-            return prev + 1; 
+            return newProgress; 
 
+        });
+        
+        // Update all analyzing tasks progress
+        setCloudTasks(prevTasks => {
+          return prevTasks.map(task => {
+            if (task.status === 'analyzing' && task.id !== currentTaskId) {
+              const increment = 1;
+              const newProgress = Math.min(task.progress + increment, 100);
+              if (newProgress >= 100) {
+                // Task completed, trigger completion
+                setTimeout(() => completeTask(task.id), 0);
+              }
+              return { ...task, progress: newProgress };
+            }
+            return task;
+          });
         });
 
     }, 100);
 
     return () => clearInterval(interval);
 
-  }, [transferStep, pushView, networkState, falconState, showCellularAlert, targetAnalysisType, setAnalysisCompleteToast, setIsTaskCompleted, setResultSport]);
+  }, [transferStep, pushView, networkState, falconState, showCellularAlert, targetAnalysisType, setAnalysisCompleteToast, setIsTaskCompleted, setResultSport, currentTaskId, startTaskAnalysis, updateTaskProgress, completeTask]);
 
   return (
 
@@ -6122,6 +6692,17 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       showPlayerSelector, setShowPlayerSelector,
 
       aigcPreviewMode, setAigcPreviewMode,
+
+      // Cloud task queue
+      cloudTasks,
+      currentTaskId,
+      maxConcurrentTasks,
+      getAnalyzingTasksCount,
+      getQueuedTasks,
+      addCloudTask,
+      startTaskAnalysis,
+      updateTaskProgress,
+      completeTask,
 
     }}>
 
