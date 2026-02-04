@@ -3343,7 +3343,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                           </span>
                         </button>
                       </th>
-                      <th className="px-3 py-2 text-center font-semibold">效率值</th>
                       <th className="px-3 py-2 text-center font-semibold">详情</th>
                     </tr>
                   </thead>
@@ -3376,9 +3375,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                         </td>
                         <td className="px-2 py-2 text-center font-mono text-xs text-white">
                           {(p as any).stl ?? 0}
-                        </td>
-                        <td className="px-3 py-2 text-center font-mono text-xs text-emerald-400">
-                          {(p as any).eff ?? '+0'}
                         </td>
                         <td className="px-3 py-2 text-center">
                           <button
