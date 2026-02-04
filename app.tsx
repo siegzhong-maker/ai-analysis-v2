@@ -1289,10 +1289,10 @@ const TaskCenterScreen = () => {
   const { transferStep, transferProgress, popView, setTargetAnalysisType, setAiMode, setIsTaskCompleted, pushView, failureReason, setResultSport, setTransferStep, setTransferProgress, cloudTasks, getAnalyzingTasksCount, getQueuedTasks, maxConcurrentTasks } = useAppContext();
 
   // Get paused tasks from history
-  const pausedTasks = HISTORY_TASKS.filter(task => task.status === 'paused');
+  const pausedTasks = HISTORY_TASKS.filter((task: any) => task.status === 'paused');
   
   // Get cloud tasks
-  const analyzingTasks = cloudTasks.filter(task => task.status === 'analyzing');
+  const analyzingTasks = cloudTasks.filter((task: CloudTask) => task.status === 'analyzing');
   const queuedTasks = getQueuedTasks();
   const analyzingCount = getAnalyzingTasksCount();
 
@@ -1543,7 +1543,7 @@ const TaskCenterScreen = () => {
              {/* Analyzing Tasks */}
              {analyzingTasks.length > 0 && (
                <div className="space-y-2 mb-3">
-                 {analyzingTasks.map(task => (
+                {analyzingTasks.map((task: CloudTask) => (
                    <div key={task.id} className="rounded-xl p-3 bg-white border border-blue-100 shadow-sm">
                      <div className="flex items-center justify-between mb-2">
                        <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1568,7 +1568,7 @@ const TaskCenterScreen = () => {
              {/* Queued Tasks */}
              {queuedTasks.length > 0 && (
                <div className="space-y-2">
-                 {queuedTasks.map(task => (
+                {queuedTasks.map((task: CloudTask) => (
                    <div key={task.id} className="rounded-xl p-3 bg-white border border-yellow-100 shadow-sm">
                      <div className="flex items-center justify-between">
                        <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1599,7 +1599,7 @@ const TaskCenterScreen = () => {
 
             <div className="space-y-3">
 
-                {HISTORY_TASKS.filter(task => task.status !== 'paused').map(task => {
+                {HISTORY_TASKS.filter((task: any) => task.status !== 'paused').map((task: any) => {
 
                     const statusConfig = {
                         completed: { label: '完成', bg: 'bg-green-100', text: 'text-green-700' },
