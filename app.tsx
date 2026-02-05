@@ -216,34 +216,31 @@ const TEAM_MATCH_STATS = {
 
   teamB: { name: '野狼队', score: 82, color: 'text-red-400' },
 
+  // 统一结构：为命中率类指标保留命中/出手，方便 UI 显示 50%（10-20）
   comparison: [
-
+    // 得分相关
     { label: '总得分', a: 86, b: 82, highlight: true },
-
     { label: '罚球得分', a: 15, b: 12 },
-
     { label: '三分得分', a: 21, b: 18 },
 
-    { label: '罚球命中', a: 15, b: 12 },
+    // 罚球命中率及次数
+    { label: '罚球命中率', a: { pct: 0.83, made: 15, att: 18 }, b: { pct: 0.75, made: 12, att: 16 } },
 
-    { label: '三分命中', a: 7, b: 6 },
+    // 投篮 / 三分命中率及次数（这里投篮视为所有投篮，不再拆两分命中率）
+    { label: '投篮命中率', a: { pct: 0.456, made: 31, att: 68 }, b: { pct: 0.417, made: 30, att: 72 }, highlight: true },
+    { label: '三分命中率', a: { pct: 0.318, made: 7, att: 22 }, b: { pct: 0.24, made: 6, att: 25 } },
 
-    { label: '总出手', a: 68, b: 72 },
-
-    { label: '罚球出手', a: 18, b: 16 },
-
-    { label: '三分出手', a: 22, b: 25 },
-
-    { label: '投篮命中率', a: '45.6%', b: '41.7%', highlight: true },
-
-    { label: '两分命中率', a: '52.1%', b: '48.9%' },
-
-    { label: '三分命中率', a: '31.8%', b: '24.0%' },
-
+    // 篮板与防守数据（后续在 UI 中再拆分前场 / 后场）
     { label: '篮板', a: 42, b: 38 },
+    { label: '前场篮板', a: 12, b: 10 },
+    { label: '后场篮板', a: 30, b: 28 },
 
+    // 其他团队统计
+    { label: '助攻', a: 22, b: 18 },
     { label: '抢断', a: 8, b: 6 },
-
+    { label: '盖帽', a: 4, b: 3 },
+    { label: '失误', a: 11, b: 13 },
+    { label: '犯规', a: 19, b: 21 },
   ]
 
 };
@@ -280,23 +277,352 @@ const SOCCER_MATCH_STATS = {
 
 const PLAYER_STATS_BASKETBALL = [
 
-    { id: 1, name: 'LJ', number: 23, pts: 28, reb: 8, ast: 7, eff: '+25', color: 'bg-blue-500', team: 'A', unclaimedCount: 0, events: [] },
+    {
+      id: 1,
+      name: 'LJ',
+      number: 23,
+      pts: 28,
+      reb: 8,
+      ast: 7,
+      eff: '+25',
+      color: 'bg-blue-500',
+      team: 'A',
+      // 细分投篮数据
+      fgMade: 10,
+      fgAtt: 20,
+      tpMade: 3,
+      tpAtt: 8,
+      ftMade: 5,
+      ftAtt: 6,
+      // 篮板拆分
+      offReb: 3,
+      defReb: 5,
+      // 其他技术统计
+      stl: 2,
+      blk: 1,
+      tov: 3,
+      pf: 2,
+      // 保持原有字段
+      unclaimedCount: 0,
+      events: [],
+    },
 
-    { id: 2, name: 'KL', number: 11, pts: 22, reb: 5, ast: 3, eff: '+18', color: 'bg-red-500', team: 'B', unclaimedCount: 0, events: [] },
+    {
+      id: 2,
+      name: 'KL',
+      number: 11,
+      pts: 22,
+      reb: 5,
+      ast: 3,
+      eff: '+18',
+      color: 'bg-red-500',
+      team: 'B',
+      fgMade: 8,
+      fgAtt: 18,
+      tpMade: 2,
+      tpAtt: 6,
+      ftMade: 4,
+      ftAtt: 5,
+      offReb: 1,
+      defReb: 4,
+      stl: 1,
+      blk: 0,
+      tov: 2,
+      pf: 3,
+      unclaimedCount: 0,
+      events: [],
+    },
 
-    { id: 3, name: 'Tatum', number: 0, pts: 18, reb: 9, ast: 4, eff: '+15', color: 'bg-blue-500', team: 'A', unclaimedCount: 0, events: [] },
+    {
+      id: 3,
+      name: 'Tatum',
+      number: 0,
+      pts: 18,
+      reb: 9,
+      ast: 4,
+      eff: '+15',
+      color: 'bg-blue-500',
+      team: 'A',
+      fgMade: 7,
+      fgAtt: 17,
+      tpMade: 1,
+      tpAtt: 5,
+      ftMade: 3,
+      ftAtt: 4,
+      offReb: 4,
+      defReb: 5,
+      stl: 2,
+      blk: 2,
+      tov: 1,
+      pf: 1,
+      unclaimedCount: 0,
+      events: [],
+    },
 
 ];
 
 const PLAYER_STATS_SOCCER = [
 
-    { id: 1, name: 'Son', number: 7, goals: 1, dist: '11.2km', sprints: 24, rating: 8.5, color: 'bg-blue-500', team: 'A', unclaimedCount: 0, events: [] },
+    {
+      id: 1,
+      name: 'Son',
+      number: 7,
+      goals: 1,
+      assists: 0,
+      shots: 5,
+      shotsOnTarget: 3,
+      xG: 0.9,
+      keyPasses: 3,
+      tackles: 4,
+      interceptions: 2,
+      dist: '11.2km',
+      sprints: 24,
+      rating: 8.5,
+      color: 'bg-blue-500',
+      team: 'A',
+      unclaimedCount: 0,
+      events: [],
+    },
 
-    { id: 2, name: 'Kane', number: 10, goals: 1, dist: '10.5km', sprints: 18, rating: 8.2, color: 'bg-blue-500', team: 'A', unclaimedCount: 0, events: [] },
+    {
+      id: 2,
+      name: 'Kane',
+      number: 10,
+      goals: 1,
+      assists: 1,
+      shots: 4,
+      shotsOnTarget: 2,
+      xG: 0.85,
+      keyPasses: 5,
+      tackles: 2,
+      interceptions: 1,
+      dist: '10.5km',
+      sprints: 18,
+      rating: 8.2,
+      color: 'bg-blue-500',
+      team: 'A',
+      unclaimedCount: 0,
+      events: [],
+    },
 
-    { id: 3, name: 'Salah', number: 11, goals: 1, dist: '10.8km', sprints: 32, rating: 8.4, color: 'bg-red-500', team: 'B', unclaimedCount: 0, events: [] },
+    {
+      id: 3,
+      name: 'Salah',
+      number: 11,
+      goals: 1,
+      assists: 0,
+      shots: 6,
+      shotsOnTarget: 4,
+      xG: 1.1,
+      keyPasses: 2,
+      tackles: 3,
+      interceptions: 2,
+      dist: '10.8km',
+      sprints: 32,
+      rating: 8.4,
+      color: 'bg-red-500',
+      team: 'B',
+      unclaimedCount: 0,
+      events: [],
+    },
 
 ];
+
+// --- Helper Functions for Advanced Shooting Metrics ---
+
+const calcEFG = (player: any): number | null => {
+  const fgMade = player.fgMade ?? 0;
+  const fgAtt = player.fgAtt ?? 0;
+  const tpMade = player.tpMade ?? 0;
+  if (!fgAtt) return null;
+  return (fgMade + 0.5 * tpMade) / fgAtt;
+};
+
+const calcTS = (player: any): number | null => {
+  const pts = player.pts ?? 0;
+  const fgAtt = player.fgAtt ?? 0;
+  const ftAtt = player.ftAtt ?? 0;
+  const denom = 2 * (fgAtt + 0.44 * ftAtt);
+  if (!denom) return null;
+  return pts / denom;
+};
+
+// 事件类型格式化函数（用于视频列表项标签）
+const getEventTypeLabel = (clip: any, isSoccer: boolean): { label: string; color: string; bgColor: string } => {
+  if (isSoccer) {
+    if (clip.scoreType === 'goal') {
+      return { label: '进球', color: 'text-emerald-300', bgColor: 'bg-emerald-500/20' };
+    }
+    if (clip.scoreType === 'corner') {
+      return { label: '角球', color: 'text-blue-300', bgColor: 'bg-blue-500/20' };
+    }
+    if (clip.scoreType === 'setpiece') {
+      return { label: '定位球', color: 'text-purple-300', bgColor: 'bg-purple-500/20' };
+    }
+    if (clip.scoreType === 'penalty') {
+      return { label: '点球', color: 'text-orange-300', bgColor: 'bg-orange-500/20' };
+    }
+    return { label: '其他', color: 'text-slate-300', bgColor: 'bg-slate-500/20' };
+  } else {
+    // Basketball
+    if (clip.type === 'score') {
+      if (clip.scoreType === 3) {
+        return { label: '3分', color: 'text-blue-300', bgColor: 'bg-blue-500/20' };
+      }
+      if (clip.scoreType === 2) {
+        return { label: '2分', color: 'text-green-300', bgColor: 'bg-green-500/20' };
+      }
+      if (clip.scoreType === 1) {
+        return { label: '罚球', color: 'text-yellow-300', bgColor: 'bg-yellow-500/20' };
+      }
+    }
+    if (clip.type === 'basketball_event') {
+      if (clip.scoreType === 'rebound') {
+        return { label: '篮板', color: 'text-purple-300', bgColor: 'bg-purple-500/20' };
+      }
+      if (clip.scoreType === 'steal') {
+        return { label: '抢断', color: 'text-red-300', bgColor: 'bg-red-500/20' };
+      }
+      if (clip.scoreType === 'assist') {
+        return { label: '助攻', color: 'text-cyan-300', bgColor: 'bg-cyan-500/20' };
+      }
+    }
+    return { label: '其他', color: 'text-slate-300', bgColor: 'bg-slate-500/20' };
+  }
+};
+
+// AI 足球球员点评（虎扑风格）
+const generateSoccerPlayerComment = (player: any): string => {
+  const name = player.name ?? (player.label ?? '这位球员');
+  const goals = player.goals ?? 0;
+  const assists = player.assists ?? 0;
+  const shots = player.shots ?? 0;
+  const shotsOnTarget = player.shotsOnTarget ?? 0;
+  const xG = player.xG ?? 0;
+  const keyPasses = player.keyPasses ?? 0;
+  const tackles = player.tackles ?? 0;
+  const interceptions = player.interceptions ?? 0;
+  const dist = player.dist ?? '0km';
+  const sprints = player.sprints ?? 0;
+
+  const lines: string[] = [];
+
+  // 进攻表现
+  if (goals >= 2) {
+    lines.push(`今天${name}门前嗅觉爆表，梅开二度直接带走比赛`);
+  } else if (goals === 1) {
+    if (xG >= 1.0) {
+      lines.push(`今天${name}终结效率拉满，该进的球一个没丢，大腿级别发挥`);
+    } else {
+      lines.push(`今天${name}门前把握机会不错，关键进球价值连城`);
+    }
+  } else if (goals === 0 && shots > 0) {
+    if (shotsOnTarget === 0) {
+      lines.push(`今天${name}门前溜达几脚，和队友都笑了`);
+    } else {
+      lines.push(`今天${name}射门感觉一般，但跑位和参与度还是在线`);
+    }
+  }
+
+  // 助攻与组织
+  if (assists >= 2) {
+    lines.push('助攻梅开二度，梳理进攻的节奏大师');
+  } else if (assists === 1) {
+    lines.push('送出关键助攻，串联全队进攻');
+  } else if (keyPasses >= 5) {
+    lines.push('虽然没有直接助攻，但关键传球不断，是进攻的发动机');
+  }
+
+  // 跑动与覆盖
+  const distNum = parseFloat(dist.replace('km', '')) || 0;
+  if (distNum >= 12) {
+    lines.push('跑动距离拉满，体能槽直接拉满，全场都在搅和');
+  } else if (sprints >= 30) {
+    lines.push('冲刺次数爆表，前场反抢和压迫做得非常到位');
+  }
+
+  // 防守贡献
+  if (tackles + interceptions >= 6) {
+    lines.push('防守端存在感拉满，前场反抢和拦截都很积极');
+  } else if (tackles + interceptions >= 3) {
+    lines.push('防守端也能给到存在感，脏活累活都干了');
+  }
+
+  // xG 效率
+  if (goals > 0 && xG > 0) {
+    const efficiency = goals / xG;
+    if (efficiency >= 1.2) {
+      lines.push('xG转化率爆表，该进的球一个没丢');
+    } else if (efficiency < 0.8) {
+      lines.push('xG转化率稍低，但关键球把握住了');
+    }
+  }
+
+  return lines.length > 0 ? lines.join('，') + '。' : `今天${name}表现中规中矩，攻防两端都有参与。`;
+};
+
+// AI 篮球球员点评（虎扑风格）
+const generatePlayerComment = (player: any): string => {
+  const name = player.name ?? (player.label ?? '这位球员');
+  const pts = player.pts ?? 0;
+  const reb = player.reb ?? 0;
+  const ast = player.ast ?? 0;
+  const stl = player.stl ?? 0;
+  const blk = player.blk ?? 0;
+  const tov = player.tov ?? 0;
+
+  const efg = calcEFG(player);
+  const ts = calcTS(player);
+
+  const lines: string[] = [];
+
+  // 进攻表现
+  if (pts >= 30) {
+    lines.push(`今天${name}火力全开，砍下${pts}分，完全打出了核心的气场`);
+  } else if (pts >= 20) {
+    lines.push(`今天${name}手感在线，拿下${pts}分，是进攻端最稳定的选择`);
+  } else if (pts >= 10) {
+    lines.push(`今天${name}进攻端输出不错，贡献${pts}分为球队托底`);
+  } else {
+    lines.push(`今天${name}进攻端存在感一般，得到了${pts}分`);
+  }
+
+  // 命中率
+  if (efg != null && efg >= 0.6) {
+    lines.push('有效命中率爆表，出手选择相当聪明');
+  } else if (efg != null && efg <= 0.4 && pts > 0) {
+    lines.push('但手感有点拉胯，多次铁出精彩回放');
+  }
+
+  // 篮板 / 助攻
+  if (reb >= 10) {
+    lines.push('篮板球拼得很凶，是自家篮下的定海神针');
+  } else if (reb >= 7) {
+    lines.push('篮板保护做得还不错，多次顶住对手冲击');
+  }
+
+  if (ast >= 8) {
+    lines.push('组织端串联全队，节奏掌控得明明白白');
+  } else if (ast >= 5) {
+    lines.push('在梳理进攻上也给出了稳定输出');
+  }
+
+  // 防守端
+  if (stl + blk >= 4) {
+    lines.push('防守端各种抢断盖帽，给对面外线制造了不小压力');
+  } else if (stl + blk >= 2) {
+    lines.push('防守端也能给到存在感，细节处理可圈可点');
+  }
+
+  // 失误小吐槽
+  if (tov >= 4) {
+    lines.push('就是失误有点多，笑容送给了对面球迷');
+  } else if (tov === 0 && pts + ast > 0) {
+    lines.push('几乎零失误，打法非常稳，教科书级别发挥');
+  }
+
+  return lines.join('，') + '。';
+};
 
 // --- Shared Components ---
 
@@ -2158,7 +2484,7 @@ const HighlightResultScreen = () => {
 
     // Soccer: Show Goals and Penalties
 
-    let basicStatsComparison: Array<{ label: string; a: number | string; b: number | string; highlight?: boolean }> = [];
+    let basicStatsComparison: Array<{ label: string; a: any; b: any; highlight?: boolean }> = [];
 
     if (isSoccer) {
 
@@ -2499,25 +2825,105 @@ const HighlightResultScreen = () => {
                                                          </div>
                                                      </div>
                                                 ) : (
-                                                    <div className="grid grid-cols-4 gap-2">
-                                                        <div className="text-center">
-                                                            <div className="text-xs text-slate-400">得分</div>
-                                                            <div className="text-lg font-bold text-white">{player.pts || 0}</div>
-                                                        </div>
-                                                        <div className="text-center">
-                                                            <div className="text-xs text-slate-400">篮板</div>
-                                                            <div className="text-lg font-bold text-white">{player.reb || 0}</div>
-                                                        </div>
-                                                        <div className="text-center">
-                                                            <div className="text-xs text-slate-400">助攻</div>
-                                                            <div className="text-lg font-bold text-white">{player.ast || 0}</div>
-                                                        </div>
-                                                        <div className="text-center">
-                                                            <div className="text-xs text-slate-400">抢断</div>
-                                                            <div className="text-lg font-bold text-white">{player.stl || 0}</div>
-                                                        </div>
-                                                    </div>
-                                                )}
+                                                   <div className="grid grid-cols-3 gap-3 text-[11px]">
+                                                       <div className="space-y-1">
+                                                           <div className="flex justify-between">
+                                                               <span className="text-slate-400">得分</span>
+                                                               <span className="font-semibold text-white">{player.pts || 0}</span>
+                                                           </div>
+                                                           <div className="flex justify-between">
+                                                               <span className="text-slate-400">篮板</span>
+                                                               <span className="font-semibold text-white">{player.reb || 0}</span>
+                                                           </div>
+                                                           <div className="flex justify-between">
+                                                               <span className="text-slate-400">助攻</span>
+                                                               <span className="font-semibold text-white">{player.ast || 0}</span>
+                                                           </div>
+                                                       </div>
+                                                       <div className="space-y-1">
+                                                           <div className="flex justify-between">
+                                                               <span className="text-slate-400">投篮</span>
+                                                               <span className="font-semibold text-white">
+                                                                   {(() => {
+                                                                       const made = player.fgMade ?? 0;
+                                                                       const att = player.fgAtt ?? 0;
+                                                                       const pct = att > 0 ? Math.round((made / att) * 100) : 0;
+                                                                       return att > 0 ? `${pct}%（${made}-${att}）` : '-';
+                                                                   })()}
+                                                               </span>
+                                                           </div>
+                                                           <div className="flex justify-between">
+                                                               <span className="text-slate-400">三分</span>
+                                                               <span className="font-semibold text-white">
+                                                                   {(() => {
+                                                                       const made = player.tpMade ?? 0;
+                                                                       const att = player.tpAtt ?? 0;
+                                                                       const pct = att > 0 ? Math.round((made / att) * 100) : 0;
+                                                                       return att > 0 ? `${pct}%（${made}-${att}）` : '-';
+                                                                   })()}
+                                                               </span>
+                                                           </div>
+                                                           <div className="flex justify-between">
+                                                               <span className="text-slate-400">罚球</span>
+                                                               <span className="font-semibold text-white">
+                                                                   {(() => {
+                                                                       const made = player.ftMade ?? 0;
+                                                                       const att = player.ftAtt ?? 0;
+                                                                       const pct = att > 0 ? Math.round((made / att) * 100) : 0;
+                                                                       return att > 0 ? `${pct}%（${made}-${att}）` : '-';
+                                                                   })()}
+                                                               </span>
+                                                           </div>
+                                                       </div>
+                                                       <div className="space-y-1">
+                                                           <div className="flex justify-between">
+                                                               <span className="text-slate-400">eFG%</span>
+                                                               <span className="font-semibold text-white">
+                                                                   {(() => {
+                                                                       const fgMade = player.fgMade ?? 0;
+                                                                       const fgAtt = player.fgAtt ?? 0;
+                                                                       const tpMade = player.tpMade ?? 0;
+                                                                       if (fgAtt === 0) return '-';
+                                                                       const efg = (fgMade + 0.5 * tpMade) / fgAtt;
+                                                                       return `${Math.round(efg * 100)}%`;
+                                                                   })()}
+                                                               </span>
+                                                           </div>
+                                                           <div className="flex justify-between">
+                                                               <span className="text-slate-400">TS%</span>
+                                                               <span className="font-semibold text-white">
+                                                                   {(() => {
+                                                                       const pts = player.pts ?? 0;
+                                                                       const fgAtt = player.fgAtt ?? 0;
+                                                                       const ftAtt = player.ftAtt ?? 0;
+                                                                       const denom = 2 * (fgAtt + 0.44 * ftAtt);
+                                                                       if (!denom) return '-';
+                                                                       const ts = pts / denom;
+                                                                       return `${Math.round(ts * 100)}%`;
+                                                                   })()}
+                                                               </span>
+                                                           </div>
+                                                           <div className="flex justify-between">
+                                                               <span className="text-slate-400">抢断 / 失误</span>
+                                                               <span className="font-semibold text-white">
+                                                                   {(player.stl ?? 0)}/{player.tov ?? 0}
+                                                               </span>
+                                                           </div>
+                                                           <div className="flex justify-between">
+                                                               <span className="text-slate-400">盖帽 / 犯规</span>
+                                                               <span className="font-semibold text-white">
+                                                                   {(player.blk ?? 0)}/{player.pf ?? 0}
+                                                               </span>
+                                                           </div>
+                                                           <div className="flex justify-between">
+                                                               <span className="text-slate-400">前板 / 后板</span>
+                                                               <span className="font-semibold text-white">
+                                                                   {(player.offReb ?? 0)}/{player.defReb ?? 0}
+                                                               </span>
+                                                           </div>
+                                                       </div>
+                                                   </div>
+                                               )}
                                              </div>
                                          ))}
                                      </div>
@@ -2938,13 +3344,29 @@ const calculatePlayerStats = (sport: string, eventClaims: Record<number, string>
       };
     } else {
       const scored = (e: { scoreType: number | string; scored?: boolean }) => (e as any).scored !== false;
-      const pts1 = playerEvents.filter(e => e.scoreType === 1 && scored(e)).length;
+      const fgAttempts = playerEvents.filter(e => e.type === 'score').length;
+      const fgMade = playerEvents.filter(e => e.type === 'score' && scored(e)).length;
+
+      const tpAttempts = playerEvents.filter(e => e.type === 'score' && e.scoreType === 3).length;
+      const tpMade = playerEvents.filter(e => e.type === 'score' && e.scoreType === 3 && scored(e)).length;
+
+      const ftAttempts = playerEvents.filter(e => e.type === 'score' && e.scoreType === 1).length;
+      const ftMade = playerEvents.filter(e => e.type === 'score' && e.scoreType === 1 && scored(e)).length;
+
+      const pts1 = ftMade; // 每次罚球命中 1 分
       const pts2 = playerEvents.filter(e => e.scoreType === 2 && scored(e)).length * 2;
-      const pts3 = playerEvents.filter(e => e.scoreType === 3 && scored(e)).length * 3;
+      const pts3 = tpMade * 3;
       const pts = pts1 + pts2 + pts3;
+
       const reb = playerEvents.filter(e => e.scoreType === 'rebound').length;
+      const offReb = 0;
+      const defReb = reb;
       const ast = playerEvents.filter(e => e.scoreType === 'assist').length;
       const stl = playerEvents.filter(e => e.scoreType === 'steal').length;
+      const blk = 0;
+      const tov = 0;
+      const pf = 0;
+
       const eff = pts + reb * 1.2 + ast * 1.5 + stl * 1.0;
       return {
         key,
@@ -2956,6 +3378,17 @@ const calculatePlayerStats = (sport: string, eventClaims: Record<number, string>
         reb,
         ast,
         stl,
+        offReb,
+        defReb,
+        blk,
+        tov,
+        pf,
+        fgMade,
+        fgAtt: fgAttempts,
+        tpMade,
+        tpAtt: tpAttempts,
+        ftMade,
+        ftAtt: ftAttempts,
         eff: `+${Math.round(eff)}`,
         events: playerEvents.map(e => ({ id: e.id, type: e.scoreType, time: e.time, label: e.label, claimed: true }))
       };
@@ -3251,260 +3684,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     );
   };
 
- const BasketballAdvancedView = () => {
-
-    const { eventClaims, expandedPlayerKey, setExpandedPlayerKey } = useAppContext();
-    const playerStats = calculatePlayerStats('basketball', eventClaims);
-
-    const [sortField, setSortField] = useState<'pts' | 'reb' | 'ast' | 'stl'>('pts');
-    const [sortAsc, setSortAsc] = useState(false);
-
-    const handleSort = (field: 'pts' | 'reb' | 'ast' | 'stl') => {
-      setSortField(prev => {
-        if (prev === field) {
-          setSortAsc(a => !a);
-          return prev;
-        }
-        setSortAsc(false);
-        return field;
-      });
-    };
-
-    const sortedPlayerStats = [...playerStats].sort((a, b) => {
-      const av = (a as any)[sortField] ?? 0;
-      const bv = (b as any)[sortField] ?? 0;
-      return sortAsc ? av - bv : bv - av;
-    });
-
-    return (
-
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-          {/* 球员效率榜 - 表格形式 */}
-
-          <div className="bg-[#1E293B] rounded-2xl border border-white/10 overflow-hidden">
-
-              <div className="px-4 py-3 border-b border-white/5">
-
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-400" /> 球员效率榜</h3>
-
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-xs">
-                  <thead>
-                    <tr className="bg-white/5 text-[10px] text-slate-300">
-                      <th className="px-3 py-2 text-left font-semibold">球员</th>
-                      <th className="px-2 py-2 text-center font-semibold">
-                        <button
-                          type="button"
-                          onClick={() => handleSort('pts')}
-                          className="inline-flex items-center gap-0.5"
-                        >
-                          得分
-                          <span className="text-[8px]">
-                            {sortField === 'pts' ? (sortAsc ? '↑' : '↓') : ''}
-                          </span>
-                        </button>
-                      </th>
-                      <th className="px-2 py-2 text-center font-semibold">
-                        <button
-                          type="button"
-                          onClick={() => handleSort('reb')}
-                          className="inline-flex items-center gap-0.5"
-                        >
-                          篮板
-                          <span className="text-[8px]">
-                            {sortField === 'reb' ? (sortAsc ? '↑' : '↓') : ''}
-                          </span>
-                        </button>
-                      </th>
-                      <th className="px-2 py-2 text-center font-semibold">
-                        <button
-                          type="button"
-                          onClick={() => handleSort('ast')}
-                          className="inline-flex items-center gap-0.5"
-                        >
-                          助攻
-                          <span className="text-[8px]">
-                            {sortField === 'ast' ? (sortAsc ? '↑' : '↓') : ''}
-                          </span>
-                        </button>
-                      </th>
-                      <th className="px-2 py-2 text-center font-semibold">
-                        <button
-                          type="button"
-                          onClick={() => handleSort('stl')}
-                          className="inline-flex items-center gap-0.5"
-                        >
-                          抢断
-                          <span className="text-[8px]">
-                            {sortField === 'stl' ? (sortAsc ? '↑' : '↓') : ''}
-                          </span>
-                        </button>
-                      </th>
-                      <th className="px-3 py-2 text-center font-semibold">详情</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {sortedPlayerStats.map((p) => (
-                      <tr key={p.key} className="hover:bg-white/5">
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${p.color}`}>
-                              {p.label.slice(0, 2)}
-                            </div>
-                            <div>
-                              <div className="text-xs font-bold text-white truncate max-w-[90px]">
-                                {p.label}
-                              </div>
-                              <div className="text-[9px] text-slate-400">
-                                {(p as any).team === 'A' ? 'A 队' : 'B 队'}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-2 py-2 text-center font-mono text-xs text-white">
-                          {(p as any).pts ?? 0}
-                        </td>
-                        <td className="px-2 py-2 text-center font-mono text-xs text-white">
-                          {(p as any).reb ?? 0}
-                        </td>
-                        <td className="px-2 py-2 text-center font-mono text-xs text-white">
-                          {(p as any).ast ?? 0}
-                        </td>
-                        <td className="px-2 py-2 text-center font-mono text-xs text-white">
-                          {(p as any).stl ?? 0}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedPlayerKey(
-                                expandedPlayerKey === p.key ? null : p.key
-                              )
-                            }
-                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-bold bg-white/5 text-slate-200 hover:bg-white/10 whitespace-nowrap"
-                          >
-                            查看详情
-                            <ChevronDown
-                              className={`w-3 h-3 transition-transform ${
-                                expandedPlayerKey === p.key ? 'rotate-180' : ''
-                              }`}
-                            />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {expandedPlayerKey && (
-                <div className="border-t border-white/10 bg-black/20">
-                  {sortedPlayerStats
-                    .filter((p) => p.key === expandedPlayerKey)
-                    .map((p) => (
-                      <PlayerDetailView
-                        key={p.key}
-                        player={p}
-                        sport="basketball"
-                        onClose={() => setExpandedPlayerKey(null)}
-                      />
-                    ))}
-                </div>
-              )}
-
-          </div>
-
-      </div>
-
-  );
-
-  };
-
-  const SoccerAdvancedView = () => {
-
-    const { eventClaims, expandedPlayerKey, setExpandedPlayerKey } = useAppContext();
-    const playerStats = calculatePlayerStats('soccer', eventClaims);
-
-    return (
-
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-          {/* 球员数据 */}
-
-          <div className="bg-[#1E293B] rounded-2xl border border-white/10 overflow-hidden">
-
-              <div className="px-4 py-3 border-b border-white/5">
-
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2"><Activity className="w-4 h-4 text-blue-400" /> 球员数据</h3>
-
-              </div>
-
-              <div className="divide-y divide-white/5">
-
-                  {playerStats.map((p) => (
-
-                      <div key={p.key}>
-                          <div 
-                              onClick={() => setExpandedPlayerKey(expandedPlayerKey === p.key ? null : p.key)}
-                              className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 transition-colors"
-                          >
-                              <div className="flex items-center gap-3 flex-1">
-
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${p.color}`}>{p.label.slice(0, 2)}</div>
-
-                                  <div className="flex-1">
-
-                                      <div className="flex items-center gap-2">
-                                          <div className="text-xs font-bold text-white">{p.label}</div>
-                                      </div>
-
-                                      <div className="text-[9px] text-slate-400">评分 {(p as any).rating || 8.0}</div>
-
-                                  </div>
-
-                              </div>
-
-                              <div className="flex gap-3 text-right">
-
-                                  <div className="flex flex-col items-end"><span className="text-[10px] text-slate-400">进球</span><span className="text-xs font-bold text-white font-mono">{(p as any).goals || 0}</span></div>
-
-                                  {(p as any).corners !== undefined && (
-                                      <div className="flex flex-col items-end"><span className="text-[10px] text-slate-400">角球</span><span className="text-xs font-bold text-white font-mono">{(p as any).corners || 0}</span></div>
-                                  )}
-
-                                  {(p as any).penalties !== undefined && (
-                                      <div className="flex flex-col items-end"><span className="text-[10px] text-slate-400">点球</span><span className="text-xs font-bold text-white font-mono">{(p as any).penalties || 0}</span></div>
-                                  )}
-
-                              </div>
-
-                              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expandedPlayerKey === p.key ? 'rotate-180' : ''}`} />
-
-                          </div>
-
-                          {expandedPlayerKey === p.key && (
-                              <PlayerDetailView 
-                                  player={p} 
-                                  sport="soccer" 
-                                  onClose={() => setExpandedPlayerKey(null)}
-                              />
-                          )}
-                      </div>
-
-                  ))}
-
-              </div>
-
-          </div>
-
-      </div>
-
-  );
-
-  };
 
   const AnalysisResultScreen = () => {
 
@@ -3552,9 +3731,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     // Player filter state for Pro personal highlights
     const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
     
-    // 高阶分析：仅支持分享个人球员数据看板，需先选择球员
-    const [advancedSelectedPlayer, setAdvancedSelectedPlayer] = useState<string | null>(null);
-    
     // Player marking dropdown state
     const [openPlayerMenuId, setOpenPlayerMenuId] = useState<number | null>(null);
     // Event type correction dropdown state
@@ -3577,6 +3753,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const [aiCoachLoading, setAiCoachLoading] = useState(false);
     const [aiCoachHasVideo, setAiCoachHasVideo] = useState(false);
     
+    // 球员汇总看板：相关视频 / 热区图浮层状态
+    const [summaryVideoPlayerLabel, setSummaryVideoPlayerLabel] = useState<string | null>(null);
+    const [summaryHeatmapPlayerLabel, setSummaryHeatmapPlayerLabel] = useState<string | null>(null);
+    // 球员卡片展开状态（篮球/足球）
+    const [expandedSummaryPlayerId, setExpandedSummaryPlayerId] = useState<number | null>(null);
+
     type DropdownRect = { top?: number; bottom?: number; left: number; minWidth: number; placement: 'above' | 'below' };
     const typeTriggerRefs = useRef<Record<number, HTMLButtonElement | null>>({});
     const playerTriggerRefs = useRef<Record<number, HTMLButtonElement | null>>({});
@@ -3605,18 +3787,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             setSelectedPlayer('all');
         }
     }, [availablePlayers, selectedPlayer]);
-
-    // 高阶分析：个人球员列表（用于选择后分享其数据看板）
-    const advancedPlayerList = React.useMemo(
-        () => calculatePlayerStats(resultSport || 'basketball', eventClaims),
-        [resultSport, eventClaims]
-    );
-
-    useEffect(() => {
-        if (advancedSelectedPlayer && !advancedPlayerList.some(p => p.key === advancedSelectedPlayer)) {
-            setAdvancedSelectedPlayer(null);
-        }
-    }, [advancedPlayerList, advancedSelectedPlayer]);
 
     // Close correction menus (player / type) when clicking outside
     useEffect(() => {
@@ -4003,50 +4173,56 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         return null;
     };
 
-    // Process stats comparison for Pro view - reorder and add two-point row for basketball
+    // Process stats comparison for Pro view - 专门为篮球整理展示顺序与命中率格式
     const processedStatsComparison = isSoccer 
         ? statsData.comparison 
         : (() => {
             const comparison = [...statsData.comparison];
-            // Calculate two-point score: total - free throw - three point
-            const totalScore = comparison.find(item => item.label === '总得分');
-            const freeThrowScore = comparison.find(item => item.label === '罚球得分');
-            const threePointScore = comparison.find(item => item.label === '三分得分');
-            
-            if (totalScore && freeThrowScore && threePointScore) {
-                const twoPointScoreA = (totalScore.a as number) - (freeThrowScore.a as number) - (threePointScore.a as number);
-                const twoPointScoreB = (totalScore.b as number) - (freeThrowScore.b as number) - (threePointScore.b as number);
-                
-                // Find if two-point row already exists
-                const existingTwoPoint = comparison.find(item => item.label === '两分得分' || item.label === '两分命中');
-                if (!existingTwoPoint) {
-                    // Insert after total score
-                    const totalIndex = comparison.findIndex(item => item.label === '总得分');
-                    comparison.splice(totalIndex + 1, 0, {
-                        label: '两分得分',
-                        a: twoPointScoreA,
-                        b: twoPointScoreB
-                    });
-                }
+            const findRow = (label: string) => comparison.find(item => item.label === label);
+
+            const rows: Array<{ label: string; a: any; b: any; highlight?: boolean }> = [];
+
+            const pushIf = (row: any) => {
+                if (row) rows.push(row);
+            };
+
+            // 1. 得分
+            pushIf(findRow('总得分'));
+
+            // 2. 篮板（总 + 前场 + 后场）
+            pushIf(findRow('篮板'));
+            pushIf(findRow('前场篮板'));
+            pushIf(findRow('后场篮板'));
+
+            // 3. 助攻、抢断、盖帽、失误、犯规
+            pushIf(findRow('助攻'));
+            pushIf(findRow('抢断'));
+            pushIf(findRow('盖帽'));
+            pushIf(findRow('失误'));
+            pushIf(findRow('犯规'));
+
+            // 4. 罚球次数 + 罚球命中率（命中率行会在 UI 中渲染为 50%（10-20））
+            const ftRate: any = findRow('罚球命中率');
+            if (ftRate && ftRate.a && typeof ftRate.a === 'object') {
+                rows.push({
+                    label: '罚球次数',
+                    a: ftRate.a.att,
+                    b: ftRate.b.att,
+                });
+                rows.push(ftRate);
             }
-            
-            // Reorder: 总得分, 两分得分, 三分得分, 罚球得分, 投篮命中率 (highlight core metrics)
-            const priorityOrder = ['总得分', '两分得分', '三分得分', '罚球得分', '投篮命中率'];
-            const ordered: typeof comparison = [];
-            const remaining: typeof comparison = [];
-            
-            priorityOrder.forEach(label => {
-                const item = comparison.find(i => i.label === label);
-                if (item) ordered.push(item);
-            });
-            
-            comparison.forEach(item => {
-                if (!priorityOrder.includes(item.label)) {
-                    remaining.push(item);
-                }
-            });
-            
-            return [...ordered, ...remaining];
+
+            // 5. 投篮命中率 + 三分命中率
+            const fgRate: any = findRow('投篮命中率');
+            if (fgRate) {
+                rows.push(fgRate);
+            }
+            const tpRate: any = findRow('三分命中率');
+            if (tpRate) {
+                rows.push(tpRate);
+            }
+
+            return rows;
         })();
 
     // Filters for clips tab
@@ -4642,8 +4818,33 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                     }
                                 };
 
-                                const aValue = typeof item.a === 'number' ? item.a : parseFloat(String(item.a)) || 0;
-                                const bValue = typeof item.b === 'number' ? item.b : parseFloat(String(item.b)) || 0;
+                                const isRateRow = !isSoccer && item && typeof item.a === 'object' && item.a !== null && 'pct' in item.a;
+
+                                // 显示文本：命中率类行显示 50%（10-20），其他行直接显示数值
+                                let aDisplay: any = item.a;
+                                let bDisplay: any = item.b;
+
+                                let aValue: number;
+                                let bValue: number;
+
+                                if (isRateRow) {
+                                    const aStats = item.a as { pct: number; made: number; att: number };
+                                    const bStats = item.b as { pct: number; made: number; att: number };
+
+                                    const fmtPct = (v: number) => `${Math.round((v || 0) * 100)}%`;
+
+                                    aDisplay = `${fmtPct(aStats.pct)}（${aStats.made}-${aStats.att}）`;
+                                    bDisplay = `${fmtPct(bStats.pct)}（${bStats.made}-${bStats.att}）`;
+
+                                    // 柱状图使用出手次数体现“体量”
+                                    aValue = aStats.att || 0;
+                                    bValue = bStats.att || 0;
+                                } else {
+                                    const aNum = typeof item.a === 'number' ? item.a : parseFloat(String(item.a)) || 0;
+                                    const bNum = typeof item.b === 'number' ? item.b : parseFloat(String(item.b)) || 0;
+                                    aValue = aNum;
+                                    bValue = bNum;
+                                }
                                 const maxValue = Math.max(aValue, bValue, 1);
                                 const aIsHigher = aValue > bValue;
                                 const bIsHigher = bValue > aValue;
@@ -4658,14 +4859,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                     >
                                         {/* 顶部数值 + 指标文案 */}
                                         <div className="flex items-center justify-between mb-1.5">
-                                            <span className={`w-12 text-left text-[11px] font-mono font-bold ${aIsHigher ? statsData.teamA.color : 'text-slate-500'}`}>
-                                                {item.a}
+                                            <span className={`w-16 text-left text-[11px] font-mono font-bold ${aIsHigher ? statsData.teamA.color : 'text-slate-500'}`}>
+                                                {aDisplay}
                                             </span>
-                                            <span className="flex-1 text-center text-xs text-slate-300">
+                                            <span className="flex-1 text-center text-[11px] text-slate-300">
                                                 {item.label}
                                             </span>
-                                            <span className={`w-12 text-right text-[11px] font-mono font-bold ${bIsHigher ? statsData.teamB.color : 'text-slate-500'}`}>
-                                                {item.b}
+                                            <span className={`w-16 text-right text-[11px] font-mono font-bold ${bIsHigher ? statsData.teamB.color : 'text-slate-500'}`}>
+                                                {bDisplay}
                                             </span>
                                         </div>
 
@@ -4744,34 +4945,273 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                  ) : activeTab === 'advanced' ? (
 
-                     // --- Advanced Analysis View（仅个人球员；分享仅支持所选球员数据看板）---
+                     // --- Advanced Analysis View（球员汇总与集锦 + AI 解说 & 文案）---
 
                      <div className="pb-24 space-y-4">
 
-                        {/* 球员数据/效率榜 - 先看数据 */}
-                        {isSoccer ? <SoccerAdvancedView /> : <BasketballAdvancedView />}
+                        {/* 球员汇总与集锦（仅篮球） */}
+                        {!isSoccer && (
+                            <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden mb-4">
+                                <div className="flex justify-between items-center px-4 py-3 bg-white/5 text-[11px] font-bold text-slate-300 border-b border-white/5">
+                                    <span>球员汇总与集锦</span>
+                                    <span className="text-[10px] text-slate-400">一键查看关键球员数据、集锦和热区图</span>
+                                </div>
+                                <div className="divide-y divide-white/5">
+                                    {PLAYER_STATS_BASKETBALL.map((p) => {
+                                        const label = `#${p.number} ${p.name}`;
+                                        const clipsForPlayer = clipsState.filter(
+                                            c => (eventClaims[c.id] ?? c.player) === label
+                                        );
+                                        const clipCount = clipsForPlayer.length;
 
-                        {/* 球员选择器（用于分享）- 看完数据后选择分享 */}
-                        <div>
-                            <p className="text-[10px] text-slate-400 mb-2">选择球员以分享其数据看板</p>
-                            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-                                {advancedPlayerList.length === 0 ? (
-                                    <span className="text-xs text-slate-500">暂无球员数据</span>
-                                ) : (
-                                    advancedPlayerList.map((p) => (
-                                        <button
-                                            key={p.key}
-                                            onClick={() => setAdvancedSelectedPlayer(advancedSelectedPlayer === p.key ? null : p.key)}
-                                            className={`flex-none px-3 py-1.5 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${
-                                                advancedSelectedPlayer === p.key ? 'bg-amber-500 text-slate-900 border-amber-400' : 'bg-white/5 text-slate-400 border-white/10 hover:border-white/20'
-                                            }`}
-                                        >
-                                            {p.label}
-                                        </button>
-                                    ))
-                                )}
+                                        const fgMade = p.fgMade ?? 0;
+                                        const fgAtt = p.fgAtt ?? 0;
+                                        const tpMade = p.tpMade ?? 0;
+                                        const tpAtt = p.tpAtt ?? 0;
+                                        const ftMade = p.ftMade ?? 0;
+                                        const ftAtt = p.ftAtt ?? 0;
+                                        const pts = p.pts ?? 0;
+
+                                        const efg =
+                                            fgAtt > 0 ? (fgMade + 0.5 * tpMade) / fgAtt : null;
+                                        const tsDenom = 2 * (fgAtt + 0.44 * ftAtt);
+                                        const ts = tsDenom > 0 ? pts / tsDenom : null;
+
+                                        const isExpanded = expandedSummaryPlayerId === p.id;
+                                        
+                                        return (
+                                            <div key={p.id} className="px-4 py-3 relative" style={{ pointerEvents: 'auto' }}>
+                                                {/* 头部概览（始终可见） */}
+                                                <div className="flex items-start gap-3">
+                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white ${p.color}`}>
+                                                            {p.number}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-bold text-white truncate">
+                                                                    {p.name}
+                                                                </span>
+                                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/40">
+                                                                    {p.pts >= 25
+                                                                        ? '得分王'
+                                                                        : p.reb >= 8
+                                                                        ? '篮板王'
+                                                                        : p.ast >= 7
+                                                                        ? '助攻王'
+                                                                        : '关键轮换'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-1 text-[11px] text-slate-300">
+                                                                <span className="mr-2">{p.pts} 分</span>
+                                                                <span className="mr-2">{p.reb} 篮板</span>
+                                                                <span className="mr-2">{p.ast} 助攻</span>
+                                                                <span className="mr-2">
+                                                                    eFG {efg != null ? `${Math.round(efg * 100)}%` : '-'}
+                                                                </span>
+                                                                <span>
+                                                                    TS {ts != null ? `${Math.round(ts * 100)}%` : '-'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-1 text-[10px] relative z-10">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                console.log('点击相关视频按钮:', label);
+                                                                setSummaryVideoPlayerLabel(label);
+                                                            }}
+                                                            className="px-2 py-1 rounded-full bg-blue-500 hover:bg-blue-400 text-white font-bold flex items-center gap-1 transition-colors cursor-pointer relative z-10"
+                                                            style={{ pointerEvents: 'auto' }}
+                                                        >
+                                                            <Play className="w-3 h-3" />
+                                                            相关视频（{clipCount}）
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                console.log('点击热区图按钮:', label);
+                                                                setSummaryHeatmapPlayerLabel(label);
+                                                            }}
+                                                            className="px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-100 border border-white/10 flex items-center gap-1 transition-colors cursor-pointer relative z-10"
+                                                            style={{ pointerEvents: 'auto' }}
+                                                        >
+                                                            <AreaChart className="w-3 h-3" />
+                                                            热区图
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* 可折叠详细数据区 */}
+                                                {isExpanded && (
+                                                    <div className="mt-3 pt-3 border-t border-white/5 space-y-2 animate-in slide-in-from-top-2">
+                                                        <div className="text-[10px] text-slate-400">
+                                                            投篮 {fgAtt > 0 ? `${Math.round((fgMade / fgAtt) * 100)}%（${fgMade}-${fgAtt}）` : '-'} ·{' '}
+                                                            三分 {tpAtt > 0 ? `${Math.round((tpMade / tpAtt) * 100)}%（${tpMade}-${tpAtt}）` : '-'} ·{' '}
+                                                            罚球 {ftAtt > 0 ? `${Math.round((ftMade / ftAtt) * 100)}%（${ftMade}-${ftAtt}）` : '-'}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400">
+                                                            抢断 {p.stl ?? 0} / 失误 {p.tov ?? 0} / 盖帽 {p.blk ?? 0} / 犯规 {p.pf ?? 0}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400">
+                                                            前板 {p.offReb ?? 0} / 后板 {p.defReb ?? 0}
+                                                        </div>
+                                                        <div className="mt-2 pt-2 border-t border-white/5 text-[10px] text-slate-400">
+                                                            <span className="font-semibold text-slate-300 mr-1">AI 点评</span>
+                                                            {generatePlayerComment(p)}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* 展开/折叠按钮 */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpandedSummaryPlayerId(isExpanded ? null : p.id)}
+                                                    className="mt-2 w-full text-center text-[10px] text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1"
+                                                >
+                                                    {isExpanded ? '收起详情' : '展开详情'}
+                                                    <ChevronDown className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {/* 球员汇总与集锦（足球） */}
+                        {isSoccer && (
+                            <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden mb-4">
+                                <div className="flex justify-between items-center px-4 py-3 bg-white/5 text-[11px] font-bold text-slate-300 border-b border-white/5">
+                                    <span>球员汇总与集锦</span>
+                                    <span className="text-[10px] text-slate-400">一键查看关键球员数据、集锦和热区图</span>
+                                </div>
+                                <div className="divide-y divide-white/5">
+                                    {PLAYER_STATS_SOCCER.map((p) => {
+                                        const label = `#${p.number} ${p.name}`;
+                                        const clipsForPlayer = clipsState.filter(
+                                            c => (eventClaims[c.id] ?? c.player) === label
+                                        );
+                                        const clipCount = clipsForPlayer.length;
+
+                                        const shots = p.shots ?? 0;
+                                        const shotsOnTarget = p.shotsOnTarget ?? 0;
+                                        const conversionRate = shots > 0 ? (p.goals ?? 0) / shots : 0;
+                                        const shotAccuracy = shots > 0 ? shotsOnTarget / shots : 0;
+
+                                        const isExpanded = expandedSummaryPlayerId === p.id;
+
+                                        return (
+                                            <div key={p.id} className="px-4 py-3 relative" style={{ pointerEvents: 'auto' }}>
+                                                {/* 头部概览（始终可见） */}
+                                                <div className="flex items-start gap-3">
+                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white ${p.color}`}>
+                                                            {p.number}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-bold text-white truncate">
+                                                                    {p.name}
+                                                                </span>
+                                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40">
+                                                                    {p.goals >= 2
+                                                                        ? '进球王'
+                                                                        : p.goals >= 1
+                                                                        ? '大腿'
+                                                                        : p.keyPasses >= 5
+                                                                        ? '组织核心'
+                                                                        : p.tackles + p.interceptions >= 6
+                                                                        ? '工兵'
+                                                                        : '关键轮换'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-1 text-[11px] text-slate-300">
+                                                                <span className="mr-2">{p.goals} 球</span>
+                                                                {p.assists > 0 && <span className="mr-2">{p.assists} 助</span>}
+                                                                <span className="mr-2">xG {p.xG?.toFixed(1) ?? '-'}</span>
+                                                                {p.keyPasses > 0 && <span className="mr-2">关键传球 {p.keyPasses} 次</span>}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-1 text-[10px] relative z-10">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                console.log('点击相关视频按钮:', label);
+                                                                setSummaryVideoPlayerLabel(label);
+                                                            }}
+                                                            className="px-2 py-1 rounded-full bg-blue-500 hover:bg-blue-400 text-white font-bold flex items-center gap-1 transition-colors cursor-pointer relative z-10"
+                                                            style={{ pointerEvents: 'auto' }}
+                                                        >
+                                                            <Play className="w-3 h-3" />
+                                                            相关视频（{clipCount}）
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                console.log('点击跑动图按钮:', label);
+                                                                setSummaryHeatmapPlayerLabel(label);
+                                                            }}
+                                                            className="px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-100 border border-white/10 flex items-center gap-1 transition-colors cursor-pointer relative z-10"
+                                                            style={{ pointerEvents: 'auto' }}
+                                                        >
+                                                            <AreaChart className="w-3 h-3" />
+                                                            跑动图
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* 可折叠详细数据区 */}
+                                                {isExpanded && (
+                                                    <div className="mt-3 pt-3 border-t border-white/5 space-y-2 animate-in slide-in-from-top-2">
+                                                        <div className="text-[10px] text-slate-400">
+                                                            射门 {shots}（射正 {shotsOnTarget}）· 转化率 {shots > 0 ? `${Math.round(conversionRate * 100)}%` : '-'} · 射正率 {shots > 0 ? `${Math.round(shotAccuracy * 100)}%` : '-'}
+                                                        </div>
+                                                        {p.keyPasses > 0 && (
+                                                            <div className="text-[10px] text-slate-400">
+                                                                关键传球 {p.keyPasses} · 进攻三区传球 {Math.floor((p.keyPasses ?? 0) * 4)}
+                                                            </div>
+                                                        )}
+                                                        <div className="text-[10px] text-slate-400">
+                                                            跑动 {p.dist ?? '-'} · 冲刺 {p.sprints ?? 0} 次
+                                                        </div>
+                                                        {(p.tackles > 0 || p.interceptions > 0) && (
+                                                            <div className="text-[10px] text-slate-400">
+                                                                抢断 {p.tackles ?? 0} · 拦截 {p.interceptions ?? 0} · 抢回球权 {(p.tackles ?? 0) + (p.interceptions ?? 0)}
+                                                            </div>
+                                                        )}
+                                                        <div className="mt-2 pt-2 border-t border-white/5 text-[10px] text-slate-400">
+                                                            <span className="font-semibold text-slate-300 mr-1">AI 点评</span>
+                                                            {generateSoccerPlayerComment(p)}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* 展开/折叠按钮 */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpandedSummaryPlayerId(isExpanded ? null : p.id)}
+                                                    className="mt-2 w-full text-center text-[10px] text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1"
+                                                >
+                                                    {isExpanded ? '收起详情' : '展开详情'}
+                                                    <ChevronDown className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         {/* AI 解说 & 文案 */}
                         <div className="mt-4 bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
@@ -5167,30 +5607,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
          {activeTab === 'stats' && (
              <div className="p-4 bg-[#0F172A] border-t border-white/10"><button onClick={handleExportReport} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-colors"><Download className="w-4 h-4" /> 导出专业分析报告</button></div>
          )}
-         {/* Footer for Advanced Tab - 仅支持分享所选个人球员数据看板 */}
-         {activeTab === 'advanced' && (() => {
-             const sel = advancedSelectedPlayer ? advancedPlayerList.find(x => x.key === advancedSelectedPlayer) : null;
-             return (
-                 <div className="p-4 bg-[#0F172A] border-t border-white/10">
-                     {sel ? (
-                         <button
-                             onClick={() => {
-                                 setShareContext({ type: 'player_dashboard', playerLabel: sel.label });
-                                 setShareType('all');
-                                 setShowShareModal(true);
-                             }}
-                             className="w-full bg-orange-500 hover:bg-orange-600 py-3 rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2"
-                         >
-                             <Share2 className="w-4 h-4" /> 分享 {sel.label} 数据看板
-                         </button>
-                     ) : (
-                         <button disabled className="w-full bg-slate-700 text-slate-500 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 cursor-not-allowed">
-                             <Share2 className="w-4 h-4" /> 请先选择球员
-                         </button>
-                     )}
-                 </div>
-             );
-         })()}
 
          {/* Portal dropdowns for type / player correction (avoid clip card overflow clipping) */}
          {openTypeMenuId != null && typeDropdownRect != null && (() => {
@@ -5260,6 +5676,211 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                      </button>
                  </div>,
                  document.body
+             );
+         })()}
+
+         {/* 全局抽屉：相关视频和热区图（不受 activeTab 限制） */}
+         {/* 相关视频浮层 */}
+         {summaryVideoPlayerLabel && (
+             <div 
+                 className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center animate-in fade-in"
+                 onClick={(e) => {
+                     if (e.target === e.currentTarget) {
+                         setSummaryVideoPlayerLabel(null);
+                     }
+                 }}
+             >
+                 <div 
+className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t border-white/10 flex flex-col animate-in slide-in-from-bottom-4"
+                    style={{ maxHeight: '85vh' }}
+                     onClick={(e) => e.stopPropagation()}
+                 >
+                     {/* 顶部拖拽指示器 */}
+                     <div className="flex flex-col items-center pt-2 pb-1">
+                         <div className="w-12 h-1 bg-slate-500/50 rounded-full" />
+                     </div>
+                     
+                     <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                         <h3 className="text-sm font-bold text-white">
+                             {summaryVideoPlayerLabel} 相关视频
+                         </h3>
+                         <button
+                             type="button"
+                             onClick={(e) => {
+                                 e.stopPropagation();
+                                 setSummaryVideoPlayerLabel(null);
+                             }}
+                             className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                         >
+                             <X className="w-5 h-5" />
+                         </button>
+                     </div>
+                     
+                     <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                         {(() => {
+                             const playerClips = clipsState.filter(c => (eventClaims[c.id] ?? c.player) === summaryVideoPlayerLabel);
+                             return playerClips.map((clip, index) => {
+                                 const eventLabel = getEventTypeLabel(clip, isSoccer);
+                                 return (
+                                     <div
+                                         key={clip.id}
+                                         onClick={() => {
+                                             handleClipClick(clip.time);
+                                             setSummaryVideoPlayerLabel(null);
+                                         }}
+                                         className="bg-slate-800/50 rounded-xl p-3 flex items-center gap-3 cursor-pointer hover:bg-slate-800 active:scale-[0.98] transition-all border border-white/5"
+                                         style={{ animationDelay: `${index * 50}ms` }}
+                                     >
+                                         {/* 缩略图占位 */}
+                                         <div className={`w-16 h-16 rounded-lg ${isSoccer ? 'bg-gradient-to-br from-emerald-600 to-emerald-800' : 'bg-gradient-to-br from-orange-600 to-orange-800'} flex items-center justify-center shrink-0 relative overflow-hidden`}>
+                                             <PlayCircle className="w-6 h-6 text-white/90" />
+                                             <div className="absolute bottom-1 right-1 text-[8px] font-bold text-white/90 bg-black/40 px-1 rounded">
+                                                 {clip.duration}
+                                             </div>
+                                         </div>
+                                         
+                                         {/* 内容区域 */}
+                                         <div className="flex-1 min-w-0">
+                                             {/* 事件类型标签 */}
+                                             <div className="flex items-center gap-2 mb-1">
+                                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${eventLabel.bgColor} ${eventLabel.color} border ${eventLabel.color.replace('text-', 'border-')}/30`}>
+                                                     {eventLabel.label}
+                                                 </span>
+                                                 <span className={`text-[9px] px-1.5 py-0.5 rounded ${clip.team === 'A' ? 'bg-blue-500/20 text-blue-300' : 'bg-red-500/20 text-red-300'}`}>
+                                                     {clip.team === 'A' ? statsData.teamA.name : statsData.teamB.name}
+                                                 </span>
+                                             </div>
+                                             {/* 标题 */}
+                                             <div className="text-xs font-bold text-white truncate mb-0.5">
+                                                 {clip.label}
+                                             </div>
+                                             {/* 时间信息 */}
+                                             <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                                                 <span className="font-mono">{clip.time}</span>
+                                                 <span>·</span>
+                                                 <span>{clip.duration}</span>
+                                             </div>
+                                         </div>
+                                         
+                                         {/* 播放按钮 */}
+                                         <div className="shrink-0">
+                                             <PlayCircle className="w-6 h-6 text-blue-400" />
+                                         </div>
+                                     </div>
+                                 );
+                             });
+                         })()}
+                         {clipsState.filter(c => (eventClaims[c.id] ?? c.player) === summaryVideoPlayerLabel).length === 0 && (
+                             <div className="text-center text-slate-400 text-xs py-12">
+                                 <PlayCircle className="w-12 h-12 mx-auto mb-3 text-slate-600" />
+                                 <div>暂无相关视频</div>
+                             </div>
+                         )}
+                     </div>
+                     
+                     {clipsState.filter(c => (eventClaims[c.id] ?? c.player) === summaryVideoPlayerLabel).length > 0 && (
+                         <div className="p-4 border-t border-white/5">
+                             <button
+                                 type="button"
+                                 onClick={() => {
+                                     setSelectedPlayer(summaryVideoPlayerLabel);
+                                     setSummaryVideoPlayerLabel(null);
+                                     setActiveTab('clips');
+                                 }}
+                                 className="w-full bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white py-2.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                             >
+                                 <Play className="w-4 h-4" />
+                                 在集锦页中查看全部
+                             </button>
+                         </div>
+                     )}
+                 </div>
+             </div>
+         )}
+
+         {/* 热区图抽屉 */}
+         {summaryHeatmapPlayerLabel && (() => {
+             // 查找球员数据
+             const playerData = isSoccer 
+                 ? PLAYER_STATS_SOCCER.find(p => `#${p.number} ${p.name}` === summaryHeatmapPlayerLabel)
+                 : PLAYER_STATS_BASKETBALL.find(p => `#${p.number} ${p.name}` === summaryHeatmapPlayerLabel);
+             
+             return (
+                 <div 
+                     className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center animate-in fade-in"
+                     onClick={(e) => {
+                         if (e.target === e.currentTarget) {
+                             setSummaryHeatmapPlayerLabel(null);
+                         }
+                     }}
+                 >
+                     <div 
+                         className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t border-white/10 flex flex-col animate-in slide-in-from-bottom-4"
+                         style={{ maxHeight: '90vh' }}
+                         onClick={(e) => e.stopPropagation()}
+                     >
+                         {/* 顶部拖拽指示器 */}
+                         <div className="flex flex-col items-center pt-2 pb-1">
+                             <div className="w-12 h-1 bg-slate-500/50 rounded-full" />
+                         </div>
+                         
+                         <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                             <h3 className="text-sm font-bold text-white">
+                                 {summaryHeatmapPlayerLabel} 热区图
+                             </h3>
+                             <button
+                                 type="button"
+                                 onClick={(e) => {
+                                     e.stopPropagation();
+                                     setSummaryHeatmapPlayerLabel(null);
+                                 }}
+                                 className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                             >
+                                 <X className="w-5 h-5" />
+                             </button>
+                         </div>
+                         
+                         {/* 球员数据摘要 */}
+                         {playerData && (
+                             <div className="px-4 py-3 border-b border-white/5 bg-slate-800/30">
+                                 <div className="flex items-center gap-3 mb-2">
+                                     <div className={`w-8 h-8 rounded-full ${playerData.color} flex items-center justify-center text-white text-xs font-bold`}>
+                                         {playerData.number}
+                                     </div>
+                                     <div className="flex-1">
+                                         <div className="text-xs font-bold text-white">{playerData.name}</div>
+                                         {isSoccer ? (
+                                             <div className="text-[10px] text-slate-400 mt-0.5">
+                                                 进球 {playerData.goals} · 助攻 {playerData.assists} · 射门 {playerData.shots}/{playerData.shotsOnTarget}
+                                             </div>
+                                         ) : (
+                                             <div className="text-[10px] text-slate-400 mt-0.5">
+                                                 得分 {playerData.pts} · 篮板 {playerData.reb} · 助攻 {playerData.ast}
+                                             </div>
+                                         )}
+                                     </div>
+                                 </div>
+                                 {isSoccer ? (
+                                     <div className="text-[10px] text-slate-400 mt-2">
+                                         热区图显示球员在球场上的活动热度和射门位置分布
+                                     </div>
+                                 ) : (
+                                     <div className="text-[10px] text-slate-400 mt-2">
+                                         热区图显示球员在球场上的投篮位置和命中率分布
+                                     </div>
+                                 )}
+                             </div>
+                         )}
+                         
+                         <div className="flex-1 overflow-y-auto p-4">
+                             {isSoccer ? (
+                                 <SoccerHeatmap playerLabel={summaryHeatmapPlayerLabel} />
+                             ) : (
+                                 <BasketballHeatmap playerLabel={summaryHeatmapPlayerLabel} />
+                             )}
+                         </div>
+                     </div>
+                 </div>
              );
          })()}
 
