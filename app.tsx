@@ -2954,18 +2954,22 @@ const HighlightResultScreen = () => {
                                      <span className={`w-12 text-right font-mono font-bold ${item.b > item.a ? statsData.teamB.color : 'text-slate-400'}`}>{item.b}</span>
                                  </div>
                              ))}
-                             {/* Add rebound and steal to team comparison for basketball */}
-                             {!isSoccer && (
-                                 <>
-                                     {statsData.comparison.filter(i => ['篮板', '抢断'].includes(i.label)).map((item, index) => (
-                                         <div key={`extra-${index}`} className={`flex justify-between items-center px-4 py-3 border-b border-white/5 last:border-0`}>
-                                             <span className={`w-12 text-left font-mono font-bold ${item.a > item.b ? statsData.teamA.color : 'text-slate-400'}`}>{item.a}</span>
-                                             <span className="flex-1 text-center text-xs text-slate-300">{item.label}</span>
-                                             <span className={`w-12 text-right font-mono font-bold ${item.b > item.a ? statsData.teamB.color : 'text-slate-400'}`}>{item.b}</span>
-                                         </div>
-                                     ))}
-                                 </>
-                             )}
+                            {/* Add rebound and steal to team comparison for basketball */}
+                            {!isSoccer && (
+                                <>
+                                    {statsData.comparison.filter(i => ['篮板', '抢断'].includes(i.label)).map((item, index) => {
+                                        const aValue = typeof item.a === 'number' ? item.a : (item.a as any).pct || 0;
+                                        const bValue = typeof item.b === 'number' ? item.b : (item.b as any).pct || 0;
+                                        return (
+                                            <div key={`extra-${index}`} className={`flex justify-between items-center px-4 py-3 border-b border-white/5 last:border-0`}>
+                                                <span className={`w-12 text-left font-mono font-bold ${aValue > bValue ? statsData.teamA.color : 'text-slate-400'}`}>{aValue}</span>
+                                                <span className="flex-1 text-center text-xs text-slate-300">{item.label}</span>
+                                                <span className={`w-12 text-right font-mono font-bold ${bValue > aValue ? statsData.teamB.color : 'text-slate-400'}`}>{bValue}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            )}
                          </div>
                      </details>
                     
@@ -5851,11 +5855,11 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
                                          <div className="text-xs font-bold text-white">{playerData.name}</div>
                                          {isSoccer ? (
                                              <div className="text-[10px] text-slate-400 mt-0.5">
-                                                 进球 {playerData.goals} · 助攻 {playerData.assists} · 射门 {playerData.shots}/{playerData.shotsOnTarget}
+                                                 进球 {(playerData as typeof PLAYER_STATS_SOCCER[0]).goals} · 助攻 {(playerData as typeof PLAYER_STATS_SOCCER[0]).assists} · 射门 {(playerData as typeof PLAYER_STATS_SOCCER[0]).shots}/{(playerData as typeof PLAYER_STATS_SOCCER[0]).shotsOnTarget}
                                              </div>
                                          ) : (
                                              <div className="text-[10px] text-slate-400 mt-0.5">
-                                                 得分 {playerData.pts} · 篮板 {playerData.reb} · 助攻 {playerData.ast}
+                                                 得分 {(playerData as typeof PLAYER_STATS_BASKETBALL[0]).pts} · 篮板 {(playerData as typeof PLAYER_STATS_BASKETBALL[0]).reb} · 助攻 {(playerData as typeof PLAYER_STATS_BASKETBALL[0]).ast}
                                              </div>
                                          )}
                                      </div>
