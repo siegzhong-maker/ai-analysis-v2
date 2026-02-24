@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useContext, createContext, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import i18n from './src/i18n';
 
 import { 
 
@@ -101,110 +103,75 @@ const useAppContext = () => useContext(AppContext);
 
 const HIGHLIGHT_COLLECTIONS = [
 
-  { id: 'full', label: '全场集锦', duration: '03:45', count: 24, theme: 'orange' },
+  { id: 'full', labelKey: 'highlights.full', duration: '03:45', count: 24, theme: 'orange' },
 
-  { id: 'team_a', label: 'A队集锦', duration: '01:50', count: 12, theme: 'blue' },
+  { id: 'team_a', labelKey: 'highlights.teamA', duration: '01:50', count: 12, theme: 'blue' },
 
-  { id: 'team_b', label: 'B队集锦', duration: '01:55', count: 12, theme: 'red' },
+  { id: 'team_b', labelKey: 'highlights.teamB', duration: '01:55', count: 12, theme: 'red' },
 
 ];
 
 const AI_CLIPS_ADVANCED = [
 
-  // Basketball Clips
-
-  { id: 1, label: "3分命中", time: "02:14", duration: "5s", type: "score", scoreType: 3, team: 'A', sport: 'basketball', confidence: 'high', player: '#23 LJ' },
-
-  { id: 2, label: "2分命中", time: "05:32", duration: "8s", type: "score", scoreType: 2, team: 'A', sport: 'basketball', confidence: 'low', player: null },
-
-  { id: 3, label: "1分罚球", time: "11:20", duration: "4s", type: "score", scoreType: 1, team: 'B', sport: 'basketball', confidence: 'high', player: '#11 KL' },
-
-  { id: 4, label: "3分命中", time: "14:05", duration: "6s", type: "score", scoreType: 3, team: 'B', sport: 'basketball', confidence: 'low', player: null },
-
-  { id: 6, label: "2分命中", time: "22:15", duration: "7s", type: "score", scoreType: 2, team: 'A', sport: 'basketball', confidence: 'high', player: '#23 LJ' },
-
-  { id: 7, label: "1分罚球", time: "24:30", duration: "5s", type: "score", scoreType: 1, team: 'A', sport: 'basketball', confidence: 'low', player: null },
-
-  { id: 8, label: "3分命中", time: "28:10", duration: "6s", type: "score", scoreType: 3, team: 'A', sport: 'basketball', confidence: 'high', player: '#0 Tatum' },
-  
-  // Basketball Events
-  { id: 9, label: "篮板球", time: "06:45", duration: "3s", type: "basketball_event", scoreType: 'rebound', team: 'A', sport: 'basketball', confidence: 'high', player: '#23 LJ' },
-  { id: 10, label: "抢断", time: "09:20", duration: "4s", type: "basketball_event", scoreType: 'steal', team: 'A', sport: 'basketball', confidence: 'high', player: '#0 Tatum' },
-  { id: 11, label: "助攻", time: "15:30", duration: "5s", type: "basketball_event", scoreType: 'assist', team: 'A', sport: 'basketball', confidence: 'high', player: '#23 LJ' },
-  { id: 12, label: "篮板球", time: "18:15", duration: "3s", type: "basketball_event", scoreType: 'rebound', team: 'B', sport: 'basketball', confidence: 'low', player: null },
-  { id: 13, label: "抢断", time: "26:40", duration: "4s", type: "basketball_event", scoreType: 'steal', team: 'B', sport: 'basketball', confidence: 'high', player: '#11 KL' },
-  { id: 14, label: "助攻", time: "32:50", duration: "5s", type: "basketball_event", scoreType: 'assist', team: 'B', sport: 'basketball', confidence: 'low', player: null },
-
-  // Soccer Clips
-
-  { id: 20, label: "精彩进球", time: "12:30", duration: "10s", type: "soccer_event", scoreType: 'goal', team: 'A', sport: 'soccer', confidence: 'high', player: '#7 Son' },
-
-  { id: 21, label: "角球进攻", time: "25:15", duration: "15s", type: "soccer_event", scoreType: 'corner', team: 'A', sport: 'soccer', confidence: 'low', player: null },
-
-  { id: 22, label: "任意球破门", time: "38:00", duration: "12s", type: "soccer_event", scoreType: 'setpiece', team: 'B', sport: 'soccer', confidence: 'high', player: '#10 Messi' },
-
-  { id: 23, label: "点球命中", time: "55:20", duration: "20s", type: "soccer_event", scoreType: 'penalty', team: 'A', sport: 'soccer', confidence: 'low', player: null },
-
-  { id: 25, label: "进球", time: "88:45", duration: "15s", type: "soccer_event", scoreType: 'goal', team: 'B', sport: 'soccer', confidence: 'high', player: '#9 Lewy' },
+  { id: 1, labelKey: 'clips.3pt', time: "02:14", duration: "5s", type: "score", scoreType: 3, team: 'A', sport: 'basketball', confidence: 'high', player: '#23 LJ' },
+  { id: 2, labelKey: 'clips.2pt', time: "05:32", duration: "8s", type: "score", scoreType: 2, team: 'A', sport: 'basketball', confidence: 'low', player: null },
+  { id: 3, labelKey: 'clips.1ptFt', time: "11:20", duration: "4s", type: "score", scoreType: 1, team: 'B', sport: 'basketball', confidence: 'high', player: '#11 KL' },
+  { id: 4, labelKey: 'clips.3pt', time: "14:05", duration: "6s", type: "score", scoreType: 3, team: 'B', sport: 'basketball', confidence: 'low', player: null },
+  { id: 6, labelKey: 'clips.2pt', time: "22:15", duration: "7s", type: "score", scoreType: 2, team: 'A', sport: 'basketball', confidence: 'high', player: '#23 LJ' },
+  { id: 7, labelKey: 'clips.1ptFt', time: "24:30", duration: "5s", type: "score", scoreType: 1, team: 'A', sport: 'basketball', confidence: 'low', player: null },
+  { id: 8, labelKey: 'clips.3pt', time: "28:10", duration: "6s", type: "score", scoreType: 3, team: 'A', sport: 'basketball', confidence: 'high', player: '#0 Tatum' },
+  { id: 9, labelKey: 'clips.rebound', time: "06:45", duration: "3s", type: "basketball_event", scoreType: 'rebound', team: 'A', sport: 'basketball', confidence: 'high', player: '#23 LJ' },
+  { id: 10, labelKey: 'clips.steal', time: "09:20", duration: "4s", type: "basketball_event", scoreType: 'steal', team: 'A', sport: 'basketball', confidence: 'high', player: '#0 Tatum' },
+  { id: 11, labelKey: 'clips.assist', time: "15:30", duration: "5s", type: "basketball_event", scoreType: 'assist', team: 'A', sport: 'basketball', confidence: 'high', player: '#23 LJ' },
+  { id: 12, labelKey: 'clips.rebound', time: "18:15", duration: "3s", type: "basketball_event", scoreType: 'rebound', team: 'B', sport: 'basketball', confidence: 'low', player: null },
+  { id: 13, labelKey: 'clips.steal', time: "26:40", duration: "4s", type: "basketball_event", scoreType: 'steal', team: 'B', sport: 'basketball', confidence: 'high', player: '#11 KL' },
+  { id: 14, labelKey: 'clips.assist', time: "32:50", duration: "5s", type: "basketball_event", scoreType: 'assist', team: 'B', sport: 'basketball', confidence: 'low', player: null },
+  { id: 20, labelKey: 'clips.goalHighlight', time: "12:30", duration: "10s", type: "soccer_event", scoreType: 'goal', team: 'A', sport: 'soccer', confidence: 'high', player: '#7 Son' },
+  { id: 21, labelKey: 'clips.corner', time: "25:15", duration: "15s", type: "soccer_event", scoreType: 'corner', team: 'A', sport: 'soccer', confidence: 'low', player: null },
+  { id: 22, labelKey: 'clips.setpiece', time: "38:00", duration: "12s", type: "soccer_event", scoreType: 'setpiece', team: 'B', sport: 'soccer', confidence: 'high', player: '#10 Messi' },
+  { id: 23, labelKey: 'clips.penalty', time: "55:20", duration: "20s", type: "soccer_event", scoreType: 'penalty', team: 'A', sport: 'soccer', confidence: 'low', player: null },
+  { id: 25, labelKey: 'clips.goal', time: "88:45", duration: "15s", type: "soccer_event", scoreType: 'goal', team: 'B', sport: 'soccer', confidence: 'high', player: '#9 Lewy' },
 
 ];
 
 const HISTORY_TASKS = [
 
-  { id: 's1', title: '周日联赛：进球集锦', date: '4小时前', type: 'highlight', status: 'completed', cover: 'soccer' },
-
-  { id: 's2', title: '半决赛：战术分析', date: '昨天', type: 'analysis', status: 'completed', cover: 'soccer' },
-
-  { id: 'b1', title: '决赛：数据统计报告', date: '2小时前', type: 'analysis', status: 'completed', cover: 'basketball' },
-
-  { id: 'b2', title: '周末友谊赛集锦', date: '昨天', type: 'highlight', status: 'completed', cover: 'basketball' },
-
-  // Additional tasks for task center (failed and paused)
-  { id: 'f1', title: '周三训练赛集锦', date: '3天前', type: 'highlight', status: 'failed', cover: 'soccer', failureReason: '网络连接超时' },
-
-  { id: 'f2', title: '季前赛数据分析', date: '5天前', type: 'analysis', status: 'failed', cover: 'basketball', failureReason: '文件格式不支持' },
-
-  { id: 'p1', title: '友谊赛精彩瞬间', date: '1周前', type: 'highlight', status: 'paused', cover: 'basketball' },
+  { id: 's1', titleKey: 'tasks.titleSundayLeague', dateKey: 'tasks.date4hAgo', type: 'highlight', status: 'completed', cover: 'soccer' },
+  { id: 's2', titleKey: 'tasks.titleSemifinal', dateKey: 'tasks.dateYesterday', type: 'analysis', status: 'completed', cover: 'soccer' },
+  { id: 'b1', titleKey: 'tasks.titleFinalReport', dateKey: 'tasks.date2hAgo', type: 'analysis', status: 'completed', cover: 'basketball' },
+  { id: 'b2', titleKey: 'tasks.titleWeekendFriendly', dateKey: 'tasks.dateYesterday', type: 'highlight', status: 'completed', cover: 'basketball' },
+  { id: 'f1', titleKey: 'tasks.titleWedTraining', dateKey: 'tasks.date3dAgo', type: 'highlight', status: 'failed', cover: 'soccer', failureReasonKey: 'tasks.failureNetwork' },
+  { id: 'f2', titleKey: 'tasks.titlePreseason', dateKey: 'tasks.date5dAgo', type: 'analysis', status: 'failed', cover: 'basketball', failureReasonKey: 'tasks.failureFormat' },
+  { id: 'p1', titleKey: 'tasks.titleFriendlyMoments', dateKey: 'tasks.date1wAgo', type: 'highlight', status: 'paused', cover: 'basketball' },
 
 ];
 
 const DRAFT_TASKS = [
 
-  { id: 'd1', title: '未命名项目 20240520', date: '10分钟前', progress: '30%', cover: 'basketball' },
-
-  { id: 'd2', title: '周五夜赛剪辑 (未完成)', date: '昨天 23:00', progress: '80%', cover: 'soccer' },
-
-  { id: 'd3', title: '投篮训练 Day 1', date: '3天前', progress: '15%', cover: 'basketball' },
+  { id: 'd1', titleKey: 'tasks.titleUntitled', dateKey: 'tasks.date10mAgo', progress: '30%', cover: 'basketball' },
+  { id: 'd2', titleKey: 'tasks.titleFridayEdit', dateKey: 'tasks.dateYesterday23', progress: '80%', cover: 'soccer' },
+  { id: 'd3', titleKey: 'tasks.titleShootingDay1', dateKey: 'tasks.titleProgress15', progress: '15%', cover: 'basketball' },
 
 ];
 
 const TEMPLATE_DATA = [
 
-    { id: 't1', title: 'NBA 风格战报', type: 'vertical', usage: '1.2k', tag: '热门' },
-
-    { id: 't2', title: '高燃卡点混剪', type: 'horizontal', usage: '856', tag: '推荐' },
-
-    { id: 't3', title: '慢动作技术分析', type: 'vertical', usage: '430', tag: '教学' },
+  { id: 't1', titleKey: 'templates.nbaReport', type: 'vertical', usage: '1.2k', tagKey: 'templates.hot' },
+  { id: 't2', titleKey: 'templates.highlightReel', type: 'horizontal', usage: '856', tagKey: 'templates.recommended' },
+  { id: 't3', titleKey: 'templates.slowMoAnalysis', type: 'vertical', usage: '430', tagKey: 'templates.tutorial' },
 
 ];
 
 const ALL_VIDEOS = [
 
-  { id: 101, type: 'video', source: 'falcon', date: '今天 14:30', duration: '45:00', label: '周五下午球局', device: 'Falcon X1', battery: 85, synced: true, category: 'basketball' },
-
-  { id: 102, type: 'video', source: 'falcon', date: '昨天 09:00', duration: '62:15', label: '晨练投篮记录', device: 'Falcon X1', battery: 42, synced: true, category: 'basketball' },
-
-  { id: 201, type: 'video', source: 'cloud', date: '周一 18:00', duration: '58:00', label: '全场回放 (已分析)', category: 'basketball' }, 
-
-  { id: 202, type: 'video', source: 'cloud', date: '周一 16:30', duration: '45:00', label: '上半场录像', category: 'soccer' },
-
-  { id: 301, type: 'video', source: 'local', date: '昨天 12:00', duration: '03:20', label: '手机实拍片段', category: 'basketball' },
-
-  { id: 302, type: 'video', source: 'local', date: '前天 10:15', duration: '00:15', label: '三分投篮练习', category: 'basketball' },
-
-  { id: 103, type: 'video', source: 'falcon', date: '周日 15:20', duration: '15:20', label: '半场对抗', device: 'Falcon Mini', battery: 100, synced: false, category: 'soccer' },
-
-  { id: 303, type: 'video', source: 'local', date: '上周五', duration: '20:00', label: '棒球击球练习', category: 'baseball' },
+  { id: 101, type: 'video', source: 'falcon', dateKey: 'videos.today', dateSuffix: '14:30', duration: '45:00', labelKey: 'videos.fridayGame', device: 'Falcon X1', battery: 85, synced: true, category: 'basketball' },
+  { id: 102, type: 'video', source: 'falcon', dateKey: 'videos.yesterday', dateSuffix: '09:00', duration: '62:15', labelKey: 'videos.morningShooting', device: 'Falcon X1', battery: 42, synced: true, category: 'basketball' },
+  { id: 201, type: 'video', source: 'cloud', dateKey: 'videos.monday', dateSuffix: '18:00', duration: '58:00', labelKey: 'videos.fullReplay', category: 'basketball' },
+  { id: 202, type: 'video', source: 'cloud', dateKey: 'videos.monday', dateSuffix: '16:30', duration: '45:00', labelKey: 'videos.firstHalf', category: 'soccer' },
+  { id: 301, type: 'video', source: 'local', dateKey: 'videos.yesterday', dateSuffix: '12:00', duration: '03:20', labelKey: 'videos.phoneClip', category: 'basketball' },
+  { id: 302, type: 'video', source: 'local', dateKey: 'videos.dayBefore', dateSuffix: '10:15', duration: '00:15', labelKey: 'videos.threePtPractice', category: 'basketball' },
+  { id: 103, type: 'video', source: 'falcon', dateKey: 'videos.sunday', dateSuffix: '15:20', duration: '15:20', labelKey: 'videos.halfCourt', device: 'Falcon Mini', battery: 100, synced: false, category: 'soccer' },
+  { id: 303, type: 'video', source: 'local', dateKey: 'videos.lastFriday', dateSuffix: '', duration: '20:00', labelKey: 'videos.battingPractice', category: 'baseball' },
 
 ] as const;
 
@@ -212,35 +179,25 @@ const TEAM_MATCH_STATS = {
 
   sport: 'basketball',
 
-  teamA: { name: '猛龙队', score: 86, color: 'text-blue-400' },
+  teamA: { nameKey: 'report.teamRaptors', score: 86, color: 'text-blue-400' },
 
-  teamB: { name: '野狼队', score: 82, color: 'text-red-400' },
+  teamB: { nameKey: 'report.teamWolves', score: 82, color: 'text-red-400' },
 
-  // 统一结构：为命中率类指标保留命中/出手，方便 UI 显示 50%（10-20）
   comparison: [
-    // 得分相关
-    { label: '总得分', a: 86, b: 82, highlight: true },
-    { label: '罚球得分', a: 15, b: 12 },
-    { label: '三分得分', a: 21, b: 18 },
-
-    // 罚球命中率及次数
-    { label: '罚球命中率', a: { pct: 0.83, made: 15, att: 18 }, b: { pct: 0.75, made: 12, att: 16 } },
-
-    // 投篮 / 三分命中率及次数（这里投篮视为所有投篮，不再拆两分命中率）
-    { label: '投篮命中率', a: { pct: 0.456, made: 31, att: 68 }, b: { pct: 0.417, made: 30, att: 72 }, highlight: true },
-    { label: '三分命中率', a: { pct: 0.318, made: 7, att: 22 }, b: { pct: 0.24, made: 6, att: 25 } },
-
-    // 篮板与防守数据（后续在 UI 中再拆分前场 / 后场）
-    { label: '篮板', a: 42, b: 38 },
-    { label: '前场篮板', a: 12, b: 10 },
-    { label: '后场篮板', a: 30, b: 28 },
-
-    // 其他团队统计
-    { label: '助攻', a: 22, b: 18 },
-    { label: '抢断', a: 8, b: 6 },
-    { label: '盖帽', a: 4, b: 3 },
-    { label: '失误', a: 11, b: 13 },
-    { label: '犯规', a: 19, b: 21 },
+    { rowKey: 'totalPoints', a: 86, b: 82, highlight: true },
+    { rowKey: 'ftPoints', a: 15, b: 12 },
+    { rowKey: 'threePtPoints', a: 21, b: 18 },
+    { rowKey: 'ftPct', a: { pct: 0.83, made: 15, att: 18 }, b: { pct: 0.75, made: 12, att: 16 } },
+    { rowKey: 'fgPct', a: { pct: 0.456, made: 31, att: 68 }, b: { pct: 0.417, made: 30, att: 72 }, highlight: true },
+    { rowKey: 'threePtPct', a: { pct: 0.318, made: 7, att: 22 }, b: { pct: 0.24, made: 6, att: 25 } },
+    { rowKey: 'rebounds', a: 42, b: 38 },
+    { rowKey: 'oreb', a: 12, b: 10 },
+    { rowKey: 'dreb', a: 30, b: 28 },
+    { rowKey: 'assists', a: 22, b: 18 },
+    { rowKey: 'steals', a: 8, b: 6 },
+    { rowKey: 'blocks', a: 4, b: 3 },
+    { rowKey: 'turnovers', a: 11, b: 13 },
+    { rowKey: 'fouls', a: 19, b: 21 },
   ]
 
 };
@@ -249,28 +206,19 @@ const SOCCER_MATCH_STATS = {
 
   sport: 'soccer',
 
-  teamA: { name: '雷霆FC', score: 2, color: 'text-blue-500' },
+  teamA: { nameKey: 'report.teamThunder', score: 2, color: 'text-blue-500' },
 
-  teamB: { name: '火焰联队', score: 1, color: 'text-red-500' },
+  teamB: { nameKey: 'report.teamFlame', score: 1, color: 'text-red-500' },
 
   comparison: [
-
-    { label: '进球', a: 2, b: 1, highlight: true },
-
-    { label: 'xG (期望进球)', a: 1.85, b: 0.92, highlight: true },
-
-    { label: '控球率', a: '55%', b: '45%' },
-
-    { label: '射门 (射正)', a: '12 (5)', b: '8 (3)' },
-
-    { label: '进攻三区传球', a: 145, b: 98 },
-
-    { label: '关键传球', a: 8, b: 3 },
-
-    { label: '角球', a: 6, b: 4 },
-
-    { label: '对抗成功率', a: '52%', b: '48%' },
-
+    { rowKey: 'goals', a: 2, b: 1, highlight: true },
+    { rowKey: 'xg', a: 1.85, b: 0.92, highlight: true },
+    { rowKey: 'possession', a: '55%', b: '45%' },
+    { rowKey: 'shotsOnTarget', a: '12 (5)', b: '8 (3)' },
+    { rowKey: 'finalThirdPasses', a: 145, b: 98 },
+    { rowKey: 'keyPasses', a: 8, b: 3 },
+    { rowKey: 'corners', a: 6, b: 4 },
+    { rowKey: 'duelPct', a: '52%', b: '48%' },
   ]
 
 };
@@ -447,48 +395,26 @@ const calcTS = (player: any): number | null => {
   return pts / denom;
 };
 
-// 事件类型格式化函数（用于视频列表项标签）
 const getEventTypeLabel = (clip: any, isSoccer: boolean): { label: string; color: string; bgColor: string } => {
+  const t = i18n.t.bind(i18n);
   if (isSoccer) {
-    if (clip.scoreType === 'goal') {
-      return { label: '进球', color: 'text-emerald-300', bgColor: 'bg-emerald-500/20' };
-    }
-    if (clip.scoreType === 'corner') {
-      return { label: '角球', color: 'text-blue-300', bgColor: 'bg-blue-500/20' };
-    }
-    if (clip.scoreType === 'setpiece') {
-      return { label: '定位球', color: 'text-purple-300', bgColor: 'bg-purple-500/20' };
-    }
-    if (clip.scoreType === 'penalty') {
-      return { label: '点球', color: 'text-orange-300', bgColor: 'bg-orange-500/20' };
-    }
-    return { label: '其他', color: 'text-slate-300', bgColor: 'bg-slate-500/20' };
-  } else {
-    // Basketball
-    if (clip.type === 'score') {
-      if (clip.scoreType === 3) {
-        return { label: '3分', color: 'text-blue-300', bgColor: 'bg-blue-500/20' };
-      }
-      if (clip.scoreType === 2) {
-        return { label: '2分', color: 'text-green-300', bgColor: 'bg-green-500/20' };
-      }
-      if (clip.scoreType === 1) {
-        return { label: '罚球', color: 'text-yellow-300', bgColor: 'bg-yellow-500/20' };
-      }
-    }
-    if (clip.type === 'basketball_event') {
-      if (clip.scoreType === 'rebound') {
-        return { label: '篮板', color: 'text-purple-300', bgColor: 'bg-purple-500/20' };
-      }
-      if (clip.scoreType === 'steal') {
-        return { label: '抢断', color: 'text-red-300', bgColor: 'bg-red-500/20' };
-      }
-      if (clip.scoreType === 'assist') {
-        return { label: '助攻', color: 'text-cyan-300', bgColor: 'bg-cyan-500/20' };
-      }
-    }
-    return { label: '其他', color: 'text-slate-300', bgColor: 'bg-slate-500/20' };
+    if (clip.scoreType === 'goal') return { label: t('clips.goal'), color: 'text-emerald-300', bgColor: 'bg-emerald-500/20' };
+    if (clip.scoreType === 'corner') return { label: t('clips.cornerShort'), color: 'text-blue-300', bgColor: 'bg-blue-500/20' };
+    if (clip.scoreType === 'setpiece') return { label: t('clips.setpieceShort'), color: 'text-purple-300', bgColor: 'bg-purple-500/20' };
+    if (clip.scoreType === 'penalty') return { label: t('clips.penaltyShort'), color: 'text-orange-300', bgColor: 'bg-orange-500/20' };
+    return { label: t('clips.other'), color: 'text-slate-300', bgColor: 'bg-slate-500/20' };
   }
+  if (clip.type === 'score') {
+    if (clip.scoreType === 3) return { label: t('clips.3ptShort'), color: 'text-blue-300', bgColor: 'bg-blue-500/20' };
+    if (clip.scoreType === 2) return { label: t('clips.2ptShort'), color: 'text-green-300', bgColor: 'bg-green-500/20' };
+    if (clip.scoreType === 1) return { label: t('clips.ftShort'), color: 'text-yellow-300', bgColor: 'bg-yellow-500/20' };
+  }
+  if (clip.type === 'basketball_event') {
+    if (clip.scoreType === 'rebound') return { label: t('clips.reboundShort'), color: 'text-purple-300', bgColor: 'bg-purple-500/20' };
+    if (clip.scoreType === 'steal') return { label: t('clips.steal'), color: 'text-red-300', bgColor: 'bg-red-500/20' };
+    if (clip.scoreType === 'assist') return { label: t('clips.assist'), color: 'text-cyan-300', bgColor: 'bg-cyan-500/20' };
+  }
+  return { label: t('clips.other'), color: 'text-slate-300', bgColor: 'bg-slate-500/20' };
 };
 
 // AI 足球球员点评（虎扑风格）
@@ -676,53 +602,17 @@ const AssetThumbnail = ({ type, category }: { type: string, category: string }) 
 
 const TutorialOverlay = () => {
 
-  const { showTutorial, setShowTutorial, tutorialStep, setTutorialStep } = useAppContext();
+  const { t, showTutorial, setShowTutorial, tutorialStep, setTutorialStep } = useAppContext();
 
   if (!showTutorial) return null;
 
   const steps = [
 
-    { 
+    { titleKey: 'tutorial.dualModeTitle', descKey: 'tutorial.dualModeDesc', style: { top: '65px', left: '12px', height: '280px', width: 'calc(100% - 24px)' }, position: 'bottom', arrow: 'top' },
 
-        title: "双模式创作", 
+    { titleKey: 'tutorial.projectTitle', descKey: 'tutorial.projectDesc', style: { top: '460px', left: '12px', height: '250px', width: 'calc(100% - 24px)' }, position: 'top', arrow: 'bottom' },
 
-        desc: "左侧生成精彩集锦，右侧提供专业分析（需 Pro）", 
-
-        style: { top: '65px', left: '12px', height: '280px', width: 'calc(100% - 24px)' }, 
-
-        position: 'bottom', 
-
-        arrow: 'top' 
-
-    },
-
-    { 
-
-        title: "项目管理", 
-
-        desc: "查看最近项目、使用模板或继续编辑", 
-
-        style: { top: '460px', left: '12px', height: '250px', width: 'calc(100% - 24px)' }, 
-
-        position: 'top', 
-
-        arrow: 'bottom' 
-
-    },
-
-    { 
-
-        title: "任务中心", 
-
-        desc: "查看任务进度和历史记录", 
-
-        style: { top: '10px', right: '50px', height: '44px', width: '44px', borderRadius: '50%' }, 
-
-        position: 'bottom', 
-
-        arrow: 'top' 
-
-    }
+    { titleKey: 'tutorial.taskCenterTitle', descKey: 'tutorial.taskCenterDesc', style: { top: '10px', right: '50px', height: '44px', width: '44px', borderRadius: '50%' }, position: 'bottom', arrow: 'top' }
 
   ];
 
@@ -752,11 +642,11 @@ const TutorialOverlay = () => {
 
           <div className={`absolute left-1/2 -translate-x-1/2 w-4 h-4 bg-white rotate-45 transform ${current.arrow === 'top' ? '-top-2' : '-bottom-2'}`} />
 
-          <div className="flex justify-between items-start mb-2"><h3 className="text-lg font-black text-slate-900">{current.title}</h3><span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{tutorialStep + 1} / {steps.length}</span></div>
+          <div className="flex justify-between items-start mb-2"><h3 className="text-lg font-black text-slate-900">{t((current as any).titleKey)}</h3><span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{tutorialStep + 1} / {steps.length}</span></div>
 
-          <p className="text-sm text-slate-600 mb-5 leading-relaxed text-left">{current.desc}</p>
+          <p className="text-sm text-slate-600 mb-5 leading-relaxed text-left">{t((current as any).descKey)}</p>
 
-          <div className="flex gap-3 justify-end"><button onClick={() => setShowTutorial(false)} className="text-slate-400 text-xs font-bold px-3 py-2 hover:bg-slate-50 rounded-lg transition-colors">跳过</button><button onClick={() => { if (tutorialStep < steps.length - 1) setTutorialStep((s: number) => s + 1); else setShowTutorial(false); }} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-bold text-xs shadow-lg shadow-slate-900/20 active:scale-95 transition-transform flex items-center gap-1">{tutorialStep < steps.length - 1 ? (<>下一步 <ChevronRight className="w-3 h-3" /></>) : (<>开始体验 <Check className="w-3 h-3" /></>)}</button></div>
+          <div className="flex gap-3 justify-end"><button onClick={() => setShowTutorial(false)} className="text-slate-400 text-xs font-bold px-3 py-2 hover:bg-slate-50 rounded-lg transition-colors">{t('ui.skip')}</button><button onClick={() => { if (tutorialStep < steps.length - 1) setTutorialStep((s: number) => s + 1); else setShowTutorial(false); }} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-bold text-xs shadow-lg shadow-slate-900/20 active:scale-95 transition-transform flex items-center gap-1">{tutorialStep < steps.length - 1 ? (<>{t('ui.next')} <ChevronRight className="w-3 h-3" /></>) : (<>{t('ui.getStarted')} <Check className="w-3 h-3" /></>)}</button></div>
 
         </div>
 
@@ -770,7 +660,7 @@ const TutorialOverlay = () => {
 
 const TransferOverlay = () => {
 
-  const { 
+  const { t,
 
     transferStep, transferProgress, isTransferMinimized, setIsTransferMinimized, 
 
@@ -802,47 +692,47 @@ const TransferOverlay = () => {
 
    if (isFailed) {
 
-       statusText = failureReason || '任务失败';
+       statusText = failureReason || t('ui.failureDefault');
 
-       subText = '请检查环境后重试';
+       subText = t('ui.checkEnvRetry');
 
    } else if (isPaused) {
 
        if (networkState === 'offline') {
 
-           statusText = '网络连接中断';
+           statusText = t('ui.networkOffline');
 
-           subText = '正在等待网络恢复...';
+           subText = t('ui.waitingNetwork');
 
        } else if (networkState === '4g') {
 
-           statusText = '已暂停上传 (移动网络)';
+           statusText = t('ui.pausedCellular');
 
-           subText = '等待 Wi-Fi 或用户手动确认';
+           subText = t('ui.cellularSub');
 
        } else if (falconState === 'disconnected') {
 
-           statusText = 'Falcon 设备连接断开';
+           statusText = t('ui.falconDisconnected');
 
-           subText = '请靠近设备并确保开机';
+           subText = t('ui.falconSub');
 
        } else {
 
-           statusText = '任务已暂停';
+           statusText = t('ui.taskPausedShort');
 
        }
 
    } else if (transferStep === 'downloading') {
 
-       statusText = '正在从设备下载素材...';
+       statusText = t('ui.downloadingFromDevice');
 
    } else if (transferStep === 'uploading') {
 
-       statusText = '正在上传至云端服务器...';
+       statusText = t('ui.uploadingToCloud');
 
    } else if (transferStep === 'analyzing') {
 
-       statusText = 'AI 分析中...';
+       statusText = t('ui.aiAnalyzing');
 
    }
 
@@ -974,11 +864,11 @@ const TransferOverlay = () => {
 
                 <div className="flex gap-3 mt-4">
 
-                    <button onClick={() => { setTransferStep('idle'); setTransferProgress(0); }} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold text-slate-300">取消任务</button>
+                    <button onClick={() => { setTransferStep('idle'); setTransferProgress(0); }} className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold text-slate-300">{t('ui.cancelTask')}</button>
 
                     <button onClick={handleRetry} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white shadow-lg shadow-blue-500/20">
 
-                        {isFailed ? '重试' : '继续'}
+                        {isFailed ? t('ui.retry') : t('ui.continue')}
 
                     </button>
 
@@ -988,7 +878,7 @@ const TransferOverlay = () => {
 
             
 
-            {!isFailed && !isPaused && <p className="text-[10px] text-slate-500 mt-2">您可以最小化此窗口，任务将在后台继续</p>}
+            {!isFailed && !isPaused && <p className="text-[10px] text-slate-500 mt-2">{t('ui.minimizeHint')}</p>}
 
          </div>
 
@@ -1000,7 +890,7 @@ const TransferOverlay = () => {
 
 const FloatingProgress = () => {
 
-  const { transferStep, transferProgress, isTransferMinimized, setIsTransferMinimized, networkState, falconState } = useAppContext();
+  const { t, transferStep, transferProgress, isTransferMinimized, setIsTransferMinimized, networkState, falconState } = useAppContext();
 
   if (!isTransferMinimized || transferStep === 'idle' || transferStep === 'completed') return null;
 
@@ -1024,13 +914,13 @@ const FloatingProgress = () => {
 
       icon = <AlertTriangle className="w-4 h-4 text-red-500" />;
 
-      text = "失败";
+      text = t('ui.failed');
 
   } else if (isPaused) {
 
       icon = <AlertTriangle className="w-4 h-4 text-yellow-500" />;
 
-      text = "暂停";
+      text = t('ui.paused');
 
   } else if (transferStep === 'downloading') {
 
@@ -1042,7 +932,7 @@ const FloatingProgress = () => {
 
   } else if (isAnalyzing) {
 
-      text = "分析中";
+      text = t('ui.analyzing');
 
   }
 
@@ -1064,7 +954,7 @@ const FloatingProgress = () => {
 
 const CellularDataModal = () => {
 
-    const { showCellularAlert, setShowCellularAlert, setTransferStep, setNetworkState } = useAppContext();
+    const { t, showCellularAlert, setShowCellularAlert, setTransferStep, setNetworkState } = useAppContext();
 
     if (!showCellularAlert) return null;
 
@@ -1076,15 +966,15 @@ const CellularDataModal = () => {
 
                 <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4 text-yellow-600"><Signal className="w-6 h-6" /></div>
 
-                <h3 className="text-lg font-bold text-slate-900 mb-2">正在使用移动网络</h3>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">{t('ui.cellularTitle')}</h3>
 
-                <p className="text-sm text-slate-500 mb-6">当前 Wi-Fi 已断开，继续上传将消耗约 1.2GB 流量。是否继续？</p>
+                <p className="text-sm text-slate-500 mb-6">{t('ui.cellularDesc')}</p>
 
                 <div className="flex gap-3">
 
-                    <button onClick={() => { setShowCellularAlert(false); setTransferStep('paused'); }} className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm">暂停上传</button>
+                    <button onClick={() => { setShowCellularAlert(false); setTransferStep('paused'); }} className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm">{t('ui.pauseUpload')}</button>
 
-                    <button onClick={() => { setShowCellularAlert(false); setTransferStep('uploading'); }} className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm">继续上传</button>
+                    <button onClick={() => { setShowCellularAlert(false); setTransferStep('uploading'); }} className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm">{t('ui.continueUpload')}</button>
 
                 </div>
 
@@ -1098,7 +988,7 @@ const CellularDataModal = () => {
 
 const CrashRecoveryModal = () => {
 
-    const { showCrashRecovery, setShowCrashRecovery, setTransferStep, setTransferProgress } = useAppContext();
+    const { t, showCrashRecovery, setShowCrashRecovery, setTransferStep, setTransferProgress } = useAppContext();
 
     if (!showCrashRecovery) return null;
 
@@ -1110,15 +1000,15 @@ const CrashRecoveryModal = () => {
 
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600"><RefreshCw className="w-6 h-6" /></div>
 
-                <h3 className="text-lg font-bold text-slate-900 mb-2">恢复未完成的任务</h3>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">{t('ui.recoveryTitle')}</h3>
 
-                <p className="text-sm text-slate-500 mb-6">检测到上次应用异常退出，有一个“周五下午球局”的分析任务未完成（进度 45%）。</p>
+                <p className="text-sm text-slate-500 mb-6">{t('ui.recoveryDesc')}</p>
 
                 <div className="flex gap-3">
 
-                    <button onClick={() => { setShowCrashRecovery(false); }} className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm">放弃</button>
+                    <button onClick={() => { setShowCrashRecovery(false); }} className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm">{t('ui.discard')}</button>
 
-                    <button onClick={() => { setShowCrashRecovery(false); setTransferStep('uploading'); setTransferProgress(45); }} className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm">恢复任务</button>
+                    <button onClick={() => { setShowCrashRecovery(false); setTransferStep('uploading'); setTransferProgress(45); }} className="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm">{t('ui.recoverTask')}</button>
 
                 </div>
 
@@ -1132,7 +1022,7 @@ const CrashRecoveryModal = () => {
 
 const StorageFullModal = () => {
 
-    const { showStorageAlert, setShowStorageAlert } = useAppContext();
+    const { t, showStorageAlert, setShowStorageAlert } = useAppContext();
 
     if (!showStorageAlert) return null;
 
@@ -1144,11 +1034,11 @@ const StorageFullModal = () => {
 
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600"><HardDrive className="w-6 h-6" /></div>
 
-                <h3 className="text-lg font-bold text-slate-900 mb-2">存储空间不足</h3>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">{t('ui.storageTitle')}</h3>
 
-                <p className="text-sm text-slate-500 mb-6">剩余空间不足 500MB，无法开始新任务。请清理手机存储空间后重试。</p>
+                <p className="text-sm text-slate-500 mb-6">{t('ui.storageDesc')}</p>
 
-                <button onClick={() => { setShowStorageAlert(false); }} className="w-full py-2.5 bg-slate-900 text-white font-bold rounded-xl text-sm">我知道了</button>
+                <button onClick={() => { setShowStorageAlert(false); }} className="w-full py-2.5 bg-slate-900 text-white font-bold rounded-xl text-sm">{t('ui.gotIt')}</button>
 
             </div>
 
@@ -1160,7 +1050,7 @@ const StorageFullModal = () => {
 
 const UpsellModal = () => {
 
-  const { setShowUpsellModal, handleUnlockVip, targetAnalysisType } = useAppContext();
+  const { t, setShowUpsellModal, handleUnlockVip, targetAnalysisType } = useAppContext();
 
   return (
 
@@ -1172,15 +1062,15 @@ const UpsellModal = () => {
 
             <Crown className="w-16 h-16 text-white mx-auto mb-4" />
 
-            <h3 className="text-xl font-black text-white mb-2">升级 Falcon AI Pro</h3>
+            <h3 className="text-xl font-black text-white mb-2">{t('ui.upgradeFalconPro')}</h3>
 
             <p className="text-sm text-slate-400 mb-6 leading-relaxed">
 
-               升级到 Pro 后，您将解锁高级视频编辑、数据导出、历史对比、无限存储等专业功能，并自动拥有基础版的所有功能。
+                {t('ui.upgradeProDesc')}
 
              </p>
 
-            <button onClick={handleUnlockVip} className="w-full bg-orange-500 text-white font-bold py-3 rounded-xl mt-6">立即订阅</button>
+            <button onClick={handleUnlockVip} className="w-full bg-orange-500 text-white font-bold py-3 rounded-xl mt-6">{t('ui.subscribeNow')}</button>
 
         </div>
 
@@ -1194,7 +1084,7 @@ const UpsellModal = () => {
 
 const ProgressModal = () => {
 
-  const { progressModal, setProgressModal } = useAppContext();
+  const { t, progressModal, setProgressModal } = useAppContext();
 
   if (!progressModal.show) return null;
 
@@ -1223,7 +1113,7 @@ const ProgressModal = () => {
 
             {/* Progress Percentage */}
             <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-slate-400">进度</span>
+                <span className="text-xs text-slate-400">{t('ui.progress')}</span>
                 <span className="text-sm font-bold text-white font-mono">{Math.round(progressModal.progress)}%</span>
             </div>
 
@@ -1237,7 +1127,7 @@ const ProgressModal = () => {
                 onClick={() => setProgressModal({ show: false, title: '', progress: 0 })}
                 className="mt-4 text-xs text-slate-400 hover:text-white transition-colors"
             >
-                取消
+                {t('ui.cancel')}
             </button>
 
         </div>
@@ -1252,7 +1142,7 @@ const ProgressModal = () => {
 
 const ShareModal = () => {
 
-  const { showShareModal, setShowShareModal, setProgressModal, setToastMessage, currentView, shareContext } = useAppContext();
+  const { t, showShareModal, setShowShareModal, setProgressModal, setToastMessage, currentView, shareContext } = useAppContext();
   const [watermarkEnabled, setWatermarkEnabled] = useState(true);
   const isPro = currentView === 'ai_result_analysis';
 
@@ -1263,14 +1153,14 @@ const ShareModal = () => {
     let toastMessage = '';
     
     if (type === 'album') {
-      title = watermark ? '正在保存到相册（带水印）' : '正在保存到相册（无水印）';
-      toastMessage = watermark ? '已保存到相册（带水印）' : '已保存到相册（无水印）';
+      title = watermark ? t('ui.savingToAlbum') : t('ui.savingToAlbumNoWatermark');
+      toastMessage = watermark ? t('ui.savedToAlbum') : t('ui.savedToAlbumNoWatermark');
     } else if (type === 'facebook') {
-      title = watermark ? '正在分享到Facebook（带水印）' : '正在分享到Facebook（无水印）';
-      toastMessage = watermark ? '已分享到Facebook（带水印）' : '已分享到Facebook（无水印）';
+      title = watermark ? t('ui.sharingToFb') : t('ui.sharingToFbNo');
+      toastMessage = watermark ? t('ui.sharedToFb') : t('ui.sharedToFbNo');
     } else if (type === 'youtube') {
-      title = watermark ? '正在分享到YouTube（带水印）' : '正在分享到YouTube（无水印）';
-      toastMessage = watermark ? '已分享到YouTube（带水印）' : '已分享到YouTube（无水印）';
+      title = watermark ? t('ui.sharingToYt') : t('ui.sharingToYtNo');
+      toastMessage = watermark ? t('ui.sharedToYt') : t('ui.sharedToYtNo');
     }
 
     setProgressModal({ show: true, title, progress: 0 });
@@ -1305,7 +1195,7 @@ const ShareModal = () => {
                 <X className="w-5 h-5"/>
             </button>
 
-            <h3 className="text-xl font-black text-white mb-6 text-center">选择分享方式</h3>
+            <h3 className="text-xl font-black text-white mb-6 text-center">{t('ui.chooseShareMethod')}</h3>
 
             {/* Pro Watermark Toggle */}
             {isPro && shareContext.type !== 'player_dashboard' && (
@@ -1313,7 +1203,7 @@ const ShareModal = () => {
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Crown className="w-4 h-4 text-amber-400" />
-                            <span className="text-sm font-bold text-white">Pro 专属</span>
+                            <span className="text-sm font-bold text-white">{t('ui.proOnly')}</span>
                         </div>
                         <label className="flex items-center gap-2 cursor-pointer">
                             <input
@@ -1322,7 +1212,7 @@ const ShareModal = () => {
                                 onChange={(e) => setWatermarkEnabled(!e.target.checked)}
                                 className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
                             />
-                            <span className="text-xs text-slate-300">无水印导出</span>
+                            <span className="text-xs text-slate-300">{t('ui.exportNoWatermark')}</span>
                         </label>
                     </div>
                 </div>
@@ -1335,7 +1225,7 @@ const ShareModal = () => {
                     className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-colors"
                 >
                     <Save className="w-5 h-5" />
-                    <span>保存到相册</span>
+                    <span>{t('ui.saveToAlbum')}</span>
                 </button>
 
                 <button 
@@ -1343,7 +1233,7 @@ const ShareModal = () => {
                     className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-colors"
                 >
                     <Share2 className="w-5 h-5" />
-                    <span>分享到 Facebook</span>
+                    <span>{t('ui.shareToFacebook')}</span>
                 </button>
 
                 <button 
@@ -1351,7 +1241,7 @@ const ShareModal = () => {
                     className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-colors"
                 >
                     <Share2 className="w-5 h-5" />
-                    <span>分享到 YouTube</span>
+                    <span>{t('ui.shareToYouTube')}</span>
                 </button>
 
             </div>
@@ -1485,6 +1375,7 @@ const ScenarioWizard = () => {
 // --- Player Selector Modal Component ---
 const PlayerSelectorModal = () => {
   const {
+    t,
     showPlayerSelector,
     setShowPlayerSelector,
     selectedEventForClaim,
@@ -1505,7 +1396,7 @@ const PlayerSelectorModal = () => {
   const sport = resultSport || 'basketball';
   const team = eventToClaim.team;
   const statsData = isSoccer ? SOCCER_MATCH_STATS : TEAM_MATCH_STATS;
-  const teamName = team === 'A' ? statsData.teamA.name : statsData.teamB.name;
+  const teamName = team === 'A' ? t(statsData.teamA.nameKey) : t(statsData.teamB.nameKey);
 
   const currentLabel = eventClaims[selectedEventForClaim] ?? eventToClaim.player ?? null;
   const isAlreadyClaimed = currentLabel != null;
@@ -1542,7 +1433,7 @@ const PlayerSelectorModal = () => {
     setShowPlayerSelector(false);
     setSelectedEventForClaim(null);
     setNewLabel('');
-    setToastMessage('已清除');
+    setToastMessage(t('ui.cleared'));
     setTimeout(() => setToastMessage(null), 2000);
   };
 
@@ -1556,9 +1447,9 @@ const PlayerSelectorModal = () => {
     <div className="absolute inset-0 bg-black/80 backdrop-blur-md z-[70] flex items-center justify-center p-6 animate-in fade-in">
       <div className="bg-[#1E293B] border border-white/10 w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl">
         <div className="p-6 border-b border-white/10">
-          <h3 className="text-lg font-black text-white mb-2">标记球员</h3>
+          <h3 className="text-lg font-black text-white mb-2">{t('ui.markPlayer')}</h3>
           {isAlreadyClaimed && currentLabel && (
-            <p className="text-xs text-amber-400 mt-2">当前：{currentLabel}</p>
+            <p className="text-xs text-amber-400 mt-2">{t('ui.currentLabelPrefix')}{currentLabel}</p>
           )}
         </div>
 
@@ -1573,7 +1464,7 @@ const PlayerSelectorModal = () => {
                   handleAddNew();
                 }
               }}
-              placeholder="如 7号、小明、左路"
+              placeholder={t('ui.playerPlaceholder')}
               className="flex-1 px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-600 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-blue-500"
               autoFocus
             />
@@ -1582,7 +1473,7 @@ const PlayerSelectorModal = () => {
               disabled={!newLabel.trim()}
               className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-bold transition-colors"
             >
-              确定
+              {t('ui.confirm')}
             </button>
           </div>
         </div>
@@ -1593,14 +1484,14 @@ const PlayerSelectorModal = () => {
               onClick={handleUnclaim}
               className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 py-2.5 rounded-xl font-bold text-sm transition-colors"
             >
-              清除
+              {t('ui.clear')}
             </button>
           )}
           <button
             onClick={handleCancel}
             className={isAlreadyClaimed ? 'flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-xl font-bold text-sm transition-colors' : 'w-full bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-xl font-bold text-sm transition-colors'}
           >
-            取消
+            {t('ui.cancel')}
           </button>
         </div>
       </div>
@@ -1612,7 +1503,7 @@ const PlayerSelectorModal = () => {
 
 const TaskCenterScreen = () => {
 
-  const { transferStep, transferProgress, popView, setTargetAnalysisType, setAiMode, setIsTaskCompleted, pushView, failureReason, setResultSport, setTransferStep, setTransferProgress, cloudTasks, getAnalyzingTasksCount, getQueuedTasks, maxConcurrentTasks } = useAppContext();
+  const { t, transferStep, transferProgress, popView, setTargetAnalysisType, setAiMode, setIsTaskCompleted, pushView, failureReason, setResultSport, setTransferStep, setTransferProgress, cloudTasks, getAnalyzingTasksCount, getQueuedTasks, maxConcurrentTasks } = useAppContext();
 
   // Get paused tasks from history
   const pausedTasks = HISTORY_TASKS.filter((task: any) => task.status === 'paused');
@@ -1627,7 +1518,7 @@ const TaskCenterScreen = () => {
   const [taskTitles, setTaskTitles] = useState<Record<string, string>>(() => {
     const titles: Record<string, string> = {};
     HISTORY_TASKS.forEach(task => {
-      titles[task.id] = task.title;
+      titles[task.id] = ''; // display uses t(task.titleKey) unless user edited
     });
     return titles;
   });
@@ -1657,7 +1548,7 @@ const TaskCenterScreen = () => {
 
       <div className="pt-12 pb-2 px-5 bg-white flex justify-between items-center sticky top-0 z-10 border-b border-slate-100">
 
-         <div className="flex items-center gap-3"><button onClick={popView}><ArrowLeft className="w-6 h-6 text-slate-800" /></button><h1 className="text-xl font-black text-slate-900 tracking-tight">任务中心</h1></div>
+         <div className="flex items-center gap-3"><button onClick={popView}><ArrowLeft className="w-6 h-6 text-slate-800" /></button><h1 className="text-xl font-black text-slate-900 tracking-tight">{t('ui.taskCenter')}</h1></div>
 
          {/* Settings Removed per request */}
 
@@ -1673,7 +1564,7 @@ const TaskCenterScreen = () => {
 
            <section className="mb-4">
 
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-1">正在进行</h3>
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-1">{t('ui.inProgress')}</h3>
 
               {/* Current Active Task */}
               {transferStep !== 'idle' && transferStep !== 'completed' && (
@@ -1694,13 +1585,13 @@ const TaskCenterScreen = () => {
 
                            <h4 className={`text-sm font-bold ${transferStep === 'failed' ? 'text-red-700' : 'text-slate-800'}`}>
 
-                               {transferStep === 'failed' ? '任务失败' : (transferStep === 'paused' ? '任务已暂停' : (transferStep === 'downloading' ? '正在从 Falcon 下载' : '正在上传至云端'))}
+                               {transferStep === 'failed' ? t('ui.taskFailedShort') : (transferStep === 'paused' ? t('ui.taskPaused') : (transferStep === 'downloading' ? t('ui.downloadingFromFalcon') : t('ui.uploadingToCloudShort')))}
 
                            </h4>
 
                            <p className={`text-xs ${transferStep === 'failed' ? 'text-red-500' : 'text-slate-400'}`}>
 
-                               {transferStep === 'failed' ? (failureReason || '未知错误') : '周五下午球局 · 剩余 2 分钟'}
+                               {transferStep === 'failed' ? (failureReason || t('ui.unknownError')) : t('ui.taskRemaining', { title: t('videos.fridayGame'), min: 2 })}
 
                            </p>
 
@@ -1728,9 +1619,9 @@ const TaskCenterScreen = () => {
 
                          <>
 
-                             <button className="px-3 py-1.5 rounded-lg bg-red-100 text-red-600 text-xs font-bold flex items-center gap-1"><MessageSquare className="w-3 h-3"/> 反馈问题</button>
+                             <button className="px-3 py-1.5 rounded-lg bg-red-100 text-red-600 text-xs font-bold flex items-center gap-1"><MessageSquare className="w-3 h-3"/> {t('ui.feedbackIssue')}</button>
 
-                             <button className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold">重试</button>
+                             <button className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold">{t('ui.retry')}</button>
 
                          </>
 
@@ -1738,9 +1629,9 @@ const TaskCenterScreen = () => {
 
                          <>
 
-                             <button className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold">{transferStep === 'paused' ? '继续' : '暂停'}</button>
+                             <button className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold">{transferStep === 'paused' ? t('ui.continue') : t('ui.pause')}</button>
 
-                             <button className="px-3 py-1.5 rounded-lg bg-red-50 text-red-500 text-xs font-bold">取消</button>
+                             <button className="px-3 py-1.5 rounded-lg bg-red-50 text-red-500 text-xs font-bold">{t('ui.cancel')}</button>
 
                          </>
 
@@ -1766,7 +1657,7 @@ const TaskCenterScreen = () => {
                                           <div className="flex items-center gap-2 mb-2">
                                               <input
                                                   type="text"
-                                                  defaultValue={taskTitles[task.id] || task.title}
+                                                  defaultValue={taskTitles[task.id] || t((task as any).titleKey)}
                                                   autoFocus
                                                   onKeyDown={(e) => {
                                                       if (e.key === 'Enter') {
@@ -1790,7 +1681,7 @@ const TaskCenterScreen = () => {
                                                   }}
                                                   className="px-3 py-1.5 bg-blue-500 text-white text-xs font-bold rounded hover:bg-blue-600 transition-colors shrink-0"
                                               >
-                                                  保存
+                                                  {t('ui.save')}
                                               </button>
                                               <button
                                                   onClick={(e) => {
@@ -1799,18 +1690,18 @@ const TaskCenterScreen = () => {
                                                   }}
                                                   className="px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300 transition-colors shrink-0"
                                               >
-                                                  取消
+                                                  {t('ui.cancel')}
                                               </button>
                                           </div>
                                           <p className="text-xs text-slate-400">
-                                              {task.date} · {task.type === 'highlight' ? '基础集锦' : '高阶分析'}
+                                              {t((task as any).dateKey)} · {task.type === 'highlight' ? t('ui.basicHighlight') : t('ui.advancedAnalysis')}
                                           </p>
                                       </div>
                                   ) : (
                                       <>
                                           <div className="flex items-center gap-2 mb-1">
                                               <h4 className="text-sm font-bold text-slate-800 truncate flex-1">
-                                                  {taskTitles[task.id] || task.title}
+                                                  {taskTitles[task.id] || t((task as any).titleKey)}
                                               </h4>
                                               <button
                                                   onClick={(e) => {
@@ -1818,13 +1709,13 @@ const TaskCenterScreen = () => {
                                                       handleStartEdit(task.id, e);
                                                   }}
                                                   className="p-1 text-slate-400 hover:text-slate-600 transition-colors shrink-0"
-                                                  title="编辑名称"
+                                                  title={t('ui.editName')}
                                               >
                                                   <Edit3 className="w-3.5 h-3.5" />
                                               </button>
                                           </div>
                                           <p className="text-xs text-slate-400">
-                                              {task.date} · {task.type === 'highlight' ? '基础集锦' : '高阶分析'}
+                                              {t((task as any).dateKey)} · {task.type === 'highlight' ? t('ui.basicHighlight') : t('ui.advancedAnalysis')}
                                           </p>
                                       </>
                                   )}
@@ -1844,7 +1735,7 @@ const TaskCenterScreen = () => {
                                   }}
                                   className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold"
                               >
-                                  重新发起
+                                  {t('ui.resubmit')}
                               </button>
                           </div>
                       )}
@@ -1859,10 +1750,10 @@ const TaskCenterScreen = () => {
          {(analyzingTasks.length > 0 || queuedTasks.length > 0) && (
            <section className="mb-4">
              <div className="flex items-center justify-between mb-3 px-1">
-               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">云端分析队列</h3>
+               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t('ui.cloudQueue')}</h3>
                <div className="flex items-center gap-3 text-xs">
-                 <span className="text-blue-600 font-bold">正在分析：{analyzingCount}/{maxConcurrentTasks}</span>
-                 {queuedTasks.length > 0 && <span className="text-yellow-600 font-bold">排队中：{queuedTasks.length}</span>}
+                 <span className="text-blue-600 font-bold">{t('ui.analyzingCountLabel', { current: analyzingCount, max: maxConcurrentTasks })}</span>
+                 {queuedTasks.length > 0 && <span className="text-yellow-600 font-bold">{t('ui.queuedCount', { count: queuedTasks.length })}</span>}
                </div>
              </div>
 
@@ -1878,7 +1769,7 @@ const TaskCenterScreen = () => {
                          </div>
                          <div className="flex-1 min-w-0">
                            <div className="text-sm font-bold text-slate-800 truncate">{task.videoName}</div>
-                           <div className="text-xs text-slate-400">{task.type === 'highlight' ? '精彩集锦' : '高阶分析'}</div>
+                           <div className="text-xs text-slate-400">{task.type === 'highlight' ? t('ui.smartHighlight') : t('ui.advancedAnalysis')}</div>
                          </div>
                        </div>
                        <span className="text-sm font-black text-blue-600">{Math.round(task.progress)}%</span>
@@ -1903,11 +1794,11 @@ const TaskCenterScreen = () => {
                          </div>
                          <div className="flex-1 min-w-0">
                            <div className="text-sm font-bold text-slate-800 truncate">{task.videoName}</div>
-                           <div className="text-xs text-slate-400">{task.type === 'highlight' ? '精彩集锦' : '高阶分析'}</div>
+                           <div className="text-xs text-slate-400">{task.type === 'highlight' ? t('ui.smartHighlight') : t('ui.advancedAnalysis')}</div>
                          </div>
                        </div>
                        <div className="text-xs font-bold text-yellow-600">
-                         队列第{task.queuePosition}位
+                         {t('ui.queuePosition', { n: task.queuePosition })}
                        </div>
                      </div>
                    </div>
@@ -1921,16 +1812,16 @@ const TaskCenterScreen = () => {
 
          <section>
 
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-1">分析记录</h3>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-1">{t('ui.analysisHistory')}</h3>
 
             <div className="space-y-3">
 
                 {HISTORY_TASKS.filter((task: any) => task.status !== 'paused').map((task: any) => {
 
                     const statusConfig = {
-                        completed: { label: '完成', bg: 'bg-green-100', text: 'text-green-700' },
-                        failed: { label: '失败', bg: 'bg-red-100', text: 'text-red-700' },
-                        paused: { label: '已暂停', bg: 'bg-yellow-100', text: 'text-yellow-700' }
+                        completed: { label: t('ui.completed'), bg: 'bg-green-100', text: 'text-green-700' },
+                        failed: { label: t('ui.failed'), bg: 'bg-red-100', text: 'text-red-700' },
+                        paused: { label: t('ui.paused'), bg: 'bg-yellow-100', text: 'text-yellow-700' }
                     };
 
                     const status = statusConfig[task.status as keyof typeof statusConfig] || statusConfig.completed;
@@ -1959,7 +1850,7 @@ const TaskCenterScreen = () => {
                                         <div className="flex items-center gap-2 mb-2">
                                             <input
                                                 type="text"
-                                                defaultValue={taskTitles[task.id] || task.title}
+                                                defaultValue={taskTitles[task.id] || t((task as any).titleKey)}
                                                 autoFocus
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
@@ -1983,7 +1874,7 @@ const TaskCenterScreen = () => {
                                                 }}
                                                 className="px-3 py-1.5 bg-blue-500 text-white text-xs font-bold rounded hover:bg-blue-600 transition-colors shrink-0"
                                             >
-                                                保存
+                                                {t('ui.save')}
                                             </button>
                                             <button
                                                 onClick={(e) => {
@@ -1992,33 +1883,33 @@ const TaskCenterScreen = () => {
                                                 }}
                                                 className="px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-bold rounded hover:bg-slate-300 transition-colors shrink-0"
                                             >
-                                                取消
+                                                {t('ui.cancel')}
                                             </button>
                                         </div>
                                         <div className="flex items-center gap-2 text-xs text-slate-400">
-                                            <span>{task.date}</span>
+                                            <span>{t((task as any).dateKey)}</span>
                                             <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                            <span>{task.type === 'highlight' ? '基础集锦' : '高阶分析'}</span>
+                                            <span>{task.type === 'highlight' ? t('ui.basicHighlight') : t('ui.advancedAnalysis')}</span>
                                         </div>
                                     </div>
                                 ) : (
                                     <>
                                         <div className="flex items-center gap-2 mb-1">
                                             <h4 className={`text-sm font-bold truncate flex-1 ${task.status === 'failed' ? 'text-red-800' : task.status === 'paused' ? 'text-yellow-800' : 'text-slate-800'}`}>
-                                                {taskTitles[task.id] || task.title}
+                                                {taskTitles[task.id] || t((task as any).titleKey)}
                                             </h4>
                                             <button
                                                 onClick={(e) => handleStartEdit(task.id, e)}
                                                 className="p-1 text-slate-400 hover:text-slate-600 transition-colors shrink-0"
-                                                title="编辑名称"
+                                                title={t('ui.editName')}
                                             >
                                                 <Edit3 className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
                                         <div className="flex items-center gap-2 text-xs text-slate-400">
-                                            <span>{task.date}</span>
+                                            <span>{t((task as any).dateKey)}</span>
                                             <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                            <span>{task.type === 'highlight' ? '基础集锦' : '高阶分析'}</span>
+                                            <span>{task.type === 'highlight' ? t('ui.basicHighlight') : t('ui.advancedAnalysis')}</span>
                                         </div>
                                     </>
                                 )}
@@ -2034,7 +1925,7 @@ const TaskCenterScreen = () => {
                     );
                 })}
 
-                {HISTORY_TASKS.length === 0 && <div className="text-center text-slate-400 py-8 text-xs">暂无历史记录</div>}
+                {HISTORY_TASKS.length === 0 && <div className="text-center text-slate-400 py-8 text-xs">{t('ui.noHistory')}</div>}
 
             </div>
 
@@ -2050,7 +1941,7 @@ const TaskCenterScreen = () => {
 
 const MediaPickerScreen = () => {
 
-  const { popView, targetAnalysisType, setSportType, setMediaTypeFilter, handleSelect, handleNext, selectionMode, selectedMedia, sportType, mediaTypeFilter, pushView } = useAppContext();
+  const { t, popView, targetAnalysisType, setSportType, setMediaTypeFilter, handleSelect, handleNext, selectionMode, selectedMedia, sportType, mediaTypeFilter, pushView } = useAppContext();
 
   
 
@@ -2080,7 +1971,7 @@ const MediaPickerScreen = () => {
 
     <div className="flex flex-col h-full bg-[#121212] text-white animate-in slide-in-from-bottom duration-300 relative z-50">
 
-        <div className="h-12 flex items-center justify-between px-2 bg-[#1E1E1E] shrink-0"><button onClick={popView} className="p-3"><X className="w-6 h-6" /></button><span className="text-sm font-bold">{targetAnalysisType === 'highlight' ? '选择视频制作集锦' : '选择视频进行数据统计'}</span><div className="w-12" /></div>
+        <div className="h-12 flex items-center justify-between px-2 bg-[#1E1E1E] shrink-0"><button onClick={popView} className="p-3"><X className="w-6 h-6" /></button><span className="text-sm font-bold">{targetAnalysisType === 'highlight' ? t('ui.selectVideoForHighlight') : t('ui.selectVideoForStats')}</span><div className="w-12" /></div>
 
         
 
@@ -2088,7 +1979,7 @@ const MediaPickerScreen = () => {
 
         
 
-        <div className="px-4 py-2 bg-[#121212] border-b border-white/5"><div className="flex bg-[#1E1E1E] rounded-lg p-0.5">{([['all', '全部'], ['video', '视频'], ['image', '图片']] as const).map(([key, label]) => (<button key={key} onClick={() => setMediaTypeFilter(key as any)} className={`flex-1 py-1 text-xs font-bold rounded-md transition-colors ${mediaTypeFilter === key ? 'bg-[#333] text-white' : 'text-gray-500'}`}>{label}</button>))}</div></div>
+        <div className="px-4 py-2 bg-[#121212] border-b border-white/5"><div className="flex bg-[#1E1E1E] rounded-lg p-0.5">{([['all', t('ui.mediaAll')], ['video', t('ui.mediaVideo')], ['image', t('ui.mediaImage')]] as const).map(([key, label]) => (<button key={key} onClick={() => setMediaTypeFilter(key as any)} className={`flex-1 py-1 text-xs font-bold rounded-md transition-colors ${mediaTypeFilter === key ? 'bg-[#333] text-white' : 'text-gray-500'}`}>{label}</button>))}</div></div>
 
         
 
@@ -2096,7 +1987,7 @@ const MediaPickerScreen = () => {
 
         
 
-        <div className="absolute bottom-0 w-full bg-[#1E1E1E] border-t border-white/10 pb-8 pt-3 px-4 flex flex-col justify-between min-h-[100px]"><div className="flex items-center justify-between mt-auto"><div className="text-xs text-gray-500">{selectionMode === 'single' ? (targetAnalysisType === 'highlight' ? 'AI 识别高光片段' : 'AI 挖掘战术数据') : `已选 ${selectedMedia.length} 个片段`}</div><button onClick={handleNext} disabled={selectedMedia.length === 0} className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${selectedMedia.length > 0 ? (targetAnalysisType === 'highlight' ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white') : 'bg-[#333] text-gray-500'}`}>{selectionMode === 'single' ? (targetAnalysisType === 'highlight' ? '生成精彩集锦' : '开始数据统计') : '导入'}</button></div></div>
+        <div className="absolute bottom-0 w-full bg-[#1E1E1E] border-t border-white/10 pb-8 pt-3 px-4 flex flex-col justify-between min-h-[100px]"><div className="flex items-center justify-between mt-auto"><div className="text-xs text-gray-500">{selectionMode === 'single' ? (targetAnalysisType === 'highlight' ? t('ui.aiDetectHighlight') : t('ui.aiMineTactics')) : t('ui.selectedMediaCount', { count: selectedMedia.length })}</div><button onClick={handleNext} disabled={selectedMedia.length === 0} className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${selectedMedia.length > 0 ? (targetAnalysisType === 'highlight' ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white') : 'bg-[#333] text-gray-500'}`}>{selectionMode === 'single' ? (targetAnalysisType === 'highlight' ? t('ui.generateHighlight') : t('ui.startStats')) : t('ui.importMedia')}</button></div></div>
 
     </div>
 
@@ -2106,9 +1997,9 @@ const MediaPickerScreen = () => {
 
 const TaskSubmittedScreen = () => {
 
-    const { targetAnalysisType, popToHome, setIsTaskCompleted } = useAppContext();
+    const { t, targetAnalysisType, popToHome, setIsTaskCompleted } = useAppContext();
 
-    return <div className="flex flex-col h-full bg-slate-900 text-white items-center justify-center p-8 animate-in zoom-in-95"><div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 animate-pulse ${targetAnalysisType === 'highlight' ? 'bg-orange-500/20 text-orange-500' : 'bg-blue-500/20 text-blue-500'}`}>{targetAnalysisType === 'highlight' ? <Film className="w-12 h-12" /> : <ScanLine className="w-12 h-12" />}</div><h2 className="text-2xl font-bold mb-2">{targetAnalysisType === 'highlight' ? 'AI 智能剪辑中...' : 'AI 数据统计中...'}</h2><p className="text-slate-400 text-sm text-center mb-8">{targetAnalysisType === 'highlight' ? <>正在识别进球/高光瞬间<br/>并进行智能卡点配乐</> : <>正在追踪球员跑动轨迹<br/>并生成投篮热点分布</>}</p><button onClick={() => { setIsTaskCompleted(true); popToHome(); }} className="w-full bg-white text-slate-900 font-bold py-3.5 rounded-full active:scale-95 transition-transform">返回首页</button></div>;
+    return <div className="flex flex-col h-full bg-slate-900 text-white items-center justify-center p-8 animate-in zoom-in-95"><div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 animate-pulse ${targetAnalysisType === 'highlight' ? 'bg-orange-500/20 text-orange-500' : 'bg-blue-500/20 text-blue-500'}`}>{targetAnalysisType === 'highlight' ? <Film className="w-12 h-12" /> : <ScanLine className="w-12 h-12" />}</div><h2 className="text-2xl font-bold mb-2">{targetAnalysisType === 'highlight' ? t('ui.aiClipping') : t('ui.aiStatsProcessing')}</h2><p className="text-slate-400 text-sm text-center mb-8">{targetAnalysisType === 'highlight' ? t('ui.aiDetectHighlightDesc') : t('ui.aiTrackRunDesc')}</p><button onClick={() => { setIsTaskCompleted(true); popToHome(); }} className="w-full bg-white text-slate-900 font-bold py-3.5 rounded-full active:scale-95 transition-transform">{t('ui.backToHome')}</button></div>;
 
 };
 
@@ -2116,7 +2007,7 @@ const TaskSubmittedScreen = () => {
 
 const HighlightResultScreen = () => {
 
-    const { popToHome, replaceView, resultSport, setProgressModal, pushView, setShowShareModal, setShareType, setMergedVideoUrl, setSelectedEventForClaim, setShowPlayerSelector, eventClaims, setEventClaims, setToastMessage } = useAppContext();
+    const { t, popToHome, replaceView, resultSport, setProgressModal, pushView, setShowShareModal, setShareType, setMergedVideoUrl, setSelectedEventForClaim, setShowPlayerSelector, eventClaims, setEventClaims, setToastMessage } = useAppContext();
 
     const [selectedCollection, setSelectedCollection] = useState('full');
 
@@ -2323,7 +2214,7 @@ const HighlightResultScreen = () => {
         if (editingClipId === null) return;
         
         if (editingDuration > 15) {
-            setToastMessage('高光片段最多15秒');
+            setToastMessage(t('ui.clipMax15s'));
             setTimeout(() => setToastMessage(null), 2000);
             setEditingDuration(15);
             return;
@@ -2350,7 +2241,7 @@ const HighlightResultScreen = () => {
         if (selectedClipIds.length === 0) return;
 
         // Show progress modal
-        setProgressModal({ show: true, title: '正在合并片段', progress: 0 });
+        setProgressModal({ show: true, title: t('ui.mergingClips'), progress: 0 });
 
         // Simulate merge progress
         let progress = 0;
@@ -2370,42 +2261,44 @@ const HighlightResultScreen = () => {
     };
 
     // Manual correction: 事件类型 / 得分结果 (type + scoreType + label; 得分结果含 命中/未中)
-    type EventTypeOption = { id: string | number; label: string; type: string; scoreType: number | string; scored?: boolean };
+    type EventTypeOption = { id: string | number; labelKey: string; type: string; scoreType: number | string; scored?: boolean };
     const eventTypeOptions: EventTypeOption[] = isSoccer
         ? [
-            { id: 'goal', label: '进球', type: 'soccer_event', scoreType: 'goal' },
-            { id: 'corner', label: '角球', type: 'soccer_event', scoreType: 'corner' },
-            { id: 'setpiece', label: '定位球', type: 'soccer_event', scoreType: 'setpiece' },
-            { id: 'penalty', label: '点球', type: 'soccer_event', scoreType: 'penalty' },
+            { id: 'goal', labelKey: 'clips.goal', type: 'soccer_event', scoreType: 'goal' },
+            { id: 'corner', labelKey: 'clips.cornerShort', type: 'soccer_event', scoreType: 'corner' },
+            { id: 'setpiece', labelKey: 'clips.setpieceShort', type: 'soccer_event', scoreType: 'setpiece' },
+            { id: 'penalty', labelKey: 'clips.penaltyShort', type: 'soccer_event', scoreType: 'penalty' },
         ]
         : [
-            { id: 3, label: '3分', type: 'score', scoreType: 3, scored: true },
-            { id: 2, label: '2分', type: 'score', scoreType: 2, scored: true },
-            { id: 1, label: '1分', type: 'score', scoreType: 1, scored: true },
-            { id: 'rebound', label: '篮板', type: 'basketball_event', scoreType: 'rebound' },
-            { id: 'steal', label: '抢断', type: 'basketball_event', scoreType: 'steal' },
-            { id: 'assist', label: '助攻', type: 'basketball_event', scoreType: 'assist' },
+            { id: 3, labelKey: 'clips.3ptShort', type: 'score', scoreType: 3, scored: true },
+            { id: 2, labelKey: 'clips.2ptShort', type: 'score', scoreType: 2, scored: true },
+            { id: 1, labelKey: 'clips.ftShort', type: 'score', scoreType: 1, scored: true },
+            { id: 'rebound', labelKey: 'clips.reboundShort', type: 'basketball_event', scoreType: 'rebound' },
+            { id: 'steal', labelKey: 'clips.steal', type: 'basketball_event', scoreType: 'steal' },
+            { id: 'assist', labelKey: 'clips.assist', type: 'basketball_event', scoreType: 'assist' },
         ];
 
     // Label helper for event type correction (type + scoreType → display label)
     const getLabelForEvent = (sport: string, type: string, scoreType: number | string): string => {
         const isSoc = sport === 'soccer';
         if (isSoc) {
-            const m: Record<string, string> = { goal: '进球', corner: '角球进攻', setpiece: '任意球破门', penalty: '点球命中' };
-            return m[String(scoreType)] ?? '进球';
+            const m: Record<string, string> = { goal: 'clips.goal', corner: 'clips.corner', setpiece: 'clips.setpiece', penalty: 'clips.penalty' };
+            return t(m[String(scoreType)] ?? 'clips.goal');
         }
-        const m: Record<string, string> = { 3: '3分', 2: '2分', 1: '1分', rebound: '篮板', steal: '抢断', assist: '助攻' };
-        return m[String(scoreType)] ?? '得分';
+        const m: Record<string, string> = { '3': 'clips.3ptShort', '2': 'clips.2ptShort', '1': 'clips.ftShort', rebound: 'clips.reboundShort', steal: 'clips.steal', assist: 'clips.assist' };
+        return t(m[String(scoreType)] ?? 'clips.score');
     };
 
     const handleCorrectEventType = (clipId: number, opt: EventTypeOption) => {
         const sport = resultSport || 'basketball';
-        const label = opt.label ?? getLabelForEvent(sport, opt.type, opt.scoreType);
+        const label = t(opt.labelKey);
         const scored = opt.scored;
         setClips(prev =>
             prev.map(c => {
                 if (c.id !== clipId) return c;
-                const next = { ...c, type: opt.type, scoreType: opt.scoreType, label } as (typeof prev)[number];
+                const next = { ...c, type: opt.type, scoreType: opt.scoreType } as (typeof prev)[number];
+                (next as any).labelKey = undefined;
+                (next as any).label = label;
                 if (scored !== undefined) (next as any).scored = scored;
                 return next;
             })
@@ -2415,11 +2308,13 @@ const HighlightResultScreen = () => {
             const clip = AI_CLIPS_ADVANCED[idx] as any;
             clip.type = opt.type;
             clip.scoreType = opt.scoreType;
+            clip.labelKey = undefined;
+            clip.labelKey = undefined;
             clip.label = label;
             if (scored !== undefined) clip.scored = scored;
         }
         setOpenTypeMenuId(null);
-        setToastMessage('已修正类型');
+        setToastMessage(t('ui.typeCorrected'));
         setTimeout(() => setToastMessage(null), 2000);
     };
 
@@ -2430,7 +2325,7 @@ const HighlightResultScreen = () => {
 
     const handleExportAll = () => {
         // Show progress modal for export
-        setProgressModal({ show: true, title: '正在导出全部集锦', progress: 0 });
+        setProgressModal({ show: true, title: t('ui.exportingAll'), progress: 0 });
 
         // Simulate export progress
         let progress = 0;
@@ -2464,15 +2359,13 @@ const HighlightResultScreen = () => {
         }
         setOpenPlayerMenuId(null);
         setPlayerDropdownRect(null);
-        setToastMessage('已标记');
+        setToastMessage(t('ui.marked'));
         setTimeout(() => setToastMessage(null), 2000);
     };
 
     const filters = isSoccer 
-
-      ? [ { id: 'all', label: '全部' }, { id: 'goal', label: '进球' }, { id: 'penalty', label: '点球' } ]
-
-      : [ { id: 'all', label: '全部' }, { id: 'score', label: '得分' }, { id: 1, label: '罚球' }, { id: 3, label: '三分' } ];
+      ? [ { id: 'all', labelKey: 'filter.all' }, { id: 'goal', labelKey: 'filter.goal' }, { id: 'penalty', labelKey: 'filter.penalty' } ]
+      : [ { id: 'all', labelKey: 'filter.all' }, { id: 'score', labelKey: 'filter.score' }, { id: 1, labelKey: 'filter.ft' }, { id: 3, labelKey: 'filter.threePt' } ];
 
     const statsData = isSoccer ? SOCCER_MATCH_STATS : TEAM_MATCH_STATS;
 
@@ -2484,17 +2377,17 @@ const HighlightResultScreen = () => {
 
     // Soccer: Show Goals and Penalties
 
-    let basicStatsComparison: Array<{ label: string; a: any; b: any; highlight?: boolean }> = [];
+    let basicStatsComparison: Array<{ rowKey: string; a: any; b: any; highlight?: boolean }> = [];
 
     if (isSoccer) {
 
         // Soccer: Only show goals (score)
-        basicStatsComparison = statsData.comparison.filter(i => ['进球'].includes(i.label));
+        basicStatsComparison = statsData.comparison.filter((i: any) => i.rowKey === 'goals');
 
     } else {
 
         // Basketball: Only show total score
-        const totalScoreRow = statsData.comparison.find(i => i.label === '总得分');
+        const totalScoreRow = statsData.comparison.find((i: any) => i.rowKey === 'totalPoints');
         if (totalScoreRow) basicStatsComparison.push(totalScoreRow);
 
     }
@@ -2519,7 +2412,7 @@ const HighlightResultScreen = () => {
 
              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-4xl font-bold drop-shadow-lg opacity-80">{currentTime}</div>
 
-             {showJumpToast && (<div className="absolute top-[60%] left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 animate-in zoom-in-95 z-30"><RotateCcw className="w-3 h-3" /> 跳转至 {currentTime}</div>)}
+             {showJumpToast && (<div className="absolute top-[60%] left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 animate-in zoom-in-95 z-30"><RotateCcw className="w-3 h-3" /> {t('ui.jumpTo')} {currentTime}</div>)}
 
              
 
@@ -2547,7 +2440,7 @@ const HighlightResultScreen = () => {
 
              <button onClick={() => setActiveTab('clips')} className={`flex-1 py-3 text-xs font-bold relative transition-colors ${activeTab === 'clips' ? 'text-white' : 'text-slate-500'}`}>
 
-                 智能集锦
+                 {t('ui.smartHighlight')}
 
                  {activeTab === 'clips' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-orange-500 rounded-full"></div>}
 
@@ -2555,7 +2448,7 @@ const HighlightResultScreen = () => {
 
              <button onClick={() => setActiveTab('stats')} className={`flex-1 py-3 text-xs font-bold relative transition-colors ${activeTab === 'stats' ? 'text-white' : 'text-slate-500'}`}>
 
-                 基础数据
+                 {t('ui.basicData')}
 
                  {activeTab === 'stats' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-500 rounded-full"></div>}
 
@@ -2577,7 +2470,7 @@ const HighlightResultScreen = () => {
 
                             <button key={col.id} onClick={() => { setSelectedCollection(col.id); setSelectedFilter('all'); }} className={`flex-none px-3 py-2 rounded-lg border flex flex-col items-start min-w-[80px] transition-all ${selectedCollection === col.id ? `bg-${col.theme}-500/20 border-${col.theme}-500` : 'bg-black/40 border-white/10'}`}>
 
-                                <span className={`text-xs font-bold ${selectedCollection === col.id ? 'text-white' : 'text-slate-300'}`}>{col.label}</span>
+                                <span className={`text-xs font-bold ${selectedCollection === col.id ? 'text-white' : 'text-slate-300'}`}>{t(col.labelKey)}</span>
 
                             </button>
 
@@ -2591,7 +2484,7 @@ const HighlightResultScreen = () => {
 
                         {filters.map(f => (
 
-                            <button key={f.id} onClick={() => setSelectedFilter(f.id as EventFilterType)} className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${selectedFilter === f.id ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-slate-400 border-slate-700'}`}>{f.label}</button>
+                            <button key={f.id} onClick={() => setSelectedFilter(f.id as EventFilterType)} className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${selectedFilter === f.id ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-slate-400 border-slate-700'}`}>{t((f as any).labelKey)}</button>
 
                         ))}
 
@@ -2604,7 +2497,7 @@ const HighlightResultScreen = () => {
                                 onClick={() => setSelectedPlayer(null)} 
                                 className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${selectedPlayer === null || selectedPlayer === 'all' ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-slate-400 border-slate-700'}`}
                             >
-                                全部球员
+                                {t('ui.allPlayers')}
                             </button>
                             {availablePlayers.map(player => (
                                 <button 
@@ -2624,7 +2517,7 @@ const HighlightResultScreen = () => {
 
                          <button onClick={(e) => { e.stopPropagation(); setIsSelectionMode(!isSelectionMode); }} className={`text-xs font-bold flex items-center gap-1 transition-colors ${isSelectionMode ? 'text-orange-400' : 'text-slate-500'}`}>
 
-                             {isSelectionMode ? '取消选择' : '选择片段'}
+                             {isSelectionMode ? t('ui.cancelSelect') : t('ui.selectClips')}
 
                          </button>
 
@@ -2634,7 +2527,7 @@ const HighlightResultScreen = () => {
 
                      <div className="space-y-3">
 
-                         {displayClips.length === 0 && <div className="text-center text-slate-500 text-xs py-8">该分类下暂无片段</div>}
+                         {displayClips.length === 0 && <div className="text-center text-slate-500 text-xs py-8">{t('ui.noClipsInCategory')}</div>}
 
                          {displayClips.map((clip, index) => { 
 
@@ -2676,11 +2569,11 @@ const HighlightResultScreen = () => {
 
                                             <div className="flex items-center justify-between mb-1.5">
 
-                                                <h4 className="text-sm font-bold text-slate-200">{clip.label}</h4>
+                                                <h4 className="text-sm font-bold text-slate-200">{clip.labelKey ? t(clip.labelKey) : (clip as any).label}</h4>
 
                                                 <div className="flex items-center gap-1.5">
                                                     <span className="text-[9px] text-slate-400 font-mono flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" /> {clip.time}</span>
-                                                    <span className={`text-[8px] px-1 rounded ${clip.team === 'A' ? 'bg-blue-900 text-blue-200' : 'bg-red-900 text-red-200'}`}>{clip.team}队</span>
+                                                    <span className={`text-[8px] px-1 rounded ${clip.team === 'A' ? 'bg-blue-900 text-blue-200' : 'bg-red-900 text-red-200'}`}>{clip.team === 'A' ? t('ui.teamA') : t('ui.teamB')}</span>
                                                 </div>
 
                                             </div>
@@ -2703,72 +2596,72 @@ const HighlightResultScreen = () => {
                                                      >
                                                          <Plus className="w-3 h-3" />
                                                      </button>
-                                                     <button 
+<button 
                                                          onClick={handleCancelEdit}
                                                          className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-[8px] font-bold text-slate-300 transition-colors whitespace-nowrap shrink-0"
                                                      >
-                                                         取消
+                                                        {t('ui.cancel')}
                                                      </button>
                                                      <button 
                                                          onClick={handleSaveDuration}
                                                          className="px-2 py-1 bg-orange-500 hover:bg-orange-600 rounded text-[8px] font-bold text-white transition-colors whitespace-nowrap shrink-0"
                                                      >
-                                                         确定
+                                                        {t('ui.confirm')}
                                                      </button>
-                                                 </div>
-                                             ) : (
-                                                 !isSelectionMode && (
-                                                     <div className="flex items-center gap-1 flex-wrap">
-                                                         <button 
-                                                             onClick={(e) => { 
-                                                                 e.stopPropagation(); 
-                                                                 handleEditDuration(clip.id, clip.duration); 
-                                                             }}
-                                                             className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-[8px] font-bold text-slate-300 flex items-center gap-0.5 transition-colors shrink-0"
-                                                             title="编辑时长"
-                                                         >
-                                                             <Edit3 className="w-2.5 h-2.5" /> <span className="hidden sm:inline">编辑时长</span>
-                                                         </button>
-                                                         <div className="relative shrink-0" data-correction-menu>
-                                                             <button
-                                                                 ref={el => { typeTriggerRefs.current[clip.id] = el; }}
-                                                                 onClick={(e) => {
-                                                                     e.stopPropagation();
-                                                                     setOpenTypeMenuId(openTypeMenuId === clip.id ? null : clip.id);
-                                                                     setOpenPlayerMenuId(null);
-                                                                 }}
-                                                                 className="px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-0.5 bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors shrink-0"
-                                                                 title="修正事件类型"
-                                                             >
-                                                                 <Edit3 className="w-2.5 h-2.5" /> <span className="hidden sm:inline">类型</span> <ChevronDown className={`w-2.5 h-2.5 transition-transform ${openTypeMenuId === clip.id ? 'rotate-180' : ''}`} />
-                                                             </button>
-                                                         </div>
-                                                         <div className="relative shrink-0" data-correction-menu>
-                                                             <button
-                                                                 ref={el => { playerTriggerRefs.current[clip.id] = el; }}
-                                                                 onClick={(e) => {
-                                                                     e.stopPropagation();
-                                                                     setOpenPlayerMenuId(openPlayerMenuId === clip.id ? null : clip.id);
-                                                                     setOpenTypeMenuId(null);
-                                                                 }}
-                                                                 className="px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-0.5 bg-blue-600 hover:bg-blue-500 text-white transition-colors shrink-0"
-                                                                 title="标记球员"
-                                                             >
-                                                                 {(eventClaims[clip.id] ?? clip.player) ? (
-                                                                     <><User className="w-2.5 h-2.5" /><span className="max-w-[40px] truncate">{eventClaims[clip.id] ?? clip.player}</span><ChevronDown className={`w-2.5 h-2.5 transition-transform ${openPlayerMenuId === clip.id ? 'rotate-180' : ''}`} /></>
-                                                                 ) : (
-                                                                     <><User className="w-2.5 h-2.5" /><span className="hidden sm:inline">未标记</span><ChevronDown className={`w-2.5 h-2.5 transition-transform ${openPlayerMenuId === clip.id ? 'rotate-180' : ''}`} /></>
-                                                                 )}
-                                                             </button>
-                                                         </div>
-                                                     </div>
-                                                 )
-                                             )}
-                                         </div>
+                                                </div>
+                                            ) : (
+                                                !isSelectionMode && (
+                                                    <div className="flex items-center gap-1 flex-wrap">
+                                                        <button 
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                handleEditDuration(clip.id, clip.duration); 
+                                                            }}
+                                                            className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-[8px] font-bold text-slate-300 flex items-center gap-0.5 transition-colors shrink-0"
+                                                            title={t('ui.editDuration')}
+                                                        >
+                                                            <Edit3 className="w-2.5 h-2.5" /> <span className="hidden sm:inline">{t('ui.editDuration')}</span>
+                                                        </button>
+                                                        <div className="relative shrink-0" data-correction-menu>
+                                                            <button
+                                                                ref={el => { typeTriggerRefs.current[clip.id] = el; }}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setOpenTypeMenuId(openTypeMenuId === clip.id ? null : clip.id);
+                                                                    setOpenPlayerMenuId(null);
+                                                                }}
+                                                                className="px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-0.5 bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors shrink-0"
+                                                                title={t('ui.correctType')}
+                                                            >
+                                                                <Edit3 className="w-2.5 h-2.5" /> <span className="hidden sm:inline">{t('ui.typeLabel')}</span> <ChevronDown className={`w-2.5 h-2.5 transition-transform ${openTypeMenuId === clip.id ? 'rotate-180' : ''}`} />
+                                                            </button>
+                                                        </div>
+                                                        <div className="relative shrink-0" data-correction-menu>
+                                                            <button
+                                                                ref={el => { playerTriggerRefs.current[clip.id] = el; }}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setOpenPlayerMenuId(openPlayerMenuId === clip.id ? null : clip.id);
+                                                                    setOpenTypeMenuId(null);
+                                                                }}
+                                                                className="px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-0.5 bg-blue-600 hover:bg-blue-500 text-white transition-colors shrink-0"
+                                                                title={t('ui.markPlayer')}
+                                                            >
+                                                                {(eventClaims[clip.id] ?? clip.player) ? (
+                                                                    <><User className="w-2.5 h-2.5" /><span className="max-w-[40px] truncate">{eventClaims[clip.id] ?? clip.player}</span><ChevronDown className={`w-2.5 h-2.5 transition-transform ${openPlayerMenuId === clip.id ? 'rotate-180' : ''}`} /></>
+                                                                ) : (
+                                                                    <><User className="w-2.5 h-2.5" /><span className="hidden sm:inline">{t('ui.unmarked')}</span><ChevronDown className={`w-2.5 h-2.5 transition-transform ${openPlayerMenuId === clip.id ? 'rotate-180' : ''}`} /></>
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            )}
+                                        </div>
 
-                                     </div>
+                                    </div>
 
-                                 </div>
+                                </div>
 
                              ); 
 
@@ -2792,7 +2685,7 @@ const HighlightResultScreen = () => {
                                      <div className="px-4 py-3 bg-white/5 text-[10px] font-bold text-slate-400 border-b border-white/5">
                                          <span className="flex items-center gap-2">
                                              <User className="w-3 h-3" />
-                                             <span>个人数据看板</span>
+                                             <span>{t('ui.playerDashboard')}</span>
                                          </span>
                                      </div>
                                      <div className="p-4 space-y-3">
@@ -2802,25 +2695,25 @@ const HighlightResultScreen = () => {
                                                      <div className="flex items-center gap-2">
                                                          <div className={`w-2 h-2 rounded-full ${player.color}`}></div>
                                                          <span className="text-sm font-bold text-white">{player.label}</span>
-                                                         <span className="text-[10px] text-slate-400">{player.team}队</span>
+                                                         <span className="text-[10px] text-slate-400">{player.team === 'A' ? t('ui.teamA') : t('ui.teamB')}</span>
                                                      </div>
                                                  </div>
                                                  {isSoccer ? (
                                                      <div className="grid grid-cols-4 gap-2">
                                                          <div className="text-center">
-                                                             <div className="text-xs text-slate-400">进球</div>
+                                                             <div className="text-xs text-slate-400">{t('report.goals')}</div>
                                                              <div className="text-lg font-bold text-white">{player.goals || 0}</div>
                                                          </div>
                                                          <div className="text-center">
-                                                             <div className="text-xs text-slate-400">角球</div>
+                                                             <div className="text-xs text-slate-400">{t('report.corners')}</div>
                                                              <div className="text-lg font-bold text-white">{player.corners || 0}</div>
                                                          </div>
                                                          <div className="text-center">
-                                                             <div className="text-xs text-slate-400">定位球</div>
+                                                             <div className="text-xs text-slate-400">{t('clips.setpieceShort')}</div>
                                                              <div className="text-lg font-bold text-white">{player.setpieces || 0}</div>
                                                          </div>
                                                          <div className="text-center">
-                                                             <div className="text-xs text-slate-400">点球</div>
+                                                             <div className="text-xs text-slate-400">{t('clips.penaltyShort')}</div>
                                                              <div className="text-lg font-bold text-white">{player.penalties || 0}</div>
                                                          </div>
                                                      </div>
@@ -2828,21 +2721,21 @@ const HighlightResultScreen = () => {
                                                    <div className="grid grid-cols-3 gap-3 text-[11px]">
                                                        <div className="space-y-1">
                                                            <div className="flex justify-between">
-                                                               <span className="text-slate-400">得分</span>
+                                                               <span className="text-slate-400">{t('report.totalPoints')}</span>
                                                                <span className="font-semibold text-white">{player.pts || 0}</span>
                                                            </div>
                                                            <div className="flex justify-between">
-                                                               <span className="text-slate-400">篮板</span>
+                                                               <span className="text-slate-400">{t('report.rebounds')}</span>
                                                                <span className="font-semibold text-white">{player.reb || 0}</span>
                                                            </div>
                                                            <div className="flex justify-between">
-                                                               <span className="text-slate-400">助攻</span>
+                                                               <span className="text-slate-400">{t('report.assists')}</span>
                                                                <span className="font-semibold text-white">{player.ast || 0}</span>
                                                            </div>
                                                        </div>
                                                        <div className="space-y-1">
                                                            <div className="flex justify-between">
-                                                               <span className="text-slate-400">投篮</span>
+                                                               <span className="text-slate-400">{t('report.fg')}</span>
                                                                <span className="font-semibold text-white">
                                                                    {(() => {
                                                                        const made = player.fgMade ?? 0;
@@ -2853,7 +2746,7 @@ const HighlightResultScreen = () => {
                                                                </span>
                                                            </div>
                                                            <div className="flex justify-between">
-                                                               <span className="text-slate-400">三分</span>
+                                                               <span className="text-slate-400">{t('clips.3ptShort')}</span>
                                                                <span className="font-semibold text-white">
                                                                    {(() => {
                                                                        const made = player.tpMade ?? 0;
@@ -2864,7 +2757,7 @@ const HighlightResultScreen = () => {
                                                                </span>
                                                            </div>
                                                            <div className="flex justify-between">
-                                                               <span className="text-slate-400">罚球</span>
+                                                               <span className="text-slate-400">{t('clips.ftShort')}</span>
                                                                <span className="font-semibold text-white">
                                                                    {(() => {
                                                                        const made = player.ftMade ?? 0;
@@ -2904,19 +2797,19 @@ const HighlightResultScreen = () => {
                                                                </span>
                                                            </div>
                                                            <div className="flex justify-between">
-                                                               <span className="text-slate-400">抢断 / 失误</span>
+                                                               <span className="text-slate-400">{t('report.steals')} / {t('report.turnovers')}</span>
                                                                <span className="font-semibold text-white">
                                                                    {(player.stl ?? 0)}/{player.tov ?? 0}
                                                                </span>
                                                            </div>
                                                            <div className="flex justify-between">
-                                                               <span className="text-slate-400">盖帽 / 犯规</span>
+                                                               <span className="text-slate-400">{t('report.blocks')} / {t('report.fouls')}</span>
                                                                <span className="font-semibold text-white">
                                                                    {(player.blk ?? 0)}/{player.pf ?? 0}
                                                                </span>
                                                            </div>
                                                            <div className="flex justify-between">
-                                                               <span className="text-slate-400">前板 / 后板</span>
+                                                               <span className="text-slate-400">{t('report.oreb')} / {t('report.dreb')}</span>
                                                                <span className="font-semibold text-white">
                                                                    {(player.offReb ?? 0)}/{player.defReb ?? 0}
                                                                </span>
@@ -2937,33 +2830,33 @@ const HighlightResultScreen = () => {
                      <details className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
                          <summary className="flex justify-between items-center px-4 py-3 bg-white/5 text-[10px] font-bold text-slate-400 border-b border-white/5 cursor-pointer hover:bg-white/10 transition-colors">
                              <span className="flex items-center gap-2">
-                                 <span>{statsData.teamA.name}</span>
+                                 <span>{t(statsData.teamA.nameKey)}</span>
                                  <span className={`text-sm font-bold ${statsData.teamA.color}`}>{statsData.teamA.score}</span>
                              </span>
-                             <span>团队对比</span>
+                             <span>{t('ui.teamCompare')}</span>
                              <span className="flex items-center gap-2">
                                  <span className={`text-sm font-bold ${statsData.teamB.color}`}>{statsData.teamB.score}</span>
-                                 <span>{statsData.teamB.name}</span>
+                                 <span>{t(statsData.teamB.nameKey)}</span>
                              </span>
                          </summary>
                          <div>
                              {basicStatsComparison.map((item, index) => (
                                  <div key={index} className={`flex justify-between items-center px-4 py-3 border-b border-white/5 last:border-0`}>
                                      <span className={`w-12 text-left font-mono font-bold ${item.a > item.b ? statsData.teamA.color : 'text-slate-400'}`}>{item.a}</span>
-                                     <span className="flex-1 text-center text-xs text-slate-300">{item.label}</span>
+                                     <span className="flex-1 text-center text-xs text-slate-300">{t(`report.${item.rowKey}`)}</span>
                                      <span className={`w-12 text-right font-mono font-bold ${item.b > item.a ? statsData.teamB.color : 'text-slate-400'}`}>{item.b}</span>
                                  </div>
                              ))}
                             {/* Add rebound and steal to team comparison for basketball */}
                             {!isSoccer && (
                                 <>
-                                    {statsData.comparison.filter(i => ['篮板', '抢断'].includes(i.label)).map((item, index) => {
+                                    {statsData.comparison.filter((i: any) => ['rebounds', 'steals'].includes(i.rowKey)).map((item, index) => {
                                         const aValue = typeof item.a === 'number' ? item.a : (item.a as any).pct || 0;
                                         const bValue = typeof item.b === 'number' ? item.b : (item.b as any).pct || 0;
                                         return (
                                             <div key={`extra-${index}`} className={`flex justify-between items-center px-4 py-3 border-b border-white/5 last:border-0`}>
                                                 <span className={`w-12 text-left font-mono font-bold ${aValue > bValue ? statsData.teamA.color : 'text-slate-400'}`}>{aValue}</span>
-                                                <span className="flex-1 text-center text-xs text-slate-300">{item.label}</span>
+                                                <span className="flex-1 text-center text-xs text-slate-300">{t(`report.${item.rowKey}`)}</span>
                                                 <span className={`w-12 text-right font-mono font-bold ${bValue > aValue ? statsData.teamB.color : 'text-slate-400'}`}>{bValue}</span>
                                             </div>
                                         );
@@ -2978,7 +2871,7 @@ const HighlightResultScreen = () => {
                         /* Soccer Run Heatmap (Movement) */
                         <div className="bg-[#1E293B] rounded-2xl border border-white/10 p-4 relative overflow-hidden">
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-sm font-bold text-white flex items-center gap-2"><Map className="w-4 h-4 text-emerald-500" /> 跑动热力图</h3>
+                                <h3 className="text-sm font-bold text-white flex items-center gap-2"><Map className="w-4 h-4 text-emerald-500" /> {t('ui.heatmapRun')}</h3>
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => setHeatmapMode('both')}
@@ -2988,7 +2881,7 @@ const HighlightResultScreen = () => {
                                                 : 'text-slate-400 hover:text-white'
                                         }`}
                                     >
-                                        全部
+                                        {t('ui.all')}
                                     </button>
                                     <button
                                         onClick={() => setHeatmapMode('teamA')}
@@ -2998,7 +2891,7 @@ const HighlightResultScreen = () => {
                                                 : 'text-slate-400 hover:text-white'
                                         }`}
                                     >
-                                        A队
+                                        {t('ui.teamA')}
                                     </button>
                                     <button
                                         onClick={() => setHeatmapMode('teamB')}
@@ -3008,7 +2901,7 @@ const HighlightResultScreen = () => {
                                                 : 'text-slate-400 hover:text-white'
                                         }`}
                                     >
-                                        B队
+                                        {t('ui.teamB')}
                                     </button>
                                 </div>
                             </div>
@@ -3054,7 +2947,7 @@ const HighlightResultScreen = () => {
                             <div className="flex justify-center gap-4 mt-3">
                                 <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
                                     <div className="w-3 h-3 rounded" style={{ background: 'linear-gradient(to right, rgba(34, 197, 94, 0.2), rgba(20, 83, 45, 0.8))' }}></div>
-                                    <span>颜色越深表示跑动频率越高</span>
+                                    <span>{t('ui.darkerMeansMore')}</span>
                                 </div>
                             </div>
                         </div>
@@ -3062,7 +2955,7 @@ const HighlightResultScreen = () => {
                         /* Basketball Shot Heatmap */
                         <div className="bg-[#1E293B] rounded-2xl border border-white/10 p-4 relative overflow-hidden">
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-sm font-bold text-white flex items-center gap-2"><Flame className="w-4 h-4 text-orange-500" /> 出手热力图</h3>
+                                <h3 className="text-sm font-bold text-white flex items-center gap-2"><Flame className="w-4 h-4 text-orange-500" /> {t('ui.heatmapShot')}</h3>
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => setHeatmapMode('both')}
@@ -3072,7 +2965,7 @@ const HighlightResultScreen = () => {
                                                 : 'text-slate-400 hover:text-white'
                                         }`}
                                     >
-                                        全部
+                                        {t('ui.all')}
                                     </button>
                                     <button
                                         onClick={() => setHeatmapMode('teamA')}
@@ -3082,7 +2975,7 @@ const HighlightResultScreen = () => {
                                                 : 'text-slate-400 hover:text-white'
                                         }`}
                                     >
-                                        A队
+                                        {t('ui.teamA')}
                                     </button>
                                     <button
                                         onClick={() => setHeatmapMode('teamB')}
@@ -3092,7 +2985,7 @@ const HighlightResultScreen = () => {
                                                 : 'text-slate-400 hover:text-white'
                                         }`}
                                     >
-                                        B队
+                                        {t('ui.teamB')}
                                     </button>
                                 </div>
                             </div>
@@ -3144,11 +3037,11 @@ const HighlightResultScreen = () => {
                             <div className="flex justify-center gap-4 mt-3">
                                 <div className="flex items-center gap-1.5 bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/20">
                                     <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
-                                    <span className="text-[9px] font-bold text-blue-400">A队</span>
+                                    <span className="text-[9px] font-bold text-blue-400">{t('ui.teamA')}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20">
                                     <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
-                                    <span className="text-[9px] font-bold text-red-400">B队</span>
+                                    <span className="text-[9px] font-bold text-red-400">{t('ui.teamB')}</span>
                                 </div>
                             </div>
                         </div>
@@ -3160,13 +3053,13 @@ const HighlightResultScreen = () => {
 
                          <div>
 
-                             <h4 className="text-xs font-bold text-white mb-1 flex items-center gap-1"><Crown className="w-3 h-3 text-amber-300" /> 升级 Pro 版</h4>
+                             <h4 className="text-xs font-bold text-white mb-1 flex items-center gap-1"><Crown className="w-3 h-3 text-amber-300" /> {t('ui.upgradePro')}</h4>
 
-                             <p className="text-[10px] text-slate-400">解锁高级视频编辑、数据导出、历史对比等专业功能</p>
+                             <p className="text-[10px] text-slate-400">{t('ui.unlockProDesc')}</p>
 
                          </div>
 
-                         <button onClick={() => replaceView('ai_result_analysis')} className="bg-white text-slate-900 text-[10px] font-bold px-3 py-1.5 rounded-full">立即升级</button>
+                         <button onClick={() => replaceView('ai_result_analysis')} className="bg-white text-slate-900 text-[10px] font-bold px-3 py-1.5 rounded-full">{t('ui.upgradeNow')}</button>
 
                      </div>
 
@@ -3184,17 +3077,17 @@ const HighlightResultScreen = () => {
 
                  <div className="flex justify-between items-center mb-3">
 
-                     <span className="text-xs text-slate-400">已选择 {selectedClipIds.length} 个片段</span>
+                     <span className="text-xs text-slate-400">{t('ui.selectedCount', { count: selectedClipIds.length })}</span>
 
-                     <button onClick={() => setSelectedClipIds(selectedClipIds.length === displayClips.length ? [] : displayClips.map(c => c.id))} className="text-xs text-blue-400 font-bold">{selectedClipIds.length === displayClips.length ? '取消全选' : '全选'}</button>
+                     <button onClick={() => setSelectedClipIds(selectedClipIds.length === displayClips.length ? [] : displayClips.map(c => c.id))} className="text-xs text-blue-400 font-bold">{selectedClipIds.length === displayClips.length ? t('ui.deselectAll') : t('ui.selectAll')}</button>
 
                  </div>
 
                  <div className="flex gap-3">
 
-                     <button onClick={handleMergeClips} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"><Layers className="w-4 h-4" /> 合并片段</button>
+                     <button onClick={handleMergeClips} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"><Layers className="w-4 h-4" /> {t('ui.mergeClips')}</button>
 
-                     <button onClick={handleShare} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20"><Share2 className="w-4 h-4" /> 导出分享</button>
+                     <button onClick={handleShare} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20"><Share2 className="w-4 h-4" /> {t('ui.exportShare')}</button>
 
                  </div>
 
@@ -3212,7 +3105,7 @@ const HighlightResultScreen = () => {
 
                  <button onClick={handleExportAll} className="w-full bg-orange-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2">
 
-                     <Share2 className="w-4 h-4" /> 导出全部集锦
+                     <Share2 className="w-4 h-4" /> {t('ui.exportAllHighlights')}
 
                  </button>
 
@@ -3240,7 +3133,7 @@ const HighlightResultScreen = () => {
                                 onClick={(e) => { e.stopPropagation(); handleCorrectEventType(clip.id, opt); }}
                                 className="w-full px-3 py-2 text-left text-[10px] text-slate-300 hover:bg-slate-700 hover:text-white transition-colors first:rounded-t-lg last:rounded-b-lg"
                             >
-                                {opt.label}
+                                {t(opt.labelKey)}
                             </button>
                         </React.Fragment>
                     ))}
@@ -3286,7 +3179,7 @@ const HighlightResultScreen = () => {
                          }}
                          className="w-full px-3 py-2 text-left text-[10px] text-blue-400 hover:bg-slate-700 transition-colors rounded-b-lg"
                      >
-                         自定义...
+                         {t('ui.custom')}
                      </button>
                  </div>,
                  document.body
@@ -3344,7 +3237,7 @@ const calculatePlayerStats = (sport: string, eventClaims: Record<number, string>
         setpieces,
         penalties,
         rating: 8.0,
-        events: playerEvents.map(e => ({ id: e.id, type: e.scoreType, time: e.time, label: e.label, claimed: true }))
+        events: playerEvents.map(e => ({ id: e.id, type: e.scoreType, time: e.time, label: (e as any).labelKey ? i18n.t((e as any).labelKey) : (e as any).label, claimed: true }))
       };
     } else {
       const scored = (e: { scoreType: number | string; scored?: boolean }) => (e as any).scored !== false;
@@ -3394,7 +3287,7 @@ const calculatePlayerStats = (sport: string, eventClaims: Record<number, string>
         ftMade,
         ftAtt: ftAttempts,
         eff: `+${Math.round(eff)}`,
-        events: playerEvents.map(e => ({ id: e.id, type: e.scoreType, time: e.time, label: e.label, claimed: true }))
+        events: playerEvents.map(e => ({ id: e.id, type: e.scoreType, time: e.time, label: (e as any).labelKey ? i18n.t((e as any).labelKey) : (e as any).label, claimed: true }))
       };
     }
   });
@@ -3402,7 +3295,7 @@ const calculatePlayerStats = (sport: string, eventClaims: Record<number, string>
 
 // --- Player Detail View Component ---
 const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: string, onClose: () => void }) => {
-  const { setShowShareModal, setShareType, setShareContext } = useAppContext();
+  const { t, setShowShareModal, setShareType, setShareContext } = useAppContext();
   const isSoccer = sport === 'soccer';
 
   const handleSharePlayerDashboard = () => {
@@ -3415,7 +3308,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     <div className="bg-[#1E293B] rounded-2xl border border-white/10 overflow-hidden mt-4 animate-in slide-in-from-top-4">
       <div className="px-4 py-3 border-b border-white/5 flex justify-between items-center">
         <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <User className="w-4 h-4 text-blue-400" /> {player.label} 详情
+          <User className="w-4 h-4 text-blue-400" /> {player.label} {t('ui.detail')}
         </h3>
         <button onClick={onClose} className="text-slate-400 hover:text-white">
           <X className="w-4 h-4" />
@@ -3428,34 +3321,34 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           {isSoccer ? (
             <>
               <div className="bg-slate-800/50 p-2 rounded-lg text-center">
-                <div className="text-xs text-slate-400">进球</div>
+                <div className="text-xs text-slate-400">{t('report.goals')}</div>
                 <div className="text-lg font-bold text-white">{player.goals || 0}</div>
               </div>
               <div className="bg-slate-800/50 p-2 rounded-lg text-center">
-                <div className="text-xs text-slate-400">角球</div>
+                <div className="text-xs text-slate-400">{t('report.corners')}</div>
                 <div className="text-lg font-bold text-white">{player.corners || 0}</div>
               </div>
               <div className="bg-slate-800/50 p-2 rounded-lg text-center">
-                <div className="text-xs text-slate-400">点球</div>
+                <div className="text-xs text-slate-400">{t('clips.penaltyShort')}</div>
                 <div className="text-lg font-bold text-white">{player.penalties || 0}</div>
               </div>
             </>
           ) : (
             <>
               <div className="bg-slate-800/50 p-2 rounded-lg text-center">
-                <div className="text-xs text-slate-400">得分</div>
+                <div className="text-xs text-slate-400">{t('report.totalPoints')}</div>
                 <div className="text-lg font-bold text-white">{player.pts || 0}</div>
               </div>
               <div className="bg-slate-800/50 p-2 rounded-lg text-center">
-                <div className="text-xs text-slate-400">篮板</div>
+                <div className="text-xs text-slate-400">{t('report.rebounds')}</div>
                 <div className="text-lg font-bold text-white">{player.reb || 0}</div>
               </div>
               <div className="bg-slate-800/50 p-2 rounded-lg text-center">
-                <div className="text-xs text-slate-400">助攻</div>
+                <div className="text-xs text-slate-400">{t('report.assists')}</div>
                 <div className="text-lg font-bold text-white">{player.ast || 0}</div>
               </div>
               <div className="bg-slate-800/50 p-2 rounded-lg text-center">
-                <div className="text-xs text-slate-400">抢断</div>
+                <div className="text-xs text-slate-400">{t('report.steals')}</div>
                 <div className="text-lg font-bold text-white">{(player as any).stl || 0}</div>
               </div>
             </>
@@ -3468,7 +3361,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             onClick={handleSharePlayerDashboard}
             className="flex-1 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold flex items-center justify-center gap-1.5"
           >
-            <Share2 className="w-3.5 h-3.5" /> 分享数据看板
+            <Share2 className="w-3.5 h-3.5" /> {t('ui.shareDashboard')}
           </button>
         </div>
       </div>
@@ -3481,7 +3374,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   // Basketball Heatmap Component (personal view only, used in stats tab)
   const BasketballHeatmap = ({ playerLabel }: { playerLabel: string | null }) => {
-    const { eventClaims, resultSport } = useAppContext();
+    const { t, eventClaims, resultSport } = useAppContext();
 
     const hasPlayer = resultSport === 'basketball' && playerLabel && playerLabel !== 'all';
 
@@ -3511,7 +3404,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           <div className="flex justify-between items-center mb-4 relative z-10">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Flame className="w-4 h-4 text-orange-500" />
-                  <span>{hasPlayer ? '个人出手热力图' : '出手热力图'}</span>
+                  <span>{hasPlayer ? t('ui.personalShotHeatmap') : t('ui.heatmapShot')}</span>
               </h3>
               {hasPlayer ? (
                   <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-slate-300 max-w-[120px] truncate">
@@ -3519,7 +3412,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   </span>
               ) : (
                   <span className="text-[10px] text-slate-400">
-                      从上方选择一名球员
+                      {t('ui.selectPlayerAbove')}
                   </span>
               )}
           </div>
@@ -3577,7 +3470,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           <div className="flex justify-center gap-4 mt-3 text-[9px] text-slate-400">
               <div className="flex items-center gap-1">
                   <div className="w-3 h-3 rounded-full bg-blue-500/60" />
-                  <span>深色区域表示该球员高频出手/停留位置</span>
+                  <span>{t('ui.darkerAreaMeaning')}</span>
               </div>
           </div>
       </div>
@@ -3586,7 +3479,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   // Soccer Heatmap Component (personal view only, used in stats tab)
   const SoccerHeatmap = ({ playerLabel }: { playerLabel: string | null }) => {
-    const { eventClaims, resultSport } = useAppContext();
+    const { t, eventClaims, resultSport } = useAppContext();
 
     const hasPlayer = resultSport === 'soccer' && playerLabel && playerLabel !== 'all';
 
@@ -3608,7 +3501,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           <div className="flex justify-between items-center mb-4 relative z-10">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Map className="w-4 h-4 text-emerald-500" />
-                  <span>{hasPlayer ? '个人跑动热力图' : '跑动热力图'}</span>
+                  <span>{hasPlayer ? t('ui.personalRunHeatmap') : t('ui.heatmapRun')}</span>
               </h3>
               {hasPlayer ? (
                   <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-slate-300 max-w-[120px] truncate">
@@ -3616,7 +3509,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   </span>
               ) : (
                   <span className="text-[10px] text-slate-400">
-                      从上方选择一名球员
+                      {t('ui.selectPlayerAbove')}
                   </span>
               )}
           </div>
@@ -3681,7 +3574,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           <div className="flex justify-center gap-4 mt-3 text-[9px] text-slate-400">
               <div className="flex items-center gap-1">
                   <div className="w-3 h-3 rounded" style={{ background: 'linear-gradient(to right, rgba(34, 197, 94, 0.3), rgba(20, 83, 45, 0.8))' }} />
-                  <span>颜色越深表示该球员在该区域触球 / 跑动更频繁</span>
+                  <span>{t('ui.darkerAreaRun')}</span>
               </div>
           </div>
       </div>
@@ -3707,6 +3600,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       setEventClaims,
       setToastMessage,
       setAigcPreviewMode,
+      t,
     } = useAppContext();
 
     const [currentTime, setCurrentTime] = useState('00:00');
@@ -3883,7 +3777,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         if (editingClipId === null) return;
         
         if (editingDuration > 15) {
-            setToastMessage('高光片段最多15秒');
+            setToastMessage(t('ui.clipMax15s'));
             setTimeout(() => setToastMessage(null), 2000);
             setEditingDuration(15);
             return;
@@ -3924,7 +3818,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             (AI_CLIPS_ADVANCED[globalClipIndex] as any).confidence = 'high';
         }
         setOpenPlayerMenuId(null);
-        setToastMessage('已标记');
+        setToastMessage(t('ui.marked'));
         setTimeout(() => setToastMessage(null), 2000);
     };
 
@@ -3991,36 +3885,38 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         );
         const idx = AI_CLIPS_ADVANCED.findIndex(c => c.id === clipId);
         if (idx !== -1) (AI_CLIPS_ADVANCED[idx] as any).team = newTeam;
-        setToastMessage('已修正阵营');
+        setToastMessage(t('ui.sideCorrected'));
         setTimeout(() => setToastMessage(null), 2000);
     };
 
     // Manual correction: 事件类型 / 得分结果 (type + scoreType + label; 得分结果含 命中/未中)
-    type EventTypeOption = { id: string | number; label: string; type: string; scoreType: number | string; scored?: boolean };
+    type EventTypeOption = { id: string | number; labelKey: string; type: string; scoreType: number | string; scored?: boolean };
     const eventTypeOptions: EventTypeOption[] = isSoccer
         ? [
-            { id: 'goal', label: '进球', type: 'soccer_event', scoreType: 'goal' },
-            { id: 'corner', label: '角球', type: 'soccer_event', scoreType: 'corner' },
-            { id: 'setpiece', label: '定位球', type: 'soccer_event', scoreType: 'setpiece' },
-            { id: 'penalty', label: '点球', type: 'soccer_event', scoreType: 'penalty' },
+            { id: 'goal', labelKey: 'clips.goal', type: 'soccer_event', scoreType: 'goal' },
+            { id: 'corner', labelKey: 'clips.cornerShort', type: 'soccer_event', scoreType: 'corner' },
+            { id: 'setpiece', labelKey: 'clips.setpieceShort', type: 'soccer_event', scoreType: 'setpiece' },
+            { id: 'penalty', labelKey: 'clips.penaltyShort', type: 'soccer_event', scoreType: 'penalty' },
         ]
         : [
-            { id: 3, label: '3分', type: 'score', scoreType: 3, scored: true },
-            { id: 2, label: '2分', type: 'score', scoreType: 2, scored: true },
-            { id: 1, label: '1分', type: 'score', scoreType: 1, scored: true },
-            { id: 'rebound', label: '篮板', type: 'basketball_event', scoreType: 'rebound' },
-            { id: 'steal', label: '抢断', type: 'basketball_event', scoreType: 'steal' },
-            { id: 'assist', label: '助攻', type: 'basketball_event', scoreType: 'assist' },
+            { id: 3, labelKey: 'clips.3ptShort', type: 'score', scoreType: 3, scored: true },
+            { id: 2, labelKey: 'clips.2ptShort', type: 'score', scoreType: 2, scored: true },
+            { id: 1, labelKey: 'clips.ftShort', type: 'score', scoreType: 1, scored: true },
+            { id: 'rebound', labelKey: 'clips.reboundShort', type: 'basketball_event', scoreType: 'rebound' },
+            { id: 'steal', labelKey: 'clips.steal', type: 'basketball_event', scoreType: 'steal' },
+            { id: 'assist', labelKey: 'clips.assist', type: 'basketball_event', scoreType: 'assist' },
         ];
 
     const handleCorrectEventType = (clipId: number, opt: EventTypeOption) => {
         const sport = resultSport || 'basketball';
-        const label = opt.label ?? getLabelForEvent(sport, opt.type, opt.scoreType);
+        const label = t(opt.labelKey);
         const scored = opt.scored;
         setClipsState(prev =>
             prev.map(c => {
                 if (c.id !== clipId) return c;
-                const next = { ...c, type: opt.type, scoreType: opt.scoreType, label } as (typeof prev)[number];
+                const next = { ...c, type: opt.type, scoreType: opt.scoreType } as (typeof prev)[number];
+                (next as any).labelKey = undefined;
+                (next as any).label = label;
                 if (scored !== undefined) (next as any).scored = scored;
                 return next;
             })
@@ -4030,11 +3926,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             const clip = AI_CLIPS_ADVANCED[idx] as any;
             clip.type = opt.type;
             clip.scoreType = opt.scoreType;
+            clip.labelKey = undefined;
             clip.label = label;
             if (scored !== undefined) clip.scored = scored;
         }
         setOpenTypeMenuId(null);
-        setToastMessage('已修正类型');
+        setToastMessage(t('ui.typeCorrected'));
         setTimeout(() => setToastMessage(null), 2000);
     };
 
@@ -4042,7 +3939,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         if (selectedClipIds.length === 0) return;
 
         setShareContext({ type: 'selected' });
-        setProgressModal({ show: true, title: '正在合并并保存', progress: 0 });
+        setProgressModal({ show: true, title: t('ui.mergingSaving'), progress: 0 });
 
         let progress = 0;
         const interval = setInterval(() => {
@@ -4063,12 +3960,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const handleSharePlayerClips = (label: string) => {
         const playerClips = clipsState.filter(c => (eventClaims[c.id] ?? c.player) === label);
         if (playerClips.length === 0) {
-            setToastMessage('该球员暂无集锦');
+            setToastMessage(t('ui.noClipsForPlayer'));
             setTimeout(() => setToastMessage(null), 2000);
             return;
         }
         setShareContext({ type: 'player_clips', playerLabel: label });
-        setProgressModal({ show: true, title: `正在合并 ${label} 集锦`, progress: 0 });
+        setProgressModal({ show: true, title: t('ui.mergingLabel', { label }), progress: 0 });
 
         let progress = 0;
         const interval = setInterval(() => {
@@ -4092,7 +3989,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     };
 
     const handleExportAll = () => {
-        setProgressModal({ show: true, title: '正在导出全部集锦', progress: 0 });
+        setProgressModal({ show: true, title: t('ui.exportingAll'), progress: 0 });
 
         let progress = 0;
         const interval = setInterval(() => {
@@ -4111,7 +4008,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     };
 
     const handleExportReport = () => {
-        setProgressModal({ show: true, title: '正在生成专业分析报告...', progress: 0 });
+        setProgressModal({ show: true, title: t('ui.generatingReport'), progress: 0 });
 
         let progress = 0;
         const interval = setInterval(() => {
@@ -4154,85 +4051,66 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         return undefined;
     };
 
-    // Helper function to map data row label to event type for click navigation
-    const getEventTypeFromLabel = (label: string): string | number | null => {
+    // Map data row rowKey to event type for click navigation
+    const getEventTypeFromRowKey = (rowKey: string): string | number | null => {
         if (isSoccer) {
-            if (label === '进球' || label === 'xG (期望进球)') return 'goal';
-            if (label === '角球') return 'corner';
-            if (label === '定位球') return 'setpiece';
-            if (label === '点球') return 'penalty';
-            if (label === '射门 (射正)') return 'goal'; // Map to first goal event
-            // '控球率' and others have no direct mapping
+            if (rowKey === 'goals' || rowKey === 'xg') return 'goal';
+            if (rowKey === 'corners') return 'corner';
+            if (rowKey === 'setpiece') return 'setpiece';
+            if (rowKey === 'penalty') return 'penalty';
+            if (rowKey === 'shotsOnTarget') return 'goal';
             return null;
         } else {
-            if (label === '总得分') return 'score'; // Any score event
-            if (label === '三分得分' || label === '三分命中') return 3;
-            if (label === '两分得分' || label === '两分命中') return 2;
-            if (label === '罚球得分' || label === '罚球命中') return 1;
-            if (label === '投篮命中率' || label === '两分命中率' || label === '三分命中率') return null; // No direct event mapping
-            if (label === '篮板') return 'rebound';
-            if (label === '抢断') return 'steal';
-            if (label === '助攻') return 'assist';
+            if (rowKey === 'totalPoints') return 'score';
+            if (rowKey === 'threePtPoints') return 3;
+            if (rowKey === 'ftPoints') return 1;
+            if (rowKey === 'rebounds') return 'rebound';
+            if (rowKey === 'steals') return 'steal';
+            if (rowKey === 'assists') return 'assist';
+            if (rowKey === 'fgPct' || rowKey === 'threePtPct' || rowKey === 'ftPct' || rowKey === 'ftAttempts') return null;
         }
         return null;
     };
 
-    // Process stats comparison for Pro view - 专门为篮球整理展示顺序与命中率格式
+    // Process stats comparison for Pro view (basketball order; rows use rowKey)
     const processedStatsComparison = isSoccer 
         ? statsData.comparison 
         : (() => {
-            const comparison = [...statsData.comparison];
-            const findRow = (label: string) => comparison.find(item => item.label === label);
+            const comparison = [...statsData.comparison] as Array<{ rowKey: string; a: any; b: any; highlight?: boolean }>;
+            const findRowByKey = (rowKey: string) => comparison.find(item => item.rowKey === rowKey);
 
-            const rows: Array<{ label: string; a: any; b: any; highlight?: boolean }> = [];
+            const rows: Array<{ rowKey: string; a: any; b: any; highlight?: boolean }> = [];
 
             const pushIf = (row: any) => {
                 if (row) rows.push(row);
             };
 
-            // 1. 得分
-            pushIf(findRow('总得分'));
+            pushIf(findRowByKey('totalPoints'));
+            pushIf(findRowByKey('rebounds'));
+            pushIf(findRowByKey('oreb'));
+            pushIf(findRowByKey('dreb'));
+            pushIf(findRowByKey('assists'));
+            pushIf(findRowByKey('steals'));
+            pushIf(findRowByKey('blocks'));
+            pushIf(findRowByKey('turnovers'));
+            pushIf(findRowByKey('fouls'));
 
-            // 2. 篮板（总 + 前场 + 后场）
-            pushIf(findRow('篮板'));
-            pushIf(findRow('前场篮板'));
-            pushIf(findRow('后场篮板'));
-
-            // 3. 助攻、抢断、盖帽、失误、犯规
-            pushIf(findRow('助攻'));
-            pushIf(findRow('抢断'));
-            pushIf(findRow('盖帽'));
-            pushIf(findRow('失误'));
-            pushIf(findRow('犯规'));
-
-            // 4. 罚球次数 + 罚球命中率（命中率行会在 UI 中渲染为 50%（10-20））
-            const ftRate: any = findRow('罚球命中率');
+            const ftRate: any = findRowByKey('ftPct');
             if (ftRate && ftRate.a && typeof ftRate.a === 'object') {
-                rows.push({
-                    label: '罚球次数',
-                    a: ftRate.a.att,
-                    b: ftRate.b.att,
-                });
+                rows.push({ rowKey: 'ftAttempts', a: ftRate.a.att, b: ftRate.b.att });
                 rows.push(ftRate);
             }
 
-            // 5. 投篮命中率 + 三分命中率
-            const fgRate: any = findRow('投篮命中率');
-            if (fgRate) {
-                rows.push(fgRate);
-            }
-            const tpRate: any = findRow('三分命中率');
-            if (tpRate) {
-                rows.push(tpRate);
-            }
+            pushIf(findRowByKey('fgPct'));
+            pushIf(findRowByKey('threePtPct'));
 
             return rows;
         })();
 
     // Filters for clips tab
     const filters = isSoccer 
-      ? [ { id: 'all', label: '全部' }, { id: 'goal', label: '进球' }, { id: 'corner', label: '角球' }, { id: 'setpiece', label: '定位球' }, { id: 'penalty', label: '点球' } ]
-      : [ { id: 'all', label: '全部' }, { id: 3, label: '3分' }, { id: 2, label: '2分' }, { id: 1, label: '罚球' }, { id: 'rebound', label: '篮板' }, { id: 'steal', label: '抢断' }, { id: 'assist', label: '助攻' } ];
+      ? [ { id: 'all', labelKey: 'filter.all' }, { id: 'goal', labelKey: 'filter.goal' }, { id: 'corner', labelKey: 'filter.corner' }, { id: 'setpiece', labelKey: 'filter.setpiece' }, { id: 'penalty', labelKey: 'filter.penalty' } ]
+      : [ { id: 'all', labelKey: 'filter.all' }, { id: 3, labelKey: 'clips.3ptShort' }, { id: 2, labelKey: 'clips.2ptShort' }, { id: 1, labelKey: 'filter.ft' }, { id: 'rebound', labelKey: 'filter.rebound' }, { id: 'steal', labelKey: 'filter.steal' }, { id: 'assist', labelKey: 'filter.assist' } ];
 
     // Display clips for clips tab
     const displayClips = clipsState.filter(clip => { 
@@ -4269,12 +4147,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     // AIGC Lab helpers
     const handleGenerateOneClickAIGC = () => {
         if (!oneClickSelectedClipId) {
-            setToastMessage('请先选择一个片段');
+            setToastMessage(t('ui.selectOneClipFirst'));
             setTimeout(() => setToastMessage(null), 2000);
             return;
         }
         if (!oneClickBackgroundType && !oneClickElementType) {
-            setToastMessage('请至少选择背景或元素中的一项');
+            setToastMessage(t('ui.selectBgOrElement'));
             setTimeout(() => setToastMessage(null), 2000);
             return;
         }
@@ -4288,7 +4166,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const handleGenerateClipCoach = () => {
         if (!aiCoachSelectedClipId) {
-            setToastMessage('请先选择一个片段');
+            setToastMessage(t('ui.selectOneClipFirst'));
             setTimeout(() => setToastMessage(null), 2000);
             return;
         }
@@ -4297,7 +4175,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         setTimeout(() => {
             setAiCoachComment(
                 clip
-                    ? `片段 ${clip.time}「${clip.label}」中，你的决策选择整体不错。\n` +
+                    ? `片段 ${clip.time}「${clip.labelKey ? t(clip.labelKey) : (clip as any).label}」中，你的决策选择整体不错。\n` +
                       `建议注意提前观察队友站位，在完成这次进攻的同时，为下一回合创造更好的空间。`
                     : '未找到对应片段，但可以围绕投篮选择、防守位置和配合默契三个维度做针对性复盘。'
             );
@@ -4345,9 +4223,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const eventTabs = isSoccer 
 
-      ? [{ id: 'all', label: '全' }, { id: 'goal', label: '进' }, { id: 'corner', label: '角' }, { id: 'setpiece', label: '定' }, { id: 'penalty', label: '点' }]
+      ? [{ id: 'all', labelKey: 'filterShort.all' }, { id: 'goal', labelKey: 'filterShort.goal' }, { id: 'corner', labelKey: 'filterShort.corner' }, { id: 'setpiece', labelKey: 'filterShort.setpiece' }, { id: 'penalty', labelKey: 'filterShort.penalty' }]
 
-      : [{ id: 'all', label: '全' }, { id: 3, label: '3' }, { id: 2, label: '2' }, { id: 1, label: '1' }, { id: 'rebound', label: '篮板' }, { id: 'steal', label: '抢断' }, { id: 'assist', label: '助攻' }];
+      : [{ id: 'all', labelKey: 'filterShort.all' }, { id: 3, labelKey: 'filterShort.3' }, { id: 2, labelKey: 'filterShort.2' }, { id: 1, labelKey: 'filterShort.1' }, { id: 'rebound', labelKey: 'filterShort.rebound' }, { id: 'steal', labelKey: 'filterShort.steal' }, { id: 'assist', labelKey: 'filterShort.assist' }];
 
     return (
 
@@ -4363,19 +4241,19 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-4xl font-bold drop-shadow-lg opacity-80">{currentTime}</div>
              {showJumpToast && (
                  <div className="absolute top-[60%] left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 animate-in zoom-in-95 z-30">
-                     <RotateCcw className="w-3 h-3" /> 跳转至 {currentTime}
+                     <RotateCcw className="w-3 h-3" /> {t('ui.jumpTo')} {currentTime}
                  </div>
              )}
              <div className="absolute bottom-0 left-0 right-0 p-4 pb-4 z-20 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/80 to-transparent">
                  <div className="flex justify-between items-end mb-2">
                      <div className="flex flex-col items-center">
                          <span className={`text-3xl font-black ${statsData.teamA.color} drop-shadow-lg`}>{statsData.teamA.score}</span>
-                         <span className="text-xs font-bold text-white/90">{statsData.teamA.name}</span>
+                         <span className="text-xs font-bold text-white/90">{t(statsData.teamA.nameKey)}</span>
                      </div>
                      <div className="text-2xl font-black text-slate-500 pb-2">VS</div>
                      <div className="flex flex-col items-center">
                          <span className={`text-3xl font-black ${statsData.teamB.color} drop-shadow-lg`}>{statsData.teamB.score}</span>
-                         <span className="text-xs font-bold text-white/90">{statsData.teamB.name}</span>
+                         <span className="text-xs font-bold text-white/90">{t(statsData.teamB.nameKey)}</span>
                      </div>
                  </div>
              </div>
@@ -4389,7 +4267,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
              <button onClick={() => setActiveTab('clips')} className={`flex-1 py-3 text-xs font-bold relative transition-colors ${activeTab === 'clips' ? 'text-white' : 'text-slate-500'}`}>
 
-                 智能集锦
+                 {t('ui.smartHighlight')}
 
                  {activeTab === 'clips' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-orange-500 rounded-full"></div>}
 
@@ -4397,7 +4275,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
              <button onClick={() => setActiveTab('stats')} className={`flex-1 py-3 text-xs font-bold relative transition-colors ${activeTab === 'stats' ? 'text-white' : 'text-slate-500'}`}>
 
-                 赛事回顾
+                 {t('ui.eventReview')}
 
                  {activeTab === 'stats' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-500 rounded-full"></div>}
 
@@ -4405,7 +4283,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
             <button onClick={() => setActiveTab('advanced')} className={`flex-1 py-3 text-xs font-bold relative transition-colors ${activeTab === 'advanced' ? 'text-white' : 'text-slate-500'}`}>
 
-                <span className="flex items-center justify-center gap-1"><Sparkles className="w-3 h-3 text-amber-400" /> 高阶分析</span>
+                <span className="flex items-center justify-center gap-1"><Sparkles className="w-3 h-3 text-amber-400" /> {t('ui.advancedAnalysis')}</span>
 
                 {activeTab === 'advanced' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-400 rounded-full"></div>}
 
@@ -4413,7 +4291,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
             <button onClick={() => setActiveTab('aigc')} className={`flex-1 py-3 text-xs font-bold relative transition-colors ${activeTab === 'aigc' ? 'text-white' : 'text-slate-500'}`}>
 
-                <span className="flex items-center justify-center gap-1"><Scissors className="w-3 h-3 text-purple-400" /> AIGC 实验室</span>
+                <span className="flex items-center justify-center gap-1"><Scissors className="w-3 h-3 text-purple-400" /> {t('ui.aigcLab')}</span>
 
                 {activeTab === 'aigc' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-purple-400 rounded-full"></div>}
 
@@ -4441,7 +4319,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                             <button key={col.id} onClick={() => { setSelectedCollection(col.id); setSelectedFilter('all'); }} className={`flex-none px-3 py-2 rounded-lg border flex flex-col items-start min-w-[80px] transition-all ${selectedCollection === col.id ? `bg-${col.theme}-500/20 border-${col.theme}-500` : 'bg-black/40 border-white/10'}`}>
 
-                                <span className={`text-xs font-bold ${selectedCollection === col.id ? 'text-white' : 'text-slate-300'}`}>{col.label}</span>
+                                <span className={`text-xs font-bold ${selectedCollection === col.id ? 'text-white' : 'text-slate-300'}`}>{t(col.labelKey)}</span>
 
                             </button>
 
@@ -4457,7 +4335,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                              {filters.map(f => (
 
-                                 <button key={f.id} onClick={() => setSelectedFilter(f.id as EventFilterType)} className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${selectedFilter === f.id ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-slate-400 border-slate-700'}`}>{f.label}</button>
+                                 <button key={f.id} onClick={() => setSelectedFilter(f.id as EventFilterType)} className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${selectedFilter === f.id ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-slate-400 border-slate-700'}`}>{t((f as any).labelKey)}</button>
 
                              ))}
 
@@ -4470,7 +4348,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                      onClick={() => setSelectedPlayer('all')} 
                                      className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${selectedPlayer === null || selectedPlayer === 'all' ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-slate-400 border-slate-700'}`}
                                  >
-                                     全部球员
+                                     {t('ui.allPlayers')}
                                  </button>
                                  {availablePlayers.map(player => (
                                      <button 
@@ -4487,7 +4365,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                          {/* Selection Toggle - 移到列表上方，更接近操作对象 */}
                          <div className="flex justify-end mb-3">
                              <button onClick={(e) => { e.stopPropagation(); setIsSelectionMode(!isSelectionMode); }} className={`text-xs font-bold flex items-center gap-1 transition-colors ${isSelectionMode ? 'text-orange-400' : 'text-slate-500'}`}>
-                                 {isSelectionMode ? '取消选择' : '选择片段'}
+                                 {isSelectionMode ? t('ui.cancelSelect') : t('ui.selectClips')}
                              </button>
                          </div>
 
@@ -4495,7 +4373,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                          <div className="space-y-3">
 
-                             {displayClips.length === 0 && <div className="text-center text-slate-500 text-xs py-8">该分类下暂无片段</div>}
+                             {displayClips.length === 0 && <div className="text-center text-slate-500 text-xs py-8">{t('ui.noClipsInCategory')}</div>}
 
                              {displayClips.map((clip) => { 
 
@@ -4537,16 +4415,16 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                                                  <div className="flex items-center justify-between mb-1.5">
 
-                                                     <h4 className="text-sm font-bold text-slate-200">{clip.label}</h4>
+                                                     <h4 className="text-sm font-bold text-slate-200">{clip.labelKey ? t(clip.labelKey) : (clip as any).label}</h4>
 
                                                      <div className="flex items-center gap-1.5">
                                                          <span className="text-[9px] text-slate-400 font-mono flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" /> {clip.time}</span>
                                                          <button
                                                              onClick={(e) => { e.stopPropagation(); handleCorrectTeam(clip.id, clip.team === 'A' ? 'B' : 'A'); }}
                                                              className={`text-[8px] px-1 rounded transition-opacity hover:opacity-80 ${clip.team === 'A' ? 'bg-blue-900 text-blue-200' : 'bg-red-900 text-red-200'}`}
-                                                             title="修正阵营（点击切换 A/B）"
+                                                             title={t('ui.correctTeamTitle')}
                                                          >
-                                                             {clip.team}队
+                                                             {clip.team === 'A' ? t('ui.teamA') : t('ui.teamB')}
                                                          </button>
                                                      </div>
 
@@ -4574,13 +4452,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                              onClick={handleCancelEdit}
                                                              className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-[8px] font-bold text-slate-300 transition-colors whitespace-nowrap shrink-0"
                                                          >
-                                                             取消
+                                                            {t('ui.cancel')}
                                                          </button>
                                                          <button 
                                                              onClick={handleSaveDuration}
                                                              className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-[8px] font-bold text-white transition-colors whitespace-nowrap shrink-0"
                                                          >
-                                                             确定
+                                                            {t('ui.confirm')}
                                                          </button>
                                                      </div>
                                                  ) : (
@@ -4592,9 +4470,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                                      handleEditDuration(clip.id, clip.duration); 
                                                                  }}
                                                                  className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-[8px] font-bold text-slate-300 flex items-center gap-0.5 transition-colors shrink-0"
-                                                                 title="编辑时长"
+                                                                 title={t('ui.editDuration')}
                                                              >
-                                                                 <Edit3 className="w-2.5 h-2.5" /> <span className="hidden sm:inline">编辑时长</span>
+                                                                 <Edit3 className="w-2.5 h-2.5" /> <span className="hidden sm:inline">{t('ui.editDuration')}</span>
                                                              </button>
                                                              <div className="relative shrink-0" data-correction-menu>
                                                                  <button
@@ -4605,9 +4483,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                                          setOpenPlayerMenuId(null);
                                                                      }}
                                                                      className="px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-0.5 bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors shrink-0"
-                                                                     title="修正事件类型"
+                                                                     title={t('ui.correctType')}
                                                                  >
-                                                                     <Edit3 className="w-2.5 h-2.5" /> <span className="hidden sm:inline">类型</span> <ChevronDown className={`w-2.5 h-2.5 transition-transform ${openTypeMenuId === clip.id ? 'rotate-180' : ''}`} />
+                                                                     <Edit3 className="w-2.5 h-2.5" /> <span className="hidden sm:inline">{t('ui.typeLabel')}</span> <ChevronDown className={`w-2.5 h-2.5 transition-transform ${openTypeMenuId === clip.id ? 'rotate-180' : ''}`} />
                                                                  </button>
                                                              </div>
                                                              <div className="relative shrink-0" data-correction-menu>
@@ -4619,12 +4497,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                                          setOpenTypeMenuId(null);
                                                                      }}
                                                                      className="px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-0.5 bg-blue-600 hover:bg-blue-500 text-white transition-colors shrink-0"
-                                                                     title="标记球员"
+                                                                     title={t('ui.markPlayer')}
                                                                  >
                                                                      {(eventClaims[clip.id] ?? clip.player) ? (
                                                                          <><User className="w-2.5 h-2.5" /><span className="max-w-[40px] truncate">{eventClaims[clip.id] ?? clip.player}</span><ChevronDown className={`w-2.5 h-2.5 transition-transform ${openPlayerMenuId === clip.id ? 'rotate-180' : ''}`} /></>
                                                                      ) : (
-                                                                         <><User className="w-2.5 h-2.5" /><span className="hidden sm:inline">未标记</span><ChevronDown className={`w-2.5 h-2.5 transition-transform ${openPlayerMenuId === clip.id ? 'rotate-180' : ''}`} /></>
+                                                                         <><User className="w-2.5 h-2.5" /><span className="hidden sm:inline">{t('ui.unmarked')}</span><ChevronDown className={`w-2.5 h-2.5 transition-transform ${openPlayerMenuId === clip.id ? 'rotate-180' : ''}`} /></>
                                                                      )}
                                                                  </button>
                                                              </div>
@@ -4654,7 +4532,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                         {/* 关键时间轴 - 放在最上面，最直观的回顾方式 */}
                         <div className="mb-4">
                             <div className="flex justify-between items-center mb-2 px-1">
-                                <h3 className="text-sm font-bold text-slate-300 whitespace-nowrap">关键时间轴</h3>
+                                <h3 className="text-sm font-bold text-slate-300 whitespace-nowrap">{t('ui.keyTimeline')}</h3>
                                 <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-nowrap">
                                     <div className="flex gap-1 flex-nowrap">
                                         {eventTabs.map(f => (
@@ -4665,7 +4543,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                     activeEventTab === f.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'
                                                 }`}
                                             >
-                                                {f.label}
+                                                {t((f as any).labelKey)}
                                             </button>
                                         ))}
                                     </div>
@@ -4674,14 +4552,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                         onClick={() => setIsSelectionMode(!isSelectionMode)}
                                         className="px-2 py-1 rounded-full border border-white/10 text-[10px] font-bold text-slate-300 bg-slate-900/60 hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
                                     >
-                                        {isSelectionMode ? '完成选择' : '选择导出'}
+                                        {isSelectionMode ? t('ui.finishSelect') : t('ui.selectExport')}
                                     </button>
                                 </div>
                             </div>
 
                             {isSelectionMode && (
                                 <div className="flex justify-between items-center mb-2 px-1 text-[10px] text-slate-400">
-                                    <span>已选择 {selectedClipIds.length} 个片段</span>
+                                    <span>{t('ui.selectedCount', { count: selectedClipIds.length })}</span>
                                     <div className="flex gap-2">
                                         <button
                                             type="button"
@@ -4694,14 +4572,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                             }
                                             className="text-blue-400 font-bold"
                                         >
-                                            {selectedClipIds.length === filteredEvents.length ? '取消全选' : '全选本页'}
+                                            {selectedClipIds.length === filteredEvents.length ? t('ui.deselectAll') : t('ui.selectAllPage')}
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleShare}
                                             className="px-2 py-1 rounded-full bg-orange-500 hover:bg-orange-600 text-white font-bold"
                                         >
-                                            导出片段
+                                            {t('ui.exportClips')}
                                         </button>
                                     </div>
                                 </div>
@@ -4711,7 +4589,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                                 {filteredEvents.map(clip => {
                                     const isSelected = selectedClipIds.includes(clip.id);
-                                    const teamName = clip.team === 'A' ? statsData.teamA.name : statsData.teamB.name;
+                                    const teamName = clip.team === 'A' ? t(statsData.teamA.nameKey) : t(statsData.teamB.nameKey);
                                     const playerLabel = (eventClaims[clip.id] ?? clip.player) as string | null | undefined;
 
                                     const handleRowClick = () => {
@@ -4759,16 +4637,16 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                         </span>
                                                         <span className="text-[10px] text-slate-400">
                                                             {clip.type === 'score'
-                                                                ? `${clip.scoreType}分`
-                                                                : clip.label}
+                                                                ? `${clip.scoreType}`
+                                                                : (clip.labelKey ? t(clip.labelKey) : (clip as any).label)}
                                                         </span>
                                                     </div>
                                                     <div className="text-xs font-bold text-slate-200 truncate">
-                                                        {clip.label}
+                                                        {clip.labelKey ? t(clip.labelKey) : (clip as any).label}
                                                     </div>
                                                     {playerLabel && (
                                                         <div className="mt-0.5 text-[10px] text-slate-400 truncate">
-                                                            相关球员：{playerLabel}
+                                                            {t('ui.relatedPlayer')}{playerLabel}
                                                         </div>
                                                     )}
                                                 </div>
@@ -4794,7 +4672,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                     );
                                 })}
 
-                                {filteredEvents.length === 0 && <div className="text-center text-slate-600 text-xs py-4">无此类型事件</div>}
+                                {filteredEvents.length === 0 && <div className="text-center text-slate-600 text-xs py-4">{t('ui.noEventsInType')}</div>}
 
                             </div>
                         </div>
@@ -4802,12 +4680,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                         {/* 团队数据对比 */}
                         <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden mb-4">
                             <div className="flex justify-between items-center px-4 py-3 bg-white/5 text-[10px] font-bold text-slate-400 border-b border-white/5">
-                                <span>{statsData.teamA.name}</span>
-                                <span>数据项</span>
-                                <span>{statsData.teamB.name}</span>
+                                <span>{t(statsData.teamA.nameKey)}</span>
+                                <span>{t('ui.dataItem')}</span>
+                                <span>{t(statsData.teamB.nameKey)}</span>
                             </div>
                             {processedStatsComparison.map((item, index) => {
-                                const eventType = getEventTypeFromLabel(item.label);
+                                const eventType = getEventTypeFromRowKey(item.rowKey);
                                 const isClickable = eventType !== null;
                                 const handleRowClick = () => {
                                     if (isClickable) {
@@ -4867,7 +4745,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                 {aDisplay}
                                             </span>
                                             <span className="flex-1 text-center text-[11px] text-slate-300">
-                                                {item.label}
+                                                {t(`report.${item.rowKey}`)}
                                             </span>
                                             <span className={`w-16 text-right text-[11px] font-mono font-bold ${bIsHigher ? statsData.teamB.color : 'text-slate-500'}`}>
                                                 {bDisplay}
@@ -4902,11 +4780,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             })}
                         </div>
 
-                        {/* 热力图球员选择器（就近控制个人视角） */}
+                        {/* {t('ui.heatmapPlayer')}选择器（就近控制个人视角） */}
                         {availablePlayers.length > 0 && (
                             <div className="mt-4 mb-2 px-1 flex items-center justify-between gap-3">
                                 <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                                    热力图球员
+                                    {t('ui.heatmapPlayer')}
                                 </span>
                                 <div className="flex gap-1 overflow-x-auto scrollbar-hide flex-1 justify-end">
                                     <button
@@ -4918,7 +4796,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                 : 'bg-transparent text-slate-400 border-slate-700'
                                         }`}
                                     >
-                                        全部
+                                        {t('ui.all')}
                                     </button>
                                     {availablePlayers.map((player) => (
                                         <button
@@ -4957,8 +4835,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                         {!isSoccer && (
                             <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden mb-4">
                                 <div className="flex justify-between items-center px-4 py-3 bg-white/5 text-[11px] font-bold text-slate-300 border-b border-white/5">
-                                    <span>球员汇总与集锦</span>
-                                    <span className="text-[10px] text-slate-400">一键查看关键球员数据、集锦和热区图</span>
+                                    <span>{t('ui.playerSummaryTitle')}</span>
+                                    <span className="text-[10px] text-slate-400">{t('ui.playerSummaryDesc')}</span>
                                 </div>
                                 <div className="divide-y divide-white/5">
                                     {PLAYER_STATS_BASKETBALL.map((p) => {
@@ -4998,18 +4876,18 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                                 </span>
                                                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/40">
                                                                     {p.pts >= 25
-                                                                        ? '得分王'
+                                                                        ? t('ui.scoringKing')
                                                                         : p.reb >= 8
-                                                                        ? '篮板王'
+                                                                        ? t('ui.reboundKing')
                                                                         : p.ast >= 7
-                                                                        ? '助攻王'
-                                                                        : '关键轮换'}
+                                                                        ? t('ui.assistKing')
+                                                                        : t('ui.keyRotation')}
                                                                 </span>
                                                             </div>
                                                             <div className="mt-1 text-[11px] text-slate-300">
-                                                                <span className="mr-2">{p.pts} 分</span>
-                                                                <span className="mr-2">{p.reb} 篮板</span>
-                                                                <span className="mr-2">{p.ast} 助攻</span>
+                                                                <span className="mr-2">{p.pts} {t('ui.ptsUnit')}</span>
+                                                                <span className="mr-2">{p.reb} {t('ui.rebUnit')}</span>
+                                                                <span className="mr-2">{p.ast} {t('ui.astUnit')}</span>
                                                                 <span className="mr-2">
                                                                     eFG {efg != null ? `${Math.round(efg * 100)}%` : '-'}
                                                                 </span>
@@ -5032,7 +4910,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                             style={{ pointerEvents: 'auto' }}
                                                         >
                                                             <Play className="w-3 h-3" />
-                                                            相关视频（{clipCount}）
+                                                            {t('ui.relatedVideosCount', { count: clipCount })}
                                                         </button>
                                                         <button
                                                             type="button"
@@ -5046,7 +4924,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                             style={{ pointerEvents: 'auto' }}
                                                         >
                                                             <AreaChart className="w-3 h-3" />
-                                                            热区图
+                                                            {t('ui.heatmapButton')}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -5055,18 +4933,18 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                 {isExpanded && (
                                                     <div className="mt-3 pt-3 border-t border-white/5 space-y-2 animate-in slide-in-from-top-2">
                                                         <div className="text-[10px] text-slate-400">
-                                                            投篮 {fgAtt > 0 ? `${Math.round((fgMade / fgAtt) * 100)}%（${fgMade}-${fgAtt}）` : '-'} ·{' '}
-                                                            三分 {tpAtt > 0 ? `${Math.round((tpMade / tpAtt) * 100)}%（${tpMade}-${tpAtt}）` : '-'} ·{' '}
-                                                            罚球 {ftAtt > 0 ? `${Math.round((ftMade / ftAtt) * 100)}%（${ftMade}-${ftAtt}）` : '-'}
+                                                            {t('ui.fgLabel')} {fgAtt > 0 ? `${Math.round((fgMade / fgAtt) * 100)}%（${fgMade}-${fgAtt}）` : '-'} ·{' '}
+                                                            {t('ui.threePtLabel')} {tpAtt > 0 ? `${Math.round((tpMade / tpAtt) * 100)}%（${tpMade}-${tpAtt}）` : '-'} ·{' '}
+                                                            {t('ui.ftLabel')} {ftAtt > 0 ? `${Math.round((ftMade / ftAtt) * 100)}%（${ftMade}-${ftAtt}）` : '-'}
                                                         </div>
                                                         <div className="text-[10px] text-slate-400">
-                                                            抢断 {p.stl ?? 0} / 失误 {p.tov ?? 0} / 盖帽 {p.blk ?? 0} / 犯规 {p.pf ?? 0}
+                                                            {t('ui.stlLabel')} {p.stl ?? 0} / {t('ui.tovLabel')} {p.tov ?? 0} / {t('ui.blkLabel')} {p.blk ?? 0} / {t('ui.pfLabel')} {p.pf ?? 0}
                                                         </div>
                                                         <div className="text-[10px] text-slate-400">
-                                                            前板 {p.offReb ?? 0} / 后板 {p.defReb ?? 0}
+                                                            {t('ui.offRebLabel')} {p.offReb ?? 0} / {t('ui.defRebLabel')} {p.defReb ?? 0}
                                                         </div>
                                                         <div className="mt-2 pt-2 border-t border-white/5 text-[10px] text-slate-400">
-                                                            <span className="font-semibold text-slate-300 mr-1">AI 点评</span>
+                                                            <span className="font-semibold text-slate-300 mr-1">{t('ui.aiComment')}</span>
                                                             {generatePlayerComment(p)}
                                                         </div>
                                                     </div>
@@ -5078,7 +4956,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                     onClick={() => setExpandedSummaryPlayerId(isExpanded ? null : p.id)}
                                                     className="mt-2 w-full text-center text-[10px] text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1"
                                                 >
-                                                    {isExpanded ? '收起详情' : '展开详情'}
+                                                    {isExpanded ? t('ui.collapseDetail') : t('ui.expandDetail')}
                                                     <ChevronDown className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                                                 </button>
                                             </div>
@@ -5092,8 +4970,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                         {isSoccer && (
                             <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden mb-4">
                                 <div className="flex justify-between items-center px-4 py-3 bg-white/5 text-[11px] font-bold text-slate-300 border-b border-white/5">
-                                    <span>球员汇总与集锦</span>
-                                    <span className="text-[10px] text-slate-400">一键查看关键球员数据、集锦和热区图</span>
+                                    <span>{t('ui.playerSummaryTitle')}</span>
+                                    <span className="text-[10px] text-slate-400">{t('ui.playerSummaryDesc')}</span>
                                 </div>
                                 <div className="divide-y divide-white/5">
                                     {PLAYER_STATS_SOCCER.map((p) => {
@@ -5125,21 +5003,21 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                                 </span>
                                                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40">
                                                                     {p.goals >= 2
-                                                                        ? '进球王'
+                                                                        ? t('ui.topScorer')
                                                                         : p.goals >= 1
-                                                                        ? '大腿'
+                                                                        ? t('ui.keyPlayer')
                                                                         : p.keyPasses >= 5
-                                                                        ? '组织核心'
+                                                                        ? t('ui.playmaker')
                                                                         : p.tackles + p.interceptions >= 6
-                                                                        ? '工兵'
-                                                                        : '关键轮换'}
+                                                                        ? t('ui.workhorse')
+                                                                        : t('ui.keyRotation')}
                                                                 </span>
                                                             </div>
                                                             <div className="mt-1 text-[11px] text-slate-300">
-                                                                <span className="mr-2">{p.goals} 球</span>
-                                                                {p.assists > 0 && <span className="mr-2">{p.assists} 助</span>}
+                                                                <span className="mr-2">{p.goals} {t('ui.goalsUnit')}</span>
+                                                                {p.assists > 0 && <span className="mr-2">{p.assists} {t('ui.assistsUnit')}</span>}
                                                                 <span className="mr-2">xG {p.xG?.toFixed(1) ?? '-'}</span>
-                                                                {p.keyPasses > 0 && <span className="mr-2">关键传球 {p.keyPasses} 次</span>}
+                                                                {p.keyPasses > 0 && <span className="mr-2">{t('ui.keyPassesLabel')} {p.keyPasses} {t('ui.keyPassesTimes')}</span>}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -5156,7 +5034,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                             style={{ pointerEvents: 'auto' }}
                                                         >
                                                             <Play className="w-3 h-3" />
-                                                            相关视频（{clipCount}）
+                                                            {t('ui.relatedVideosCount', { count: clipCount })}
                                                         </button>
                                                         <button
                                                             type="button"
@@ -5170,7 +5048,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                             style={{ pointerEvents: 'auto' }}
                                                         >
                                                             <AreaChart className="w-3 h-3" />
-                                                            跑动图
+                                                            {t('ui.movementMap')}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -5179,23 +5057,23 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                 {isExpanded && (
                                                     <div className="mt-3 pt-3 border-t border-white/5 space-y-2 animate-in slide-in-from-top-2">
                                                         <div className="text-[10px] text-slate-400">
-                                                            射门 {shots}（射正 {shotsOnTarget}）· 转化率 {shots > 0 ? `${Math.round(conversionRate * 100)}%` : '-'} · 射正率 {shots > 0 ? `${Math.round(shotAccuracy * 100)}%` : '-'}
+                                                            {t('ui.shotsLabel')} {shots}（{t('ui.onTarget')} {shotsOnTarget}）· {t('ui.conversionRate')} {shots > 0 ? `${Math.round(conversionRate * 100)}%` : '-'} · {t('ui.shotAccuracy')} {shots > 0 ? `${Math.round(shotAccuracy * 100)}%` : '-'}
                                                         </div>
                                                         {p.keyPasses > 0 && (
                                                             <div className="text-[10px] text-slate-400">
-                                                                关键传球 {p.keyPasses} · 进攻三区传球 {Math.floor((p.keyPasses ?? 0) * 4)}
+                                                                {t('ui.keyPassesLabel')} {p.keyPasses} · {t('ui.finalThirdPasses')} {Math.floor((p.keyPasses ?? 0) * 4)}
                                                             </div>
                                                         )}
                                                         <div className="text-[10px] text-slate-400">
-                                                            跑动 {p.dist ?? '-'} · 冲刺 {p.sprints ?? 0} 次
+                                                            {t('ui.running')} {p.dist ?? '-'} · {t('ui.sprintsLabel')} {p.sprints ?? 0} {t('ui.keyPassesTimes')}
                                                         </div>
                                                         {(p.tackles > 0 || p.interceptions > 0) && (
                                                             <div className="text-[10px] text-slate-400">
-                                                                抢断 {p.tackles ?? 0} · 拦截 {p.interceptions ?? 0} · 抢回球权 {(p.tackles ?? 0) + (p.interceptions ?? 0)}
+                                                                {t('ui.tacklesLabel')} {p.tackles ?? 0} · {t('ui.interceptionsLabel')} {p.interceptions ?? 0} · {t('ui.recoveriesLabel')} {(p.tackles ?? 0) + (p.interceptions ?? 0)}
                                                             </div>
                                                         )}
                                                         <div className="mt-2 pt-2 border-t border-white/5 text-[10px] text-slate-400">
-                                                            <span className="font-semibold text-slate-300 mr-1">AI 点评</span>
+                                                            <span className="font-semibold text-slate-300 mr-1">{t('ui.aiComment')}</span>
                                                             {generateSoccerPlayerComment(p)}
                                                         </div>
                                                     </div>
@@ -5207,7 +5085,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                     onClick={() => setExpandedSummaryPlayerId(isExpanded ? null : p.id)}
                                                     className="mt-2 w-full text-center text-[10px] text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1"
                                                 >
-                                                    {isExpanded ? '收起详情' : '展开详情'}
+                                                    {isExpanded ? t('ui.collapseDetail') : t('ui.expandDetail')}
                                                     <ChevronDown className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                                                 </button>
                                             </div>
@@ -5220,12 +5098,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                         {/* AI 解说 & 文案 */}
                         <div className="mt-4 bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
                             <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
-                                <h3 className="text-sm font-bold text-slate-200">AI 解说 & 文案</h3>
+                                <h3 className="text-sm font-bold text-slate-200">{t('ui.aiCommentaryTitle')}</h3>
                                 <div className="flex gap-1">
                                     {[
-                                        { id: 'pro', label: '专业解说' },
-                                        { id: 'passion', label: '热血现场' },
-                                        { id: 'fun', label: '轻松搞笑' },
+                                        { id: 'pro', labelKey: 'ui.storyPro' },
+                                        { id: 'passion', labelKey: 'ui.storyPassion' },
+                                        { id: 'fun', labelKey: 'ui.storyFun' },
                                     ].map(opt => (
                                         <button
                                             key={opt.id}
@@ -5236,43 +5114,43 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                     : 'bg-white/5 text-slate-300 border-white/10 hover:border-white/30'
                                             }`}
                                         >
-                                            {opt.label}
+                                            {t(opt.labelKey)}
                                         </button>
                                     ))}
                                 </div>
                             </div>
                             <div className="p-4 space-y-2 text-[11px] text-slate-200">
-                                <div className="font-bold text-slate-100">解说大纲</div>
+                                <div className="font-bold text-slate-100">{t('ui.commentaryOutline')}</div>
                                 <p className="leading-relaxed">
                                     {aiStoryTone === 'pro'
-                                        ? '开场先交代双方战绩与关键对位，重点突出本场的节奏转换与攻防效率变化。'
+                                        ? t('ui.commentaryOutlinePro')
                                         : aiStoryTone === 'passion'
-                                        ? '今天这场比赛火花四溅，进攻一波接一波，关键回合完全是意志力的对决！'
-                                        : '这场球就像周末球局升级版，一边是“永不防守队”，一边是“快乐投篮队”。'}
+                                        ? t('ui.commentaryOutlinePassion')
+                                        : t('ui.commentaryOutlineFun')}
                                 </p>
                                 <div className="pt-2 border-t border-white/10">
-                                    <div className="font-bold text-slate-100 mb-1">社交平台文案示例</div>
+                                    <div className="font-bold text-slate-100 mb-1">{t('ui.socialCopyExample')}</div>
                                     <ul className="space-y-1 text-[10px] text-slate-300 list-disc list-inside">
                                         <li>
                                             {aiStoryTone === 'pro'
-                                                ? '【技术拆解】用一场球看懂节奏、空间与决策，关键回合逐帧复盘。'
+                                                ? t('ui.socialCopyPro1')
                                                 : aiStoryTone === 'passion'
-                                                ? '【燃爆高光】这一场，我只看进球和大帽！每一回合都值得循环播放🔥'
-                                                : '【周末必看】一群人假装打职业，其实是在给朋友圈贡献表情包。'}
+                                                ? t('ui.socialCopyPassion1')
+                                                : t('ui.socialCopyFun1')}
                                         </li>
                                         <li>
                                             {aiStoryTone === 'pro'
-                                                ? '数据支撑 + 画面演示，适合分享给队友一起复盘。'
+                                                ? t('ui.socialCopyPro2')
                                                 : aiStoryTone === 'passion'
-                                                ? '适合发到朋友圈 / 小红书，配上 30 秒 AI 精彩集锦效果更佳。'
-                                                : '文案一键复制，配合表情包与短视频使用效果更好。'}
+                                                ? t('ui.socialCopyPassion2')
+                                                : t('ui.socialCopyFun2')}
                                         </li>
                                     </ul>
                                     <button
                                         onClick={() => setAiStoryVariant(v => v + 1)}
                                         className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[10px] font-bold bg-white/5 border border-white/15 text-slate-200 hover:bg-white/10 transition-colors"
                                     >
-                                        <RefreshCw className="w-3 h-3" /> 换一版
+                                        <RefreshCw className="w-3 h-3" /> {t('ui.anotherVariant')}
                                     </button>
                                 </div>
                             </div>
@@ -5290,16 +5168,16 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                         <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
                             <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
                                 <div>
-                                    <h3 className="text-sm font-bold text-slate-200">换背景换元素（AIGC）</h3>
+                                    <h3 className="text-sm font-bold text-slate-200">{t('ui.aigcChangeBgTitle')}</h3>
                                     <p className="text-[10px] text-slate-400 mt-1">
-                                        选择一个高光片段，AI 自动更换背景和添加元素。
+                                        {t('ui.aigcChangeBgDesc')}
                                     </p>
                                 </div>
                             </div>
                             <div className="p-4 space-y-4">
                                 {/* 片段选择 - 单选 */}
                                 <div className="space-y-2">
-                                    <p className="text-[11px] text-slate-400">选择一个高光片段：</p>
+                                    <p className="text-[11px] text-slate-400">{t('ui.selectOneHighlightPrompt')}</p>
                                     <div className="space-y-1.5 max-h-28 overflow-y-auto">
                                         {displayClips.slice(0, 10).map(clip => {
                                             const active = oneClickSelectedClipId === clip.id;
@@ -5314,14 +5192,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                             : 'border-white/10 bg-black/30 text-slate-200 hover:border-white/30'
                                                     }`}
                                                 >
-                                                    <span className="truncate flex-1 min-w-0">{clip.label}</span>
+                                                    <span className="truncate flex-1 min-w-0">{clip.labelKey ? t(clip.labelKey) : (clip as any).label}</span>
                                                     <span className="ml-2 text-[10px] text-slate-400">{clip.duration}</span>
                                                 </button>
                                             );
                                         })}
                                         {displayClips.length === 0 && (
                                             <div className="text-[11px] text-slate-500 text-center py-4">
-                                                暂无可用高光片段，请先完成智能集锦分析。
+                                                {t('ui.noClipsHint')}
                                             </div>
                                         )}
                                     </div>
@@ -5329,13 +5207,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                                 {/* 背景选择 */}
                                 <div className="space-y-2">
-                                    <p className="text-[11px] text-slate-400">选择背景类型：</p>
+                                    <p className="text-[11px] text-slate-400">{t('ui.selectBgType')}</p>
                                     <div className="flex gap-2 flex-wrap">
                                         {[
-                                            { id: 'court', label: '球场背景' },
-                                            { id: 'effect', label: '特效背景' },
-                                            { id: 'solid', label: '纯色背景' },
-                                            { id: 'gradient', label: '渐变背景' },
+                                            { id: 'court', labelKey: 'ui.courtBg' },
+                                            { id: 'effect', labelKey: 'ui.effectBg' },
+                                            { id: 'solid', labelKey: 'ui.solidBg' },
+                                            { id: 'gradient', labelKey: 'ui.gradientBg' },
                                         ].map(bg => (
                                             <button
                                                 key={bg.id}
@@ -5347,7 +5225,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                         : 'border-white/10 bg-black/30 text-slate-300 hover:border-white/30'
                                                 }`}
                                             >
-                                                {bg.label}
+                                                {t(bg.labelKey)}
                                             </button>
                                         ))}
                                     </div>
@@ -5355,13 +5233,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                                 {/* 元素选择 */}
                                 <div className="space-y-2">
-                                    <p className="text-[11px] text-slate-400">选择元素类型：</p>
+                                    <p className="text-[11px] text-slate-400">{t('ui.selectElementType')}</p>
                                     <div className="flex gap-2 flex-wrap">
                                         {[
-                                            { id: 'effect', label: '特效' },
-                                            { id: 'text', label: '文字叠加' },
-                                            { id: 'sticker', label: '贴纸' },
-                                            { id: 'filter', label: '滤镜' },
+                                            { id: 'effect', labelKey: 'ui.elementEffect' },
+                                            { id: 'text', labelKey: 'ui.elementText' },
+                                            { id: 'sticker', labelKey: 'ui.elementSticker' },
+                                            { id: 'filter', labelKey: 'ui.elementFilter' },
                                         ].map(elem => (
                                             <button
                                                 key={elem.id}
@@ -5373,7 +5251,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                         : 'border-white/10 bg-black/30 text-slate-300 hover:border-white/30'
                                                 }`}
                                             >
-                                                {elem.label}
+                                                {t(elem.labelKey)}
                                             </button>
                                         ))}
                                     </div>
@@ -5390,7 +5268,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                             : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-500/20 transition-colors'
                                     }`}
                                 >
-                                    {oneClickGenerating ? '生成中…' : '生成 AIGC 效果'}
+                                    {oneClickGenerating ? t('ui.generating') : t('ui.generateAigcEffect')}
                                 </button>
 
                                 {/* 预览显示 */}
@@ -5398,7 +5276,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                     <div className="mt-2 space-y-2">
                                         <div className="flex items-center justify-between">
                                             <span className="text-[11px] font-bold text-slate-200">
-                                                AIGC 效果预览
+                                                {t('ui.aigcEffectPreview')}
                                             </span>
                                         </div>
                                         <div className="h-24 rounded-xl border border-dashed border-white/15 bg-gradient-to-br from-purple-500/30 via-slate-900 to-black p-2 flex items-stretch gap-2">
@@ -5408,11 +5286,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                 <div className="relative z-10 w-full h-full flex flex-col justify-between p-2">
                                                     <div className="flex items-center justify-between text-[9px] font-bold text-slate-100">
                                                         <span className="px-1.5 py-0.5 rounded-full bg-blue-500/40">
-                                                            {statsData.teamA.name}
+                                                            {t(statsData.teamA.nameKey)}
                                                         </span>
                                                         <span className="text-[11px] font-black">VS</span>
                                                         <span className="px-1.5 py-0.5 rounded-full bg-red-500/40">
-                                                            {statsData.teamB.name}
+                                                            {t(statsData.teamB.nameKey)}
                                                         </span>
                                                     </div>
                                                     <div className="flex flex-col gap-1 mt-1">
@@ -5425,7 +5303,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                     </div>
                                                     <div className="flex items-center justify-between text-[9px] text-slate-200 mt-1">
                                                         <span className="truncate max-w-[70%]">
-                                                            AI 精彩集锦 · 自动剪辑示例
+                                                            {t('ui.aiHighlightAutoEdit')}
                                                         </span>
                                                         <span className="px-1 py-0.5 rounded bg-black/60 border border-white/20">
                                                             0:30
@@ -5443,14 +5321,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                             <div className="w-28 flex flex-col justify-between text-[10px] text-slate-200">
                                                 <div>
                                                     <div className="font-bold text-slate-100 mb-0.5">
-                                                        成品效果示意
+                                                        {t('ui.resultEffectSample')}
                                                     </div>
                                                     <p className="text-[10px] leading-snug text-slate-300">
-                                                        参考社交平台封面样式，自动叠加比分、队伍与视觉特效。
+                                                        {t('ui.resultEffectDesc')}
                                                     </p>
                                                 </div>
                                                 <div className="mt-1 text-[9px] text-slate-400">
-                                                    最终导出视频会基于所选片段与参数生成类似效果。
+                                                    {t('ui.exportResultNote')}
                                                 </div>
                                             </div>
                                         </div>
@@ -5466,7 +5344,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                             }}
                                             className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 transition-colors"
                                         >
-                                            预览成片
+                                            {t('ui.previewResult')}
                                         </button>
                                     </div>
                                 )}
@@ -5477,15 +5355,15 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                         <div className="bg-[#1E293B] rounded-2xl border border-white/5 overflow-hidden">
                             <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
                                 <div>
-                                    <h3 className="text-sm font-bold text-slate-200">AI Coach 点评（AIGC）</h3>
+                                    <h3 className="text-sm font-bold text-slate-200">{t('ui.aiCoachAigc')}</h3>
                                     <p className="text-[10px] text-slate-400 mt-1">
-                                        针对单个高光片段给出战术与表现点评。
+                                        {t('ui.aiCoachAigcDesc')}
                                     </p>
                                 </div>
                             </div>
                             <div className="p-4 space-y-3">
                                 <div className="space-y-2">
-                                    <p className="text-[11px] text-slate-400">选择一个需要详细点评的高光片段：</p>
+                                    <p className="text-[11px] text-slate-400">{t('ui.selectClipForCoach')}</p>
                                     <div className="space-y-1.5 max-h-28 overflow-y-auto">
                                         {displayClips.slice(0, 10).map(clip => {
                                             const active = aiCoachSelectedClipId === clip.id;
@@ -5500,14 +5378,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                             : 'border-white/10 bg-black/30 text-slate-200 hover:border-white/30'
                                                     }`}
                                                 >
-                                                    <span className="truncate flex-1 min-w-0">{clip.label}</span>
+                                                    <span className="truncate flex-1 min-w-0">{clip.labelKey ? t(clip.labelKey) : (clip as any).label}</span>
                                                     <span className="ml-2 text-[10px] text-slate-400">{clip.duration}</span>
                                                 </button>
                                             );
                                         })}
                                         {displayClips.length === 0 && (
                                             <div className="text-[11px] text-slate-500 text-center py-4">
-                                                暂无可点评片段，请先完成智能集锦分析。
+                                                {t('ui.noCommentHint')}
                                             </div>
                                         )}
                                     </div>
@@ -5524,7 +5402,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                 : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 transition-colors'
                                         }`}
                                     >
-                                        {aiCoachLoading ? '点评生成中…' : '生成 AI Coach 点评'}
+                                        {aiCoachLoading ? t('ui.coachGenerating') : t('ui.generateCoachComment')}
                                     </button>
                                 </div>
 
@@ -5537,14 +5415,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                             <div className="space-y-2">
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-[11px] font-bold text-slate-200">
-                                                        战术点评短视频
+                                                        {t('ui.tacticShortVideo')}
                                                     </span>
                                                     <span className="text-[10px] text-slate-500">
-                                                        目标片段 ID：{aiCoachSelectedClipId}
+                                                        {t('ui.targetClipId')}{aiCoachSelectedClipId}
                                                     </span>
                                                 </div>
                                                 <div className="h-20 rounded-lg border border-dashed border-white/15 bg-gradient-to-br from-emerald-500/20 via-slate-900 to-black flex items-center justify-center text-[11px] text-slate-100">
-                                                    已为该高光片段合成画面 + AI 解说音轨预览。
+                                                    {t('ui.aigcComposedWithCommentary')}
                                                 </div>
                                                 <button
                                                     type="button"
@@ -5560,7 +5438,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                                     }}
                                                     className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 transition-colors"
                                                 >
-                                                    预览解说视频
+                                                    {t('ui.previewCommentaryVideo')}
                                                 </button>
                                             </div>
                                         )}
@@ -5583,12 +5461,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
          {activeTab === 'clips' && isSelectionMode && (
              <div className="absolute bottom-0 left-0 right-0 bg-[#1E293B] border-t border-white/10 p-4 pb-8 z-30 animate-in slide-in-from-bottom">
                  <div className="flex justify-between items-center mb-3">
-                     <span className="text-xs text-slate-400">已选择 {selectedClipIds.length} 个片段</span>
-                     <button onClick={() => setSelectedClipIds(selectedClipIds.length === displayClips.length ? [] : displayClips.map(c => c.id))} className="text-xs text-blue-400 font-bold">{selectedClipIds.length === displayClips.length ? '取消全选' : '全选'}</button>
+                     <span className="text-xs text-slate-400">{t('ui.selectedCount', { count: selectedClipIds.length })}</span>
+                     <button onClick={() => setSelectedClipIds(selectedClipIds.length === displayClips.length ? [] : displayClips.map(c => c.id))} className="text-xs text-blue-400 font-bold">{selectedClipIds.length === displayClips.length ? t('ui.deselectAll') : t('ui.selectAll')}</button>
                  </div>
                  <div className="flex gap-3">
-                     <button onClick={handleMergeClips} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"><Layers className="w-4 h-4" /> 合并并保存</button>
-                     <button onClick={handleShare} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"><Share2 className="w-4 h-4" /> 导出分享</button>
+                     <button onClick={handleMergeClips} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"><Layers className="w-4 h-4" /> {t('ui.mergeAndSave')}</button>
+                     <button onClick={handleShare} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"><Share2 className="w-4 h-4" /> {t('ui.exportShare')}</button>
                  </div>
              </div>
          )}
@@ -5598,18 +5476,18 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
              <div className="p-4 bg-[#0F172A] border-t border-white/10 space-y-2">
                  {selectedPlayer && selectedPlayer !== 'all' && (
                     <button onClick={() => handleSharePlayerClips(selectedPlayer)} className="w-full bg-orange-500 hover:bg-orange-600 py-3 rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2">
-                        <Share2 className="w-4 h-4" /> 分享集锦
+                        <Share2 className="w-4 h-4" /> {t('ui.shareHighlights')}
                     </button>
                  )}
                  <button onClick={handleExportAll} className="w-full bg-blue-600 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
-                     <Share2 className="w-4 h-4" /> 导出全部集锦
+                     <Share2 className="w-4 h-4" /> {t('ui.exportAllHighlights')}
                  </button>
              </div>
          )}
 
          {/* Footer for Stats Tab */}
          {activeTab === 'stats' && (
-             <div className="p-4 bg-[#0F172A] border-t border-white/10"><button onClick={handleExportReport} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-colors"><Download className="w-4 h-4" /> 导出专业分析报告</button></div>
+             <div className="p-4 bg-[#0F172A] border-t border-white/10"><button onClick={handleExportReport} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-colors"><Download className="w-4 h-4" /> {t('ui.exportReport')}</button></div>
          )}
 
          {/* Portal dropdowns for type / player correction (avoid clip card overflow clipping) */}
@@ -5632,7 +5510,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                  onClick={(e) => { e.stopPropagation(); handleCorrectEventType(clip.id, opt); }}
                                  className="w-full px-3 py-2 text-left text-[10px] text-slate-300 hover:bg-slate-700 hover:text-white transition-colors first:rounded-t-lg last:rounded-b-lg"
                              >
-                                 {opt.label}
+                                 {t(opt.labelKey)}
                              </button>
                          </React.Fragment>
                      ))}
@@ -5676,7 +5554,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                          }}
                          className="w-full px-3 py-2 text-left text-[10px] text-blue-400 hover:bg-slate-700 transition-colors rounded-b-lg"
                      >
-                         自定义...
+                         {t('ui.custom')}
                      </button>
                  </div>,
                  document.body
@@ -5704,10 +5582,10 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
                          <div className="w-12 h-1 bg-slate-500/50 rounded-full" />
                      </div>
                      
-                     <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                         <h3 className="text-sm font-bold text-white">
-                             {summaryVideoPlayerLabel} 相关视频
-                         </h3>
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                        <h3 className="text-sm font-bold text-white">
+                            {t('ui.relatedVideosTitle', { player: summaryVideoPlayerLabel })}
+                        </h3>
                          <button
                              type="button"
                              onClick={(e) => {
@@ -5751,12 +5629,12 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
                                                      {eventLabel.label}
                                                  </span>
                                                  <span className={`text-[9px] px-1.5 py-0.5 rounded ${clip.team === 'A' ? 'bg-blue-500/20 text-blue-300' : 'bg-red-500/20 text-red-300'}`}>
-                                                     {clip.team === 'A' ? statsData.teamA.name : statsData.teamB.name}
+                                                     {clip.team === 'A' ? t(statsData.teamA.nameKey) : t(statsData.teamB.nameKey)}
                                                  </span>
                                              </div>
                                              {/* 标题 */}
                                              <div className="text-xs font-bold text-white truncate mb-0.5">
-                                                 {clip.label}
+                                                 {clip.labelKey ? t(clip.labelKey) : (clip as any).label}
                                              </div>
                                              {/* 时间信息 */}
                                              <div className="text-[10px] text-slate-400 flex items-center gap-2">
@@ -5774,28 +5652,28 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
                                  );
                              });
                          })()}
-                         {clipsState.filter(c => (eventClaims[c.id] ?? c.player) === summaryVideoPlayerLabel).length === 0 && (
-                             <div className="text-center text-slate-400 text-xs py-12">
-                                 <PlayCircle className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-                                 <div>暂无相关视频</div>
-                             </div>
-                         )}
+                        {clipsState.filter(c => (eventClaims[c.id] ?? c.player) === summaryVideoPlayerLabel).length === 0 && (
+                            <div className="text-center text-slate-400 text-xs py-12">
+                                <PlayCircle className="w-12 h-12 mx-auto mb-3 text-slate-600" />
+                                <div>{t('ui.noRelatedVideos')}</div>
+                            </div>
+                        )}
                      </div>
                      
                      {clipsState.filter(c => (eventClaims[c.id] ?? c.player) === summaryVideoPlayerLabel).length > 0 && (
                          <div className="p-4 border-t border-white/5">
-                             <button
-                                 type="button"
-                                 onClick={() => {
-                                     setSelectedPlayer(summaryVideoPlayerLabel);
-                                     setSummaryVideoPlayerLabel(null);
-                                     setActiveTab('clips');
-                                 }}
-                                 className="w-full bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white py-2.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
-                             >
-                                 <Play className="w-4 h-4" />
-                                 在集锦页中查看全部
-                             </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSelectedPlayer(summaryVideoPlayerLabel);
+                                    setSummaryVideoPlayerLabel(null);
+                                    setActiveTab('clips');
+                                }}
+                                className="w-full bg-blue-500 hover:bg-blue-400 active:bg-blue-600 text-white py-2.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                            >
+                                <Play className="w-4 h-4" />
+                                {t('ui.viewAllInClips')}
+                            </button>
                          </div>
                      )}
                  </div>
@@ -5828,10 +5706,10 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
                              <div className="w-12 h-1 bg-slate-500/50 rounded-full" />
                          </div>
                          
-                         <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                             <h3 className="text-sm font-bold text-white">
-                                 {summaryHeatmapPlayerLabel} 热区图
-                             </h3>
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                            <h3 className="text-sm font-bold text-white">
+                                {t('ui.heatmapTitle', { player: summaryHeatmapPlayerLabel })}
+                            </h3>
                              <button
                                  type="button"
                                  onClick={(e) => {
@@ -5853,26 +5731,26 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
                                      </div>
                                      <div className="flex-1">
                                          <div className="text-xs font-bold text-white">{playerData.name}</div>
-                                         {isSoccer ? (
-                                             <div className="text-[10px] text-slate-400 mt-0.5">
-                                                 进球 {(playerData as typeof PLAYER_STATS_SOCCER[0]).goals} · 助攻 {(playerData as typeof PLAYER_STATS_SOCCER[0]).assists} · 射门 {(playerData as typeof PLAYER_STATS_SOCCER[0]).shots}/{(playerData as typeof PLAYER_STATS_SOCCER[0]).shotsOnTarget}
-                                             </div>
-                                         ) : (
-                                             <div className="text-[10px] text-slate-400 mt-0.5">
-                                                 得分 {(playerData as typeof PLAYER_STATS_BASKETBALL[0]).pts} · 篮板 {(playerData as typeof PLAYER_STATS_BASKETBALL[0]).reb} · 助攻 {(playerData as typeof PLAYER_STATS_BASKETBALL[0]).ast}
-                                             </div>
-                                         )}
-                                     </div>
-                                 </div>
-                                 {isSoccer ? (
-                                     <div className="text-[10px] text-slate-400 mt-2">
-                                         热区图显示球员在球场上的活动热度和射门位置分布
-                                     </div>
-                                 ) : (
-                                     <div className="text-[10px] text-slate-400 mt-2">
-                                         热区图显示球员在球场上的投篮位置和命中率分布
-                                     </div>
-                                 )}
+                                        {isSoccer ? (
+                                            <div className="text-[10px] text-slate-400 mt-0.5">
+                                                {t('report.goals')} {(playerData as typeof PLAYER_STATS_SOCCER[0]).goals} · {t('report.assists')} {(playerData as typeof PLAYER_STATS_SOCCER[0]).assists} · {t('ui.shotsLabel')} {(playerData as typeof PLAYER_STATS_SOCCER[0]).shots}/{(playerData as typeof PLAYER_STATS_SOCCER[0]).shotsOnTarget}
+                                            </div>
+                                        ) : (
+                                            <div className="text-[10px] text-slate-400 mt-0.5">
+                                                {t('report.totalPoints')} {(playerData as typeof PLAYER_STATS_BASKETBALL[0]).pts} · {t('report.rebounds')} {(playerData as typeof PLAYER_STATS_BASKETBALL[0]).reb} · {t('report.assists')} {(playerData as typeof PLAYER_STATS_BASKETBALL[0]).ast}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                {isSoccer ? (
+                                    <div className="text-[10px] text-slate-400 mt-2">
+                                        {t('ui.heatmapDescSoccer')}
+                                    </div>
+                                ) : (
+                                    <div className="text-[10px] text-slate-400 mt-2">
+                                        {t('ui.heatmapDescBasketball')}
+                                    </div>
+                                )}
                              </div>
                          )}
                          
@@ -5898,17 +5776,17 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
   const AigcPreviewScreen = () => {
 
-    const { popView, shareContext, setShowShareModal, setShareType, resultSport, aigcPreviewMode } = useAppContext();
+    const { t, popView, shareContext, setShowShareModal, setShareType, resultSport, aigcPreviewMode } = useAppContext();
 
     const clipsForSport = AI_CLIPS_ADVANCED.filter(
       (clip) => clip.sport === (resultSport || 'basketball')
     );
 
-    let title = 'AIGC 预览';
+    let title = t('ui.aigcPreview');
     if (aigcPreviewMode === 'one_click') {
-      title = '换背景换元素预览';
+      title = t('ui.previewAigcBg');
     } else if (aigcPreviewMode === 'coach_clip') {
-      title = 'AI 解说短视频预览';
+      title = t('ui.previewAiCommentary');
     }
 
     const handleShare = () => {
@@ -5963,18 +5841,18 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
               <Film className="w-16 h-16 text-purple-300 mx-auto mb-4" />
               <p className="text-slate-100 text-sm mb-1">
                 {aigcPreviewMode === 'one_click'
-                  ? 'AI 已为所选片段应用背景和元素效果。'
-                  : 'AI 已为该片段合成画面 + 解说音轨预览。'}
+                  ? t('ui.aigcAppliedBg')
+                  : t('ui.aigcCommentaryOverlay')}
               </p>
               {aigcPreviewMode === 'one_click' && selectedClips.length > 0 && (
                 <p className="text-slate-300 text-xs mt-3">
-                  片段：{(selectedClips[0] as any).label} · {(selectedClips[0] as any).time}
+                  {t('ui.clipLabel')}{(selectedClips[0] as any).labelKey ? t((selectedClips[0] as any).labelKey) : (selectedClips[0] as any).label} · {(selectedClips[0] as any).time}
                 </p>
               )}
               {aigcPreviewMode === 'coach_clip' && targetClip && (
                 <p className="text-slate-300 text-xs mt-3">
-                  片段时间：{(targetClip as any).time} · 标题：
-                  {(targetClip as any).label}
+                  {t('ui.clipTimeLabel')}{(targetClip as any).time} · {t('ui.titleLabel')}
+                  {(targetClip as any).labelKey ? t((targetClip as any).labelKey) : (targetClip as any).label}
                 </p>
               )}
             </div>
@@ -5987,7 +5865,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
             <div className="bg-slate-900/70 border border-white/10 rounded-2xl p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-bold text-slate-100">
-                  片段信息
+                  {t('ui.clipInfo')}
                 </span>
               </div>
               <div className="space-y-1">
@@ -5997,10 +5875,10 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
                     className="flex items-center justify-between text-[11px] text-slate-200"
                   >
                     <span className="text-slate-400 mr-2">
-                      片段：
+                      {t('ui.clipLabel')}
                     </span>
                     <span className="flex-1 min-w-0 truncate">
-                      {(clip as any).label}
+                      {(clip as any).labelKey ? t((clip as any).labelKey) : (clip as any).label}
                     </span>
                     <span className="ml-2 text-slate-500 text-[10px]">
                       {(clip as any).time}
@@ -6015,10 +5893,10 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
             <div className="bg-slate-900/70 border border-white/10 rounded-2xl p-3 space-y-2 max-h-36 overflow-y-auto">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-slate-100">
-                  战术点评摘要
+                  {t('ui.tacticSummary')}
                 </span>
                 <span className="text-[10px] text-slate-400">
-                  片段时间：{(targetClip as any).time}
+                  {t('ui.clipTimeLabel')}{(targetClip as any).time}
                 </span>
               </div>
               {shareContext.type === 'aigc_coach_clip' &&
@@ -6028,7 +5906,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
                 </p>
               ) : (
                 <p className="text-[11px] text-slate-300">
-                  AI 已叠加解说音轨和画面剪辑，适合用于社交平台战术点评短视频。
+                  {t('ui.aigcCommentarySocial')}
                 </p>
               )}
             </div>
@@ -6038,7 +5916,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
             onClick={handleShare}
             className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 transition-colors"
           >
-            <Share2 className="w-4 h-4" /> 分享短视频
+            <Share2 className="w-4 h-4" /> {t('ui.shareShortVideo')}
           </button>
         </div>
       </div>
@@ -6183,7 +6061,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
     const { 
 
-        setTutorialStep, setShowTutorial, pushView, transferStep, transferProgress, handleEntryClick, handleExport, setTargetAnalysisType, setAiMode, setIsTaskCompleted, homeTab, setHomeTab, networkState, falconState, setNetworkState, setFalconState, setToastMessage, setResultSport,
+        t, setTutorialStep, setShowTutorial, pushView, transferStep, transferProgress, handleEntryClick, handleExport, setTargetAnalysisType, setAiMode, setIsTaskCompleted, homeTab, setHomeTab, networkState, falconState, setNetworkState, setFalconState, setToastMessage, setResultSport,
 
         isVip // Added isVip to destructuring
 
@@ -6229,9 +6107,14 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
       <div className="pt-12 pb-2 px-5 bg-white flex justify-between items-center sticky top-0 z-10 border-b border-slate-100">
 
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight">工具箱</h1>
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight">{t('nav.toolbox')}</h1>
 
         <div className="flex gap-2">
+
+           {/* Language switcher */}
+           <button onClick={() => i18n.changeLanguage(i18n.language === 'zh' ? 'en' : 'zh')} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors text-xs font-bold" title={i18n.language === 'zh' ? 'Switch to English' : '切换到中文'}>
+             {i18n.language === 'zh' ? 'EN' : '中'}
+           </button>
 
            {/* Interactive Status Icons */}
 
@@ -6267,7 +6150,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
         <section>
 
-          <div className="flex items-center justify-between mb-3 px-1"><h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">创作工具</h2></div>
+          <div className="flex items-center justify-between mb-3 px-1"><h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{t('ui.createTools')}</h2></div>
 
           <div className="grid grid-cols-2 gap-3 mb-3">
 
@@ -6283,19 +6166,19 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
                         <div className="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center text-orange-600 shadow-sm"><Film className="w-5 h-5" /></div>
 
-                        <span className="text-[8px] font-black text-orange-900 bg-white/90 px-2 py-0.5 rounded-full shadow-sm">付费</span>
+                        <span className="text-[8px] font-black text-orange-900 bg-white/90 px-2 py-0.5 rounded-full shadow-sm">{t('ui.paid')}</span>
 
                     </div>
 
                     <div className="mt-auto text-left">
 
-                        <h3 className="text-lg font-black text-white leading-tight mb-1">AI 精彩集锦</h3>
+                        <h3 className="text-lg font-black text-white leading-tight mb-1">{t('ui.aiHighlight')}</h3>
 
                         <div className="flex flex-wrap gap-1 mt-2">
 
-                            <span className="text-[9px] font-bold text-white bg-white/30 px-1.5 py-0.5 rounded-md">自动成片</span>
+                            <span className="text-[9px] font-bold text-white bg-white/30 px-1.5 py-0.5 rounded-md">{t('ui.autoEdit')}</span>
 
-                            <span className="text-[9px] font-bold text-white bg-white/30 px-1.5 py-0.5 rounded-md">一键分享</span>
+                            <span className="text-[9px] font-bold text-white bg-white/30 px-1.5 py-0.5 rounded-md">{t('ui.oneTapShare')}</span>
 
                         </div>
 
@@ -6341,7 +6224,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
                      <div className="text-left">
 
-                         <h3 className="text-lg font-black text-white leading-tight mb-2">AI 高阶分析</h3>
+                         <h3 className="text-lg font-black text-white leading-tight mb-2">{t('ui.aiAdvancedAnalysis')}</h3>
 
                         <div className="space-y-1.5">
 
@@ -6349,7 +6232,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
                                 <Film className="w-3 h-3 text-indigo-400" />
 
-                                <span className="text-[10px] text-indigo-100/80">🎬 智能集锦</span>
+                                <span className="text-[10px] text-indigo-100/80">🎬 {t('ui.smartHighlight')}</span>
 
                             </div>
 
@@ -6357,7 +6240,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
                                 <Download className="w-3 h-3 text-indigo-400" />
 
-                                <span className="text-[10px] text-indigo-100/80">📊 球员看板</span>
+                                <span className="text-[10px] text-indigo-100/80">📊 {t('ui.playerDashboard')}</span>
 
                             </div>
 
@@ -6365,7 +6248,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
                                 <TrendingUp className="w-3 h-3 text-indigo-400" />
 
-                                <span className="text-[10px] text-indigo-100/80">🎧 AI 成片</span>
+                                <span className="text-[10px] text-indigo-100/80">🎧 {t('ui.aiFinishedFilm')}</span>
 
                             </div>
 
@@ -6381,13 +6264,13 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
           <div className="grid grid-cols-2 gap-3">
 
-            <button className="bg-white rounded-[20px] h-16 flex items-center justify-between px-4 text-slate-800 shadow-sm border border-slate-100 active:scale-95 transition-transform group"><div className="flex flex-col items-start"><span className="font-bold text-sm">开始剪辑</span><span className="text-[10px] text-slate-400">手动剪辑</span></div><div className="bg-slate-100 p-2 rounded-full text-slate-700 group-hover:bg-slate-200 transition-colors"><Scissors className="w-4 h-4" /></div></button>
+            <button className="bg-white rounded-[20px] h-16 flex items-center justify-between px-4 text-slate-800 shadow-sm border border-slate-100 active:scale-95 transition-transform group"><div className="flex flex-col items-start"><span className="font-bold text-sm">{t('ui.startEdit')}</span><span className="text-[10px] text-slate-400">{t('ui.manualEdit')}</span></div><div className="bg-slate-100 p-2 rounded-full text-slate-700 group-hover:bg-slate-200 transition-colors"><Scissors className="w-4 h-4" /></div></button>
 
-            <button className="bg-white rounded-[20px] h-16 flex items-center justify-between px-4 text-slate-800 shadow-sm border border-slate-100 active:scale-95 transition-transform group"><div className="flex flex-col items-start"><span className="font-bold text-sm">打点剪辑</span><span className="text-[10px] text-slate-400">标记关键点</span></div><div className="bg-purple-50 p-2 rounded-full text-purple-500 group-hover:bg-purple-100 transition-colors"><Filter className="w-4 h-4" /></div></button>
+            <button className="bg-white rounded-[20px] h-16 flex items-center justify-between px-4 text-slate-800 shadow-sm border border-slate-100 active:scale-95 transition-transform group"><div className="flex flex-col items-start"><span className="font-bold text-sm">{t('ui.markEdit')}</span><span className="text-[10px] text-slate-400">{t('ui.markKeyPoints')}</span></div><div className="bg-purple-50 p-2 rounded-full text-purple-500 group-hover:bg-purple-100 transition-colors"><Filter className="w-4 h-4" /></div></button>
 
-            <button onClick={() => { setHomeTab('templates'); }} className="bg-white rounded-[20px] h-16 flex items-center justify-between px-4 text-slate-800 shadow-sm border border-slate-100 active:scale-95 transition-transform group"><div className="flex flex-col items-start"><span className="font-bold text-sm">模板成片</span><span className="text-[10px] text-slate-400">特效 / 导出</span></div><div className="bg-orange-50 p-2 rounded-full text-orange-500 group-hover:bg-orange-100 transition-colors"><LayoutTemplate className="w-4 h-4" /></div></button>
+            <button onClick={() => { setHomeTab('templates'); }} className="bg-white rounded-[20px] h-16 flex items-center justify-between px-4 text-slate-800 shadow-sm border border-slate-100 active:scale-95 transition-transform group"><div className="flex flex-col items-start"><span className="font-bold text-sm">{t('ui.templateFilm')}</span><span className="text-[10px] text-slate-400">{t('ui.effectsExport')}</span></div><div className="bg-orange-50 p-2 rounded-full text-orange-500 group-hover:bg-orange-100 transition-colors"><LayoutTemplate className="w-4 h-4" /></div></button>
 
-            <button onClick={handleExport} className="bg-white rounded-[20px] h-16 flex items-center justify-between px-4 text-slate-800 shadow-sm border border-slate-100 active:scale-95 transition-transform group"><div className="flex flex-col items-start"><span className="font-bold text-sm">合成导出</span><span className="text-[10px] text-slate-400">项目分享</span></div><div className="bg-blue-50 p-2 rounded-full text-blue-500 group-hover:bg-blue-100 transition-colors"><FileText className="w-4 h-4" /></div></button>
+            <button onClick={handleExport} className="bg-white rounded-[20px] h-16 flex items-center justify-between px-4 text-slate-800 shadow-sm border border-slate-100 active:scale-95 transition-transform group"><div className="flex flex-col items-start"><span className="font-bold text-sm">{t('ui.compositeExport')}</span><span className="text-[10px] text-slate-400">{t('ui.projectShare')}</span></div><div className="bg-blue-50 p-2 rounded-full text-blue-500 group-hover:bg-blue-100 transition-colors"><FileText className="w-4 h-4" /></div></button>
 
           </div>
 
@@ -6401,11 +6284,11 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
                  <div className="flex items-center gap-4 border-b border-slate-200/60 pb-1">
 
-                     <button onClick={() => setHomeTab('recent')} className={`text-sm font-bold pb-2 border-b-2 transition-all ${homeTab === 'recent' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent'}`}>最近项目</button>
+                     <button onClick={() => setHomeTab('recent')} className={`text-sm font-bold pb-2 border-b-2 transition-all ${homeTab === 'recent' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent'}`}>{t('ui.recentProjects')}</button>
 
-                     <button onClick={() => setHomeTab('templates')} className={`text-sm font-bold pb-2 border-b-2 transition-all ${homeTab === 'templates' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent'}`}>我的模板</button>
+                     <button onClick={() => setHomeTab('templates')} className={`text-sm font-bold pb-2 border-b-2 transition-all ${homeTab === 'templates' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent'}`}>{t('ui.myTemplates')}</button>
 
-                     <button onClick={() => setHomeTab('drafts')} className={`text-sm font-bold pb-2 border-b-2 transition-all ${homeTab === 'drafts' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent'}`}>草稿箱</button>
+                     <button onClick={() => setHomeTab('drafts')} className={`text-sm font-bold pb-2 border-b-2 transition-all ${homeTab === 'drafts' ? 'text-slate-900 border-slate-900' : 'text-slate-400 border-transparent'}`}>{t('ui.draftBox')}</button>
 
                  </div>
 
@@ -6425,7 +6308,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
                              <div className="w-24 h-16 bg-slate-100 rounded-lg overflow-hidden relative shrink-0"><AssetThumbnail type="video" category={task.cover} /><div className="absolute inset-0 flex items-center justify-center"><PlayCircle className="w-8 h-8 text-white/80" /></div></div>
 
-                             <div className="flex-1 py-1 min-w-0"><h4 className="font-bold text-sm text-slate-800 truncate">{task.title}</h4><div className="flex items-center gap-2 mt-1.5"><p className="text-xs text-slate-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {task.date}</p><span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${task.type === 'highlight' ? 'text-orange-600 bg-orange-50' : 'text-purple-600 bg-purple-50'}`}>{task.type === 'highlight' ? '基础集锦' : '高阶分析'}</span></div></div>
+                             <div className="flex-1 py-1 min-w-0"><h4 className="font-bold text-sm text-slate-800 truncate">{t((task as any).titleKey)}</h4><div className="flex items-center gap-2 mt-1.5"><p className="text-xs text-slate-400 flex items-center gap-1"><Clock className="w-3 h-3" /> {t((task as any).dateKey)}</p><span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${task.type === 'highlight' ? 'text-orange-600 bg-orange-50' : 'text-purple-600 bg-purple-50'}`}>{task.type === 'highlight' ? t('ui.basicHighlight') : t('ui.advancedAnalysis')}</span></div></div>
 
                            </div>
 
@@ -6439,25 +6322,25 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
                      <div className="grid grid-cols-2 gap-3">
 
-                         {TEMPLATE_DATA.map(t => (
+                         {TEMPLATE_DATA.map(tmpl => (
 
-                             <div key={t.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
+                             <div key={tmpl.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-slate-100">
 
                                  <div className="aspect-[3/4] bg-slate-200 relative">
 
                                     <AssetThumbnail type="image" category="basketball" />
 
-                                    <div className="absolute top-2 left-2 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">{t.type === 'vertical' ? '9:16' : '16:9'}</div>
+                                    <div className="absolute top-2 left-2 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded">{tmpl.type === 'vertical' ? '9:16' : '16:9'}</div>
 
-                                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded">{t.tag}</div>
+                                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded">{t((tmpl as any).tagKey)}</div>
 
                                  </div>
 
                                  <div className="p-3">
 
-                                     <h4 className="text-xs font-bold text-slate-800">{t.title}</h4>
+                                     <h4 className="text-xs font-bold text-slate-800">{t((tmpl as any).titleKey)}</h4>
 
-                                     <p className="text-[10px] text-slate-400 mt-1">{t.usage} 人使用</p>
+                                     <p className="text-[10px] text-slate-400 mt-1">{tmpl.usage} 人使用</p>
 
                                  </div>
 
@@ -6479,9 +6362,9 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
                              <div className="w-14 h-14 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 shrink-0"><FileEdit className="w-6 h-6" /></div>
 
-                             <div className="flex-1 min-w-0"><h4 className="text-sm font-bold text-slate-700 truncate mb-1">{draft.title}</h4><div className="flex items-center gap-2 text-xs text-slate-400"><span>{draft.date}</span><span className="w-1 h-1 rounded-full bg-slate-300" /><span>进度: {draft.progress}</span></div></div>
+                             <div className="flex-1 min-w-0"><h4 className="text-sm font-bold text-slate-700 truncate mb-1">{t((draft as any).titleKey)}</h4><div className="flex items-center gap-2 text-xs text-slate-400"><span>{t((draft as any).dateKey)}</span><span className="w-1 h-1 rounded-full bg-slate-300" /><span>{t('ui.progress')}: {draft.progress}</span></div></div>
 
-                             <div className="flex flex-col items-end gap-1"><span className="bg-slate-100 text-slate-500 text-[9px] font-bold px-1.5 py-0.5 rounded">编辑中</span><Edit3 className="w-4 h-4 text-slate-300" /></div>
+                             <div className="flex flex-col items-end gap-1"><span className="bg-slate-100 text-slate-500 text-[9px] font-bold px-1.5 py-0.5 rounded">{t('ui.editing')}</span><Edit3 className="w-4 h-4 text-slate-300" /></div>
 
                            </div>
 
@@ -6499,21 +6382,21 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
 
       <div className="h-[83px] bg-white border-t border-slate-100 flex justify-around items-end pb-6 pt-2 absolute bottom-0 w-full z-10 px-1">
 
-         <div className="flex flex-col items-center gap-1 text-slate-400 w-14 mb-1"><Home className="w-6 h-6" /><span className="text-[10px] font-bold">首页</span></div>
+         <div className="flex flex-col items-center gap-1 text-slate-400 w-14 mb-1"><Home className="w-6 h-6" /><span className="text-[10px] font-bold">{t('nav.home')}</span></div>
 
-         <div className="flex flex-col items-center gap-1 text-slate-400 w-14 mb-1"><ImageIcon className="w-6 h-6" /><span className="text-[10px] font-bold">相册</span></div>
+         <div className="flex flex-col items-center gap-1 text-slate-400 w-14 mb-1"><ImageIcon className="w-6 h-6" /><span className="text-[10px] font-bold">{t('nav.gallery')}</span></div>
 
          <div className="flex flex-col items-center justify-end -mt-6">
 
             <div className="w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center text-white shadow-lg shadow-slate-900/20 border-[3px] border-white mb-1 active:scale-95 transition-transform"><Camera className="w-6 h-6" /></div>
 
-            <span className="text-[10px] font-bold text-slate-900">拍摄</span>
+            <span className="text-[10px] font-bold text-slate-900">{t('nav.shoot')}</span>
 
          </div>
 
-         <div className="flex flex-col items-center gap-1 text-orange-500 w-14 mb-1"><CreditCard className="w-6 h-6" /><span className="text-[10px] font-bold">工具箱</span></div>
+         <div className="flex flex-col items-center gap-1 text-orange-500 w-14 mb-1"><CreditCard className="w-6 h-6" /><span className="text-[10px] font-bold">{t('nav.toolbox')}</span></div>
 
-         <div className="flex flex-col items-center gap-1 text-slate-400 w-14 mb-1"><User className="w-6 h-6" /><span className="text-[10px] font-bold">我的</span></div>
+         <div className="flex flex-col items-center gap-1 text-slate-400 w-14 mb-1"><User className="w-6 h-6" /><span className="text-[10px] font-bold">{t('nav.my')}</span></div>
 
       </div>
 
@@ -6524,6 +6407,8 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
   };
 
   const App = () => {
+
+  const { t } = useTranslation();
 
   const [viewStack, setViewStack] = useState<ViewState[]>(['home']);
 
@@ -6844,7 +6729,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
           } else if (selectedVideo.source === 'local') {
 
               // Create cloud task
-              const taskId = addCloudTask(selectedVideo.id, selectedVideo.label, targetAnalysisType || 'highlight');
+              const taskId = addCloudTask(selectedVideo.id, t((selectedVideo as any).labelKey), targetAnalysisType || 'highlight');
               const analyzingCount = getAnalyzingTasksCount();
               const queuedTasks = getQueuedTasks();
               const isQueued = analyzingCount >= maxConcurrentTasks;
@@ -6882,7 +6767,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
           } else {
 
               // Show toast with action button instead of auto-navigation
-              const toastMsg = targetAnalysisType === 'highlight' ? 'AI 精彩集锦生成完成' : 'AI 高阶分析完成';
+              const toastMsg = targetAnalysisType === 'highlight' ? t('ui.highlightCompleteToast') : t('ui.analysisCompleteToast');
               setAnalysisCompleteToast({
                 show: true,
                 message: toastMsg,
@@ -7198,7 +7083,7 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
                      }
 
                      // Show toast with action button instead of auto-navigation
-                     const toastMsg = targetAnalysisType === 'highlight' ? 'AI 精彩集锦生成完成' : 'AI 高阶分析完成';
+                     const toastMsg = targetAnalysisType === 'highlight' ? t('ui.highlightCompleteToast') : t('ui.analysisCompleteToast');
                      setAnalysisCompleteToast({
                        show: true,
                        message: toastMsg,
@@ -7324,6 +7209,8 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
       startTaskAnalysis,
       updateTaskProgress,
       completeTask,
+
+      t,
 
     }}>
 
