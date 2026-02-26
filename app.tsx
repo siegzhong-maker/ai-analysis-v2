@@ -417,9 +417,14 @@ const getEventTypeLabel = (clip: any, isSoccer: boolean): { label: string; color
   return { label: t('clips.other'), color: 'text-slate-300', bgColor: 'bg-slate-500/20' };
 };
 
-// AI 足球球员点评（虎扑风格）
+// AI 足球球员点评（多语言，走 i18n 文案）
 const generateSoccerPlayerComment = (player: any): string => {
-  const name = player.name ?? (player.label ?? '这位球员');
+  const tAi = i18n.t.bind(i18n);
+
+  const name =
+    player.name ??
+    (player.label ?? tAi('aiComment.defaultPlayer'));
+
   const goals = player.goals ?? 0;
   const assists = player.assists ?? 0;
   const shots = player.shots ?? 0;
@@ -435,67 +440,76 @@ const generateSoccerPlayerComment = (player: any): string => {
 
   // 进攻表现
   if (goals >= 2) {
-    lines.push(`今天${name}门前嗅觉爆表，梅开二度直接带走比赛`);
+    lines.push(tAi('aiComment.soccerGoals2', { name }));
   } else if (goals === 1) {
     if (xG >= 1.0) {
-      lines.push(`今天${name}终结效率拉满，该进的球一个没丢，大腿级别发挥`);
+      lines.push(tAi('aiComment.soccerGoal1High', { name }));
     } else {
-      lines.push(`今天${name}门前把握机会不错，关键进球价值连城`);
+      lines.push(tAi('aiComment.soccerGoal1', { name }));
     }
   } else if (goals === 0 && shots > 0) {
     if (shotsOnTarget === 0) {
-      lines.push(`今天${name}门前溜达几脚，和队友都笑了`);
+      lines.push(tAi('aiComment.soccerNoGoalBad', { name }));
     } else {
-      lines.push(`今天${name}射门感觉一般，但跑位和参与度还是在线`);
+      lines.push(tAi('aiComment.soccerNoGoalOk', { name }));
     }
   }
 
   // 助攻与组织
   if (assists >= 2) {
-    lines.push('助攻梅开二度，梳理进攻的节奏大师');
+    lines.push(tAi('aiComment.soccerAssist2'));
   } else if (assists === 1) {
-    lines.push('送出关键助攻，串联全队进攻');
+    lines.push(tAi('aiComment.soccerAssist1'));
   } else if (keyPasses >= 5) {
-    lines.push('虽然没有直接助攻，但关键传球不断，是进攻的发动机');
+    lines.push(tAi('aiComment.soccerKeyPasses'));
   }
 
   // 跑动与覆盖
   const distNum = parseFloat(dist.replace('km', '')) || 0;
   if (distNum >= 12) {
-    lines.push('跑动距离拉满，体能槽直接拉满，全场都在搅和');
+    lines.push(tAi('aiComment.soccerDist'));
   } else if (sprints >= 30) {
-    lines.push('冲刺次数爆表，前场反抢和压迫做得非常到位');
+    lines.push(tAi('aiComment.soccerSprints'));
   }
 
   // 防守贡献
   if (tackles + interceptions >= 6) {
-    lines.push('防守端存在感拉满，前场反抢和拦截都很积极');
+    lines.push(tAi('aiComment.soccerDefenseHigh'));
   } else if (tackles + interceptions >= 3) {
-    lines.push('防守端也能给到存在感，脏活累活都干了');
+    lines.push(tAi('aiComment.soccerDefenseMid'));
   }
 
   // xG 效率
   if (goals > 0 && xG > 0) {
     const efficiency = goals / xG;
     if (efficiency >= 1.2) {
-      lines.push('xG转化率爆表，该进的球一个没丢');
+      lines.push(tAi('aiComment.soccerXgHigh'));
     } else if (efficiency < 0.8) {
-      lines.push('xG转化率稍低，但关键球把握住了');
+      lines.push(tAi('aiComment.soccerXgLow'));
     }
   }
 
-  return lines.length > 0 ? lines.join('，') + '。' : `今天${name}表现中规中矩，攻防两端都有参与。`;
+  if (lines.length === 0) {
+    return tAi('aiComment.soccerDefault', { name });
+  }
+
+  return lines.join(' ');
 };
 
-// AI 篮球球员点评（虎扑风格）
+// AI 篮球球员点评（多语言，走 i18n 文案）
 const generatePlayerComment = (player: any): string => {
-  const name = player.name ?? (player.label ?? '这位球员');
+  const tAi = i18n.t.bind(i18n);
+
   const pts = player.pts ?? 0;
   const reb = player.reb ?? 0;
   const ast = player.ast ?? 0;
   const stl = player.stl ?? 0;
   const blk = player.blk ?? 0;
   const tov = player.tov ?? 0;
+
+  const name =
+    player.name ??
+    (player.label ?? tAi('aiComment.defaultPlayer'));
 
   const efg = calcEFG(player);
   const ts = calcTS(player);
@@ -504,50 +518,50 @@ const generatePlayerComment = (player: any): string => {
 
   // 进攻表现
   if (pts >= 30) {
-    lines.push(`今天${name}火力全开，砍下${pts}分，完全打出了核心的气场`);
+    lines.push(tAi('aiComment.basketballPts30', { name, pts }));
   } else if (pts >= 20) {
-    lines.push(`今天${name}手感在线，拿下${pts}分，是进攻端最稳定的选择`);
+    lines.push(tAi('aiComment.basketballPts20', { name, pts }));
   } else if (pts >= 10) {
-    lines.push(`今天${name}进攻端输出不错，贡献${pts}分为球队托底`);
+    lines.push(tAi('aiComment.basketballPts10', { name, pts }));
   } else {
-    lines.push(`今天${name}进攻端存在感一般，得到了${pts}分`);
+    lines.push(tAi('aiComment.basketballPtsLow', { name, pts }));
   }
 
   // 命中率
   if (efg != null && efg >= 0.6) {
-    lines.push('有效命中率爆表，出手选择相当聪明');
+    lines.push(tAi('aiComment.basketballEfgHigh'));
   } else if (efg != null && efg <= 0.4 && pts > 0) {
-    lines.push('但手感有点拉胯，多次铁出精彩回放');
+    lines.push(tAi('aiComment.basketballEfgLow'));
   }
 
   // 篮板 / 助攻
   if (reb >= 10) {
-    lines.push('篮板球拼得很凶，是自家篮下的定海神针');
+    lines.push(tAi('aiComment.basketballReb10'));
   } else if (reb >= 7) {
-    lines.push('篮板保护做得还不错，多次顶住对手冲击');
+    lines.push(tAi('aiComment.basketballReb7'));
   }
 
   if (ast >= 8) {
-    lines.push('组织端串联全队，节奏掌控得明明白白');
+    lines.push(tAi('aiComment.basketballAst8'));
   } else if (ast >= 5) {
-    lines.push('在梳理进攻上也给出了稳定输出');
+    lines.push(tAi('aiComment.basketballAst5'));
   }
 
   // 防守端
   if (stl + blk >= 4) {
-    lines.push('防守端各种抢断盖帽，给对面外线制造了不小压力');
+    lines.push(tAi('aiComment.basketballDef4'));
   } else if (stl + blk >= 2) {
-    lines.push('防守端也能给到存在感，细节处理可圈可点');
+    lines.push(tAi('aiComment.basketballDef2'));
   }
 
   // 失误小吐槽
   if (tov >= 4) {
-    lines.push('就是失误有点多，笑容送给了对面球迷');
+    lines.push(tAi('aiComment.basketballTovHigh'));
   } else if (tov === 0 && pts + ast > 0) {
-    lines.push('几乎零失误，打法非常稳，教科书级别发挥');
+    lines.push(tAi('aiComment.basketballTovZero'));
   }
 
-  return lines.join('，') + '。';
+  return lines.join(' ');
 };
 
 // --- Shared Components ---
@@ -757,9 +771,13 @@ const TransferOverlay = () => {
             
 
             <h3 className={`text-base font-bold mb-6 ${isFailed ? 'text-red-500' : (isPaused ? 'text-yellow-500' : 'text-white')}`}>
-
-                {isFailed ? '任务执行失败' : (isPaused ? '任务已暂停' : (isAnalyzing ? '云端 AI 分析中' : '视频上传处理中'))}
-
+                {isFailed
+                  ? t('ui.taskFailed')
+                  : (isPaused
+                      ? t('ui.taskPaused')
+                      : (isAnalyzing
+                          ? t('ui.cloudAnalyzing')
+                          : t('ui.uploadProcessing')))}
             </h3>
 
             {/* Icons row */}
@@ -1259,15 +1277,10 @@ const ShareModal = () => {
 const ScenarioWizard = () => {
 
     const { 
-
         runScenario, 
-
         networkState, setNetworkState, 
-
         falconState, setFalconState,
-
         setToastMessage
-
     } = useAppContext();
 
     const [isOpen, setIsOpen] = useState(false);
@@ -1295,14 +1308,13 @@ const ScenarioWizard = () => {
                 <div className="absolute bottom-12 left-0 bg-white p-4 rounded-2xl w-64 shadow-2xl border border-slate-100 flex flex-col gap-3 animate-in zoom-in-95 origin-bottom-left">
 
                     <h3 className="text-sm font-black text-slate-800 mb-1 flex items-center gap-2">
-
                         <Zap className="w-4 h-4 text-orange-500" />
-
-                        一键异常演练
-
+                        {i18n.t('ui.devScenarioTitle')}
                     </h3>
 
-                    <p className="text-[10px] text-slate-400 mb-2">选择剧本，App 将自动执行流程</p>
+                    <p className="text-[10px] text-slate-400 mb-2">
+                      {i18n.t('ui.devScenarioDesc')}
+                    </p>
 
                     
 
@@ -1310,7 +1322,14 @@ const ScenarioWizard = () => {
 
                         <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform text-slate-600"><AlertTriangle className="w-4 h-4" /></div>
 
-                        <div><div className="text-xs font-bold text-slate-800">设备断连</div><div className="text-[9px] text-slate-400">下载中途 Falcon 断电</div></div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">
+                            {i18n.t('ui.devScenarioDeviceDisconnectTitle')}
+                          </div>
+                          <div className="text-[9px] text-slate-400">
+                            {i18n.t('ui.devScenarioDeviceDisconnectDesc')}
+                          </div>
+                        </div>
 
                     </button>
 
@@ -1318,7 +1337,14 @@ const ScenarioWizard = () => {
 
                         <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform text-slate-600"><Layers className="w-4 h-4" /></div>
 
-                        <div><div className="text-xs font-bold text-slate-800">多任务并发</div><div className="text-[9px] text-slate-400">当前仅支持一个任务在分析</div></div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">
+                            {i18n.t('ui.devScenarioConcurrentTitle')}
+                          </div>
+                          <div className="text-[9px] text-slate-400">
+                            {i18n.t('ui.devScenarioConcurrentDesc')}
+                          </div>
+                        </div>
 
                     </button>
 
@@ -1326,7 +1352,14 @@ const ScenarioWizard = () => {
 
                         <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform text-slate-600"><Signal className="w-4 h-4" /></div>
 
-                        <div><div className="text-xs font-bold text-slate-800">4G 流量警告</div><div className="text-[9px] text-slate-400">上传中途切换网络</div></div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">
+                            {i18n.t('ui.devScenario4GTitle')}
+                          </div>
+                          <div className="text-[9px] text-slate-400">
+                            {i18n.t('ui.devScenario4GDesc')}
+                          </div>
+                        </div>
 
                     </button>
 
@@ -1334,7 +1367,14 @@ const ScenarioWizard = () => {
 
                         <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform text-slate-600"><WifiOff className="w-4 h-4" /></div>
 
-                        <div><div className="text-xs font-bold text-slate-800">网络完全断开</div><div className="text-[9px] text-slate-400">模拟无网环境暂停</div></div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">
+                            {i18n.t('ui.devScenarioOfflineTitle')}
+                          </div>
+                          <div className="text-[9px] text-slate-400">
+                            {i18n.t('ui.devScenarioOfflineDesc')}
+                          </div>
+                        </div>
 
                     </button>
 
@@ -1342,7 +1382,14 @@ const ScenarioWizard = () => {
 
                         <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform text-slate-600"><RefreshCw className="w-4 h-4" /></div>
 
-                        <div><div className="text-xs font-bold text-slate-800">崩溃恢复</div><div className="text-[9px] text-slate-400">模拟 App 意外重启</div></div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">
+                            {i18n.t('ui.devScenarioCrashTitle')}
+                          </div>
+                          <div className="text-[9px] text-slate-400">
+                            {i18n.t('ui.devScenarioCrashDesc')}
+                          </div>
+                        </div>
 
                     </button>
 
@@ -1350,7 +1397,14 @@ const ScenarioWizard = () => {
 
                         <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform text-slate-600"><HardDrive className="w-4 h-4" /></div>
 
-                        <div><div className="text-xs font-bold text-slate-800">存储不足</div><div className="text-[9px] text-slate-400">开始任务前检测空间</div></div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">
+                            {i18n.t('ui.devScenarioStorageTitle')}
+                          </div>
+                          <div className="text-[9px] text-slate-400">
+                            {i18n.t('ui.devScenarioStorageDesc')}
+                          </div>
+                        </div>
 
                     </button>
 
@@ -1358,7 +1412,14 @@ const ScenarioWizard = () => {
 
                         <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform text-slate-600"><Layers className="w-4 h-4" /></div>
 
-                        <div><div className="text-xs font-bold text-slate-800">云端队列已满</div><div className="text-[9px] text-slate-400">模拟云端已有5个任务在分析</div></div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-800">
+                            {i18n.t('ui.devScenarioQueueFullTitle')}
+                          </div>
+                          <div className="text-[9px] text-slate-400">
+                            {i18n.t('ui.devScenarioQueueFullDesc')}
+                          </div>
+                        </div>
 
                     </button>
 
@@ -1413,7 +1474,7 @@ const PlayerSelectorModal = () => {
     setShowPlayerSelector(false);
     setSelectedEventForClaim(null);
     setNewLabel('');
-    setToastMessage(isAlreadyClaimed ? '已更新' : '已标记');
+    setToastMessage(isAlreadyClaimed ? t('ui.updated') : t('ui.marked'));
     setTimeout(() => setToastMessage(null), 2000);
   };
 
@@ -1975,7 +2036,54 @@ const MediaPickerScreen = () => {
 
         
 
-        <div className="bg-[#121212] pt-3 pb-2"><div className="flex gap-3 px-4 overflow-x-auto scrollbar-hide snap-x">{SPORTS_CONFIG.map((sport) => { const isSelected = sportType === sport.id; const Icon = sport.icon; let activeClass = ''; if (sport.color === 'orange') activeClass = 'bg-orange-600 border-orange-500 text-white shadow-lg shadow-orange-900/50'; else if (sport.color === 'emerald') activeClass = 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-900/50'; else if (sport.color === 'blue') activeClass = 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/50'; else if (sport.color === 'cyan') activeClass = 'bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-900/50'; return (<button key={sport.id} onClick={() => { setSportType(sport.id as SportType); }} className={`flex-none w-28 py-3 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all snap-start ${isSelected ? activeClass : 'bg-[#1E1E1E] border-white/5 text-slate-500'}`}><Icon className={`w-6 h-6 ${isSelected ? 'text-white' : 'text-slate-600'}`} /><div className="flex flex-col items-center"><span className="text-xs font-bold leading-none mb-1">{sport.label}</span><span className={`text-[9px] font-mono ${isSelected ? 'opacity-80' : 'opacity-40'}`}>{sport.desc}</span></div></button>); })}<div className="w-1" /></div></div>
+        <div className="bg-[#121212] pt-3 pb-2">
+          <div className="flex gap-3 px-4 overflow-x-auto scrollbar-hide snap-x">
+            {SPORTS_CONFIG.map((sport) => {
+              const isSelected = sportType === sport.id;
+              const Icon = sport.icon;
+              let activeClass = '';
+              if (sport.color === 'orange') activeClass = 'bg-orange-600 border-orange-500 text-white shadow-lg shadow-orange-900/50';
+              else if (sport.color === 'emerald') activeClass = 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-900/50';
+              else if (sport.color === 'blue') activeClass = 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/50';
+              else if (sport.color === 'cyan') activeClass = 'bg-cyan-600 border-cyan-500 text-white shadow-lg shadow-cyan-900/50';
+
+              const sportLabelKeyMap: Record<string, string> = {
+                basketball: 'ui.sportBasketball',
+                soccer: 'ui.sportSoccer',
+                baseball: 'ui.sportBaseball',
+                ice_hockey: 'ui.sportIceHockey',
+              };
+              const sportDescKeyMap: Record<string, string> = {
+                basketball: 'ui.sportBasketballDesc',
+                soccer: 'ui.sportSoccerDesc',
+                baseball: 'ui.sportBaseballDesc',
+                ice_hockey: 'ui.sportIceHockeyDesc',
+              };
+
+              const labelKey = sportLabelKeyMap[sport.id] ?? '';
+              const descKey = sportDescKeyMap[sport.id] ?? '';
+
+              return (
+                <button
+                  key={sport.id}
+                  onClick={() => { setSportType(sport.id as SportType); }}
+                  className={`flex-none w-28 py-3 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all snap-start ${isSelected ? activeClass : 'bg-[#1E1E1E] border-white/5 text-slate-500'}`}
+                >
+                  <Icon className={`w-6 h-6 ${isSelected ? 'text-white' : 'text-slate-600'}`} />
+                  <div className="flex flex-col items-center">
+                    <span className="text-xs font-bold leading-none mb-1">
+                      {labelKey ? t(labelKey) : sport.label}
+                    </span>
+                    <span className={`text-[9px] font-mono ${isSelected ? 'opacity-80' : 'opacity-40'}`}>
+                      {descKey ? t(descKey) : sport.desc}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+            <div className="w-1" />
+          </div>
+        </div>
 
         
 
@@ -3867,15 +3975,31 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const getLabelForEvent = (sport: string, type: string, scoreType: number | string): string => {
         const isSoc = sport === 'soccer';
         if (isSoc) {
-            const m: Record<string, string> = { goal: '进球', corner: '角球进攻', setpiece: '任意球破门', penalty: '点球命中' };
-            return m[String(scoreType)] ?? '进球';
+            const keyMap: Record<string, string> = {
+                goal: 'clips.goal',
+                corner: 'clips.corner',
+                setpiece: 'clips.setpiece',
+                penalty: 'clips.penalty',
+            };
+            const key = keyMap[String(scoreType)] ?? 'clips.goal';
+            return t(key);
         }
         if (type === 'score') {
-            const m: Record<number, string> = { 1: '1分罚球', 2: '2分命中', 3: '3分命中' };
-            return m[Number(scoreType)] ?? '2分命中';
+            const keyMap: Record<number, string> = {
+                1: 'clips.1ptFt',
+                2: 'clips.2pt',
+                3: 'clips.3pt',
+            };
+            const key = keyMap[Number(scoreType)] ?? 'clips.2pt';
+            return t(key);
         }
-        const m: Record<string, string> = { rebound: '篮板球', steal: '抢断', assist: '助攻' };
-        return m[String(scoreType)] ?? '篮板球';
+        const keyMap: Record<string, string> = {
+            rebound: 'clips.rebound',
+            steal: 'clips.steal',
+            assist: 'clips.assist',
+        };
+        const key = keyMap[String(scoreType)] ?? 'clips.rebound';
+        return t(key);
     };
 
     // Manual correction: 阵营识别
@@ -4175,9 +4299,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         setTimeout(() => {
             setAiCoachComment(
                 clip
-                    ? `片段 ${clip.time}「${clip.labelKey ? t(clip.labelKey) : (clip as any).label}」中，你的决策选择整体不错。\n` +
-                      `建议注意提前观察队友站位，在完成这次进攻的同时，为下一回合创造更好的空间。`
-                    : '未找到对应片段，但可以围绕投篮选择、防守位置和配合默契三个维度做针对性复盘。'
+                    ? t('ui.coachFeedbackGood', {
+                        time: clip.time,
+                        label: clip.labelKey ? t(clip.labelKey) : (clip as any).label,
+                      })
+                    : t('ui.coachFeedbackDefault')
             );
             setAiCoachHasVideo(true);
             setAiCoachLoading(false);
@@ -6112,7 +6238,11 @@ className="w-full max-w-[375px] mx-auto bg-[#1E293B] rounded-t-2xl border-t bord
         <div className="flex gap-2">
 
            {/* Language switcher */}
-           <button onClick={() => i18n.changeLanguage(i18n.language === 'zh' ? 'en' : 'zh')} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors text-xs font-bold" title={i18n.language === 'zh' ? 'Switch to English' : '切换到中文'}>
+           <button
+             onClick={() => i18n.changeLanguage(i18n.language === 'zh' ? 'en' : 'zh')}
+             className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors text-xs font-bold"
+             title={i18n.language === 'zh' ? '切换到英文' : 'Switch to Chinese'}
+           >
              {i18n.language === 'zh' ? 'EN' : '中'}
            </button>
 
