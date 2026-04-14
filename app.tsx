@@ -406,7 +406,7 @@ const GALLERY_ANALYSIS_SUCCESS_CARDS = [
     teamBScore: 1,
     statusKey: 'gallery.fulltime',
     isAnalyzed: true,
-    analysisType: 'highlight' as const,
+    analysisType: 'analysis' as const,
   },
 ];
 
@@ -2119,6 +2119,7 @@ const GalleryScreen = () => {
   const [typeTab, setTypeTab] = useState<'all' | 'video' | 'image' | 'collect'>('all');
   const [detailVideoId, setDetailVideoId] = useState<number | null>(null);
   const [detailFromAnalyzedCard, setDetailFromAnalyzedCard] = useState(false);
+  const [detailAnalyzedType, setDetailAnalyzedType] = useState<'highlight' | 'analysis'>('analysis');
   const [aiDecisionPayload, setAiDecisionPayload] = useState<{ videoId: number; relatedIds: number[] } | null>(null);
 
   const soccerVideos = React.useMemo(() => {
@@ -2269,6 +2270,7 @@ const GalleryScreen = () => {
                     onClick={() => {
                       setDetailVideoId(card.videoId);
                       setDetailFromAnalyzedCard(true);
+                      setDetailAnalyzedType(card.analysisType);
                     }}
                     className="rounded-xl overflow-hidden border border-emerald-200 bg-white text-left shadow-sm aspect-[16/10]"
                   >
@@ -2447,7 +2449,7 @@ const GalleryScreen = () => {
               type="button"
               onClick={() => {
                 if (detailFromAnalyzedCard) {
-                  openAnalyzedResult('highlight');
+                  openAnalyzedResult(detailAnalyzedType);
                   return;
                 }
                 const taskMeta = getVideoTaskMeta(detailVideo.id);
