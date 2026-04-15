@@ -31,6 +31,8 @@ import {
 
   Activity, Map as MapIcon, Lock, Footprints, AreaChart, Flame,
 
+  Cpu,
+
   MessageSquare, Save, User, Users, ChevronDown, Heart, Trash2,
 
   ArrowDownUp,
@@ -50,7 +52,14 @@ type ViewState =
   | 'transfer_list'
   | 'merge_preview';
 
-type AIMode = 'cloud'; 
+type AIMode = 'cloud';
+
+/** 预研：分析管线 — 端侧 / Falcon→App→云 / Falcon 直传云 / 端侧核心→云端全量（高阶） */
+type AnalysisPipeline =
+  | 'on_device'
+  | 'falcon_app_cloud'
+  | 'falcon_direct_cloud'
+  | 'edge_cloud_hybrid';
 
 type SelectionMode = 'single' | 'multiple';
 
@@ -294,6 +303,19 @@ function buildSoccerTimelinePoints(
   return sorted.filter((_, idx) => idx % 3 === 0);
 }
 
+/** 第四条路线演示：端侧仅保留稀疏核心事件（进球/点球或篮球得分） */
+function filterClipsForHybridEdgeTier<T extends { sport: string; type?: string; scoreType?: string | number }>(
+  clips: readonly T[]
+): T[] {
+  return clips.filter((c) => {
+    if (c.sport === 'soccer') {
+      const st = String(c.scoreType);
+      return st === 'goal' || st === 'penalty';
+    }
+    return c.type === 'score' && [3, 2].includes(Number(c.scoreType));
+  });
+}
+
 // --- Context ---
 
 const AppContext = createContext<any>(null);
@@ -384,7 +406,21 @@ const ALL_VIDEOS = [
   { id: 103, type: 'video', source: 'falcon', dateKey: 'videos.sunday', dateSuffix: '15:20', duration: '15:20', labelKey: 'videos.halfCourt', device: 'Falcon Mini', battery: 100, synced: false, category: 'soccer' },
   { id: 303, type: 'video', source: 'local', dateKey: 'videos.lastFriday', dateSuffix: '', duration: '20:00', labelKey: 'videos.battingPractice', category: 'baseball' },
 
+  /** 第四条路线相册演示：详情页内触发 AI（走当前分析管线，需选「端侧优先·云端全量」） */
+  {
+    id: 501,
+    type: 'video',
+    source: 'local',
+    dateKey: 'videos.monday',
+    dateSuffix: '10:30',
+    duration: '18:00',
+    labelKey: 'videos.hybridDemoDetail',
+    category: 'soccer',
+  },
+
 ] as const;
+
+const HYBRID_GALLERY_DETAIL_VIDEO_ID = 501;
 
 const GALLERY_ANALYSIS_SUCCESS_CARDS = [
   {
@@ -524,15 +560,242 @@ const AssetThumbnail = ({ type, category }: { type: string, category: string }) 
 
 };
 
+/** 传输弹层 / 最小化条 / 任务中心卡片：各技术路线共用的一套展示规则（纯函数）。混合路线四段式仍为 25/50/75/100；选「云端深析」时与第三条 falcon_direct_cloud 共用三节点与 50/50/100 进度语义。 */
+type TransferPipelineLayout = 'edge_chip' | 'falcon_three' | 'falcon_four';
+
+type FloatingMinimizedIcon = 'alert' | 'paused' | 'cpu' | 'download' | 'upload' | 'sparkles';
+
+type TaskCenterCardIcon = 'alert' | 'cpu' | 'download' | 'upload';
+
+type TaskCenterCardTone = 'red' | 'orange' | 'emerald' | 'blue';
+
+function getTransferPipelinePresentation(args: {
+  analysisPipeline: AnalysisPipeline;
+  transferStep: TransferStep;
+  hybridPastEdge: boolean;
+  hybridLocalOnlyThisRun: boolean;
+  hybridCloudDeepThisRun: boolean;
+  isFailed: boolean;
+  isPaused: boolean;
+}) {
+  const {
+    analysisPipeline,
+    transferStep,
+    hybridPastEdge,
+    hybridLocalOnlyThisRun,
+    hybridCloudDeepThisRun,
+    isFailed,
+    isPaused,
+  } = args;
+
+  const isAnalyzing = transferStep === 'analyzing';
+
+  const showEdgeChipLayout =
+    !isFailed &&
+    !isPaused &&
+    ((analysisPipeline === 'on_device' && isAnalyzing) ||
+      (analysisPipeline === 'edge_cloud_hybrid' &&
+        !hybridPastEdge &&
+        (isAnalyzing || (hybridLocalOnlyThisRun && transferStep === 'downloading'))));
+
+  /** 第四条 + 云端深析：loading 与第三条「直传云」同一套三节点（不经 App 四格） */
+  const hybridCloudDeepAsDirectCloud =
+    analysisPipeline === 'edge_cloud_hybrid' && hybridCloudDeepThisRun && !showEdgeChipLayout;
+
+  const layout: TransferPipelineLayout = showEdgeChipLayout
+    ? 'edge_chip'
+    : analysisPipeline === 'falcon_direct_cloud' || hybridCloudDeepAsDirectCloud
+      ? 'falcon_three'
+      : 'falcon_four';
+
+  const thirdColumnIsEdge =
+    analysisPipeline === 'on_device' ||
+    (analysisPipeline === 'edge_cloud_hybrid' && !hybridPastEdge && !hybridCloudDeepThisRun);
+
+  const directCloudStyleProgress =
+    transferStep === 'uploading' ? '50%' : transferStep === 'analyzing' ? '100%' : '50%';
+
+  const progressLineWidth =
+    hybridCloudDeepAsDirectCloud
+      ? directCloudStyleProgress
+      : analysisPipeline === 'edge_cloud_hybrid'
+        ? transferStep === 'downloading'
+          ? '25%'
+          : transferStep === 'analyzing' && !hybridPastEdge
+            ? '50%'
+            : transferStep === 'uploading'
+              ? '75%'
+              : transferStep === 'analyzing' && hybridPastEdge
+                ? '100%'
+                : '25%'
+        : analysisPipeline === 'falcon_app_cloud'
+          ? transferStep === 'downloading'
+            ? '33%'
+            : transferStep === 'uploading'
+              ? '66%'
+              : '100%'
+          : analysisPipeline === 'falcon_direct_cloud'
+            ? directCloudStyleProgress
+            : transferStep === 'downloading'
+              ? '33%'
+              : '100%';
+
+  const isEdgePhaseAnalyzing =
+    analysisPipeline === 'on_device' ||
+    (analysisPipeline === 'edge_cloud_hybrid' && !hybridPastEdge && !hybridCloudDeepThisRun);
+
+  let modalTitleKey = 'ui.transferStageUploadTitle';
+  let statusHintKey: string | null = null;
+  let floatingIcon: FloatingMinimizedIcon = 'sparkles';
+  let floatingDisplayKey = 'ui.transferStageUploadTitle';
+  let floatingShowPercentAfter = true;
+
+  if (isFailed) {
+    modalTitleKey = 'ui.taskFailed';
+    statusHintKey = null;
+    floatingIcon = 'alert';
+    floatingDisplayKey = 'ui.failed';
+    floatingShowPercentAfter = false;
+  } else if (isPaused) {
+    modalTitleKey = 'ui.taskPaused';
+    statusHintKey = null;
+    floatingIcon = 'paused';
+    floatingDisplayKey = 'ui.paused';
+    floatingShowPercentAfter = false;
+  } else if (showEdgeChipLayout) {
+    modalTitleKey = 'ui.transferStageLocalAnalyzeTitle';
+    statusHintKey =
+      transferStep === 'downloading' &&
+      analysisPipeline === 'edge_cloud_hybrid' &&
+      hybridLocalOnlyThisRun &&
+      !hybridPastEdge
+        ? 'ui.transferStageDownloadHint'
+        : 'ui.transferStageLocalAnalyzeHint';
+    floatingIcon = 'cpu';
+    floatingDisplayKey = 'ui.transferStageLocalAnalyzeTitle';
+    floatingShowPercentAfter = false;
+  } else if (transferStep === 'downloading') {
+    modalTitleKey = 'ui.transferStageDownloadTitle';
+    statusHintKey = 'ui.transferStageDownloadHint';
+    floatingIcon = 'download';
+    floatingDisplayKey = 'ui.transferStageDownloadTitle';
+    floatingShowPercentAfter = true;
+  } else if (transferStep === 'uploading') {
+    modalTitleKey = 'ui.transferStageUploadTitle';
+    statusHintKey =
+      analysisPipeline === 'falcon_direct_cloud' || hybridCloudDeepAsDirectCloud
+        ? 'ui.directCloudUploadStatus'
+        : 'ui.transferStageUploadHint';
+    floatingIcon = 'upload';
+    floatingDisplayKey = 'ui.transferStageUploadTitle';
+    floatingShowPercentAfter = true;
+  } else if (isAnalyzing) {
+    if (isEdgePhaseAnalyzing) {
+      modalTitleKey = 'ui.transferStageLocalAnalyzeTitle';
+      statusHintKey = 'ui.transferStageLocalAnalyzeHint';
+      floatingIcon = 'cpu';
+      floatingDisplayKey = 'ui.transferStageLocalAnalyzeTitle';
+      floatingShowPercentAfter = false;
+    } else {
+      modalTitleKey = 'ui.transferStageCloudAnalyzeTitle';
+      statusHintKey = 'ui.transferStageCloudAnalyzeHint';
+      floatingIcon = 'sparkles';
+      floatingDisplayKey = 'ui.transferStageCloudAnalyzeTitle';
+      floatingShowPercentAfter = false;
+    }
+  } else {
+    modalTitleKey = 'ui.transferStageUploadTitle';
+    statusHintKey = 'ui.transferStageUploadHint';
+    floatingIcon = 'upload';
+    floatingDisplayKey = 'ui.transferStageUploadTitle';
+    floatingShowPercentAfter = true;
+  }
+
+  const statusPanelUseGreenPulse =
+    (isAnalyzing || (showEdgeChipLayout && transferStep === 'downloading')) && !isFailed;
+
+  let taskCenterIcon: TaskCenterCardIcon = 'upload';
+  let taskCenterTone: TaskCenterCardTone = 'blue';
+  let taskCenterTitleKey = 'ui.transferStageUploadTitle';
+
+  if (isFailed) {
+    taskCenterIcon = 'alert';
+    taskCenterTone = 'red';
+    taskCenterTitleKey = 'ui.taskFailedShort';
+  } else if (isPaused) {
+    taskCenterTone = 'blue';
+    taskCenterTitleKey = 'ui.taskPaused';
+  } else if (showEdgeChipLayout) {
+    taskCenterIcon = 'cpu';
+    taskCenterTone = 'emerald';
+    taskCenterTitleKey = 'ui.transferStageLocalAnalyzeTitle';
+  } else if (transferStep === 'downloading') {
+    if (hybridCloudDeepAsDirectCloud) {
+      taskCenterIcon = 'download';
+      taskCenterTone = 'orange';
+      taskCenterTitleKey = 'ui.transferStageDownloadTitle';
+    } else {
+      taskCenterIcon = 'download';
+      taskCenterTone = 'orange';
+      taskCenterTitleKey = 'ui.transferStageDownloadTitle';
+    }
+  } else if (transferStep === 'uploading') {
+    taskCenterIcon = 'upload';
+    taskCenterTone = 'blue';
+    taskCenterTitleKey = 'ui.transferStageUploadTitle';
+  } else if (isAnalyzing && isEdgePhaseAnalyzing) {
+    taskCenterIcon = 'cpu';
+    taskCenterTone = 'emerald';
+    taskCenterTitleKey = 'ui.transferStageLocalAnalyzeTitle';
+  } else if (isAnalyzing) {
+    taskCenterIcon = 'upload';
+    taskCenterTone = 'blue';
+    taskCenterTitleKey = 'ui.transferStageCloudAnalyzeTitle';
+  } else {
+    taskCenterIcon = 'upload';
+    taskCenterTone = 'blue';
+    taskCenterTitleKey = 'ui.transferStageUploadTitle';
+  }
+
+  return {
+    layout,
+    showEdgeChipLayout,
+    hybridCloudDeepAsDirectCloud,
+    progressLineWidth,
+    thirdColumnIsEdge,
+    modalTitleKey,
+    statusHintKey,
+    statusPanelUseGreenPulse,
+    floatingIcon,
+    floatingDisplayKey,
+    floatingShowPercentAfter,
+    taskCenterIcon,
+    taskCenterTone,
+    taskCenterTitleKey,
+  };
+}
+
 // --- Sub-Screens ---
 
 const TransferOverlay = () => {
 
   const { t,
 
-    transferStep, transferProgress, isTransferMinimized, setIsTransferMinimized, 
+    transferStep, transferProgress, isTransferMinimized, setIsTransferMinimized,
 
-    networkState, falconState, failureReason, setTransferStep, setTransferProgress, setFalconState, setNetworkState, pushView 
+    networkState, falconState, failureReason, setTransferStep, setTransferProgress, setFalconState, setNetworkState, pushView,
+
+    analysisPipeline,
+
+    hybridPastEdge,
+
+    setHybridPastEdge,
+
+    hybridSourceMedia,
+
+    hybridLocalOnlyThisRun,
+
+    hybridCloudDeepThisRun,
 
   } = useAppContext();
 
@@ -547,6 +810,16 @@ const TransferOverlay = () => {
    const isFailed = transferStep === 'failed';
 
    const isPaused = transferStep === 'paused';
+
+   const pipe = getTransferPipelinePresentation({
+     analysisPipeline,
+     transferStep,
+     hybridPastEdge,
+     hybridLocalOnlyThisRun,
+     hybridCloudDeepThisRun,
+     isFailed,
+     isPaused,
+   });
 
    
 
@@ -590,29 +863,52 @@ const TransferOverlay = () => {
 
        }
 
-   } else if (transferStep === 'downloading') {
+   } else if (pipe.statusHintKey) {
 
-       statusText = t('ui.downloadingFromDevice');
-
-   } else if (transferStep === 'uploading') {
-
-       statusText = t('ui.uploadingToCloud');
-
-   } else if (transferStep === 'analyzing') {
-
-       statusText = t('ui.aiAnalyzing');
+       statusText = t(pipe.statusHintKey);
 
    }
 
    const handleRetry = () => {
 
-       if (falconState === 'disconnected') setFalconState('connected'); 
+       if (falconState === 'disconnected') setFalconState('connected');
 
-       if (networkState === 'offline') setNetworkState('wifi'); 
+       if (networkState === 'offline') setNetworkState('wifi');
 
-       setTransferStep(transferProgress < 33 ? 'downloading' : 'uploading');
+       if (analysisPipeline === 'on_device') {
+         setTransferStep('analyzing');
+       } else if (analysisPipeline === 'edge_cloud_hybrid') {
+         setHybridPastEdge(false);
+         setTransferProgress(0);
+         setTransferStep(hybridSourceMedia === 'falcon' ? 'downloading' : 'analyzing');
+       } else if (analysisPipeline === 'falcon_direct_cloud') {
+         setTransferStep(transferProgress < 50 ? 'uploading' : 'analyzing');
+       } else {
+         if (transferProgress < 33) setTransferStep('downloading');
+         else if (transferProgress < 66) setTransferStep('uploading');
+         else setTransferStep('analyzing');
+       }
 
    };
+
+   const thirdNodeActive =
+     !isFailed && (transferStep === 'uploading' || transferStep === 'analyzing');
+
+   const showFalconDirectPipeline = pipe.layout === 'falcon_three';
+
+   const directFalconActive =
+     showFalconDirectPipeline &&
+     !isFailed &&
+     !isPaused &&
+     ((analysisPipeline === 'falcon_direct_cloud' && transferStep === 'uploading') ||
+       (pipe.hybridCloudDeepAsDirectCloud && (transferStep === 'downloading' || transferStep === 'uploading')));
+
+   const directCloudNodeActive =
+     showFalconDirectPipeline &&
+     !isFailed &&
+     !isPaused &&
+     ((analysisPipeline === 'falcon_direct_cloud' && (transferStep === 'uploading' || transferStep === 'analyzing')) ||
+       (pipe.hybridCloudDeepAsDirectCloud && (transferStep === 'uploading' || transferStep === 'analyzing')));
 
    return (
 
@@ -625,16 +921,46 @@ const TransferOverlay = () => {
             
 
             <h3 className={`text-base font-bold mb-6 ${isFailed ? 'text-red-500' : (isPaused ? 'text-yellow-500' : 'text-white')}`}>
-                {isFailed
-                  ? t('ui.taskFailed')
-                  : (isPaused
-                      ? t('ui.taskPaused')
-                      : (isAnalyzing
-                          ? t('ui.cloudAnalyzing')
-                          : t('ui.uploadProcessing')))}
+                {t(pipe.modalTitleKey)}
             </h3>
 
-            {/* Icons row */}
+            {pipe.showEdgeChipLayout ? (
+              <div className="flex flex-col items-center justify-center mb-6 py-1">
+                <div className="w-16 h-16 rounded-full bg-emerald-500/15 border-2 border-emerald-400/80 flex items-center justify-center">
+                  <Cpu className="w-8 h-8 text-emerald-400 animate-pulse" />
+                </div>
+              </div>
+            ) : showFalconDirectPipeline ? (
+            <div className="flex items-center justify-between px-8 mb-8 relative">
+
+               <div className="absolute left-8 right-8 top-1/2 h-0.5 bg-slate-700 -z-10"></div>
+
+               <div className={`absolute left-8 h-0.5 transition-all duration-1000 -z-10 ${isFailed ? 'bg-red-500' : (isPaused ? 'bg-yellow-500' : 'bg-blue-500')}`} style={{ width: pipe.progressLineWidth }}></div>
+
+               <div className={`flex flex-col items-center gap-2 ${directFalconActive ? 'opacity-100 scale-110' : 'opacity-60'}`}>
+                   <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${directFalconActive ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}>
+                       <Film className="w-3 h-3" />
+                   </div>
+                   <span className="text-[8px] text-slate-400">Falcon</span>
+               </div>
+
+               <div className={`flex flex-col items-center gap-2 ${directCloudNodeActive ? 'opacity-100 scale-110' : 'opacity-60'}`}>
+                   <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${isFailed ? 'bg-red-500 border-red-400 text-white' : (directCloudNodeActive ? 'bg-orange-500 border-orange-400 text-white animate-pulse' : 'bg-slate-800 border-slate-600 text-slate-400')}`}>
+                       {isFailed ? <X className="w-4 h-4" /> : <Cloud className="w-3 h-3" />}
+                   </div>
+                   <span className="text-[8px] text-slate-400">{t('ui.pipelineCloudNode')}</span>
+               </div>
+
+               <div className={`flex flex-col items-center gap-2 ${isAnalyzing || isFailed ? 'opacity-100 scale-110' : 'opacity-40'}`}>
+                   <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${isAnalyzing ? 'bg-purple-600 border-purple-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}>
+                       <Sparkles className="w-3 h-3" />
+                   </div>
+                   <span className="text-[8px] text-slate-400">AI</span>
+               </div>
+
+            </div>
+            ) : (
+            /* Icons row */
 
             <div className="flex items-center justify-between px-2 mb-8 relative">
 
@@ -642,7 +968,7 @@ const TransferOverlay = () => {
 
                {/* Progress Line */}
 
-               <div className={`absolute left-6 h-0.5 transition-all duration-1000 -z-10 ${isFailed ? 'bg-red-500' : (isPaused ? 'bg-yellow-500' : 'bg-blue-500')}`} style={{ width: transferStep === 'downloading' ? '33%' : (transferStep === 'uploading' ? '66%' : '100%') }}></div>
+               <div className={`absolute left-6 h-0.5 transition-all duration-1000 -z-10 ${isFailed ? 'bg-red-500' : (isPaused ? 'bg-yellow-500' : 'bg-blue-500')}`} style={{ width: pipe.progressLineWidth }}></div>
 
                
 
@@ -670,15 +996,23 @@ const TransferOverlay = () => {
 
                </div>
 
-               <div className={`flex flex-col items-center gap-2 ${isAnalyzing || isFailed ? 'opacity-100 scale-110' : 'opacity-60'}`}>
+               <div className={`flex flex-col items-center gap-2 ${thirdNodeActive || isFailed ? 'opacity-100 scale-110' : 'opacity-60'}`}>
 
-                   <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${isFailed ? 'bg-red-500 border-red-400 text-white' : (isAnalyzing ? 'bg-orange-500 border-orange-400 text-white animate-pulse' : 'bg-slate-800 border-slate-600 text-slate-400')}`}>
+                   <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${isFailed ? 'bg-red-500 border-red-400 text-white' : (thirdNodeActive ? 'bg-orange-500 border-orange-400 text-white animate-pulse' : 'bg-slate-800 border-slate-600 text-slate-400')}`}>
 
-                       {isFailed ? <X className="w-4 h-4" /> : <Cloud className="w-3 h-3" />}
+                       {isFailed ? (
+                         <X className="w-4 h-4" />
+                       ) : pipe.thirdColumnIsEdge ? (
+                         <Cpu className="w-3 h-3" />
+                       ) : (
+                         <Cloud className="w-3 h-3" />
+                       )}
 
                    </div>
 
-                   <span className="text-[8px] text-slate-400">Cloud</span>
+                   <span className="text-[8px] text-slate-400">
+                     {pipe.thirdColumnIsEdge ? t('ui.pipelineEdgeNode') : t('ui.pipelineCloudNode')}
+                   </span>
 
                </div>
 
@@ -697,11 +1031,13 @@ const TransferOverlay = () => {
                </div>
 
             </div>
+            )}
 
             {/* Status Panel */}
 
             <div className={`rounded-lg p-3 mb-4 ${isFailed ? 'bg-red-500/10 border border-red-500/20' : (isPaused ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-slate-800/50')}`}>
 
+                {!pipe.showEdgeChipLayout && (
                 <div className="flex justify-between text-xs text-white mb-2">
 
                     <span className={isFailed ? 'text-red-400 font-bold' : (isPaused ? 'text-yellow-400 font-bold' : '')}>{statusText}</span>
@@ -709,14 +1045,23 @@ const TransferOverlay = () => {
                     {!isAnalyzing && !isFailed && <span className="font-mono">{transferProgress}%</span>}
 
                 </div>
+                )}
+
+                {pipe.showEdgeChipLayout && (
+                <div className="flex justify-between text-xs text-white mb-2">
+
+                    <span>{pipe.statusHintKey ? t(pipe.statusHintKey) : t('ui.transferStageLocalAnalyzeHint')}</span>
+
+                </div>
+                )}
 
                 
 
                 {subText && <p className="text-[10px] text-slate-400 text-left mb-2">{subText}</p>}
 
-                {isAnalyzing && !isFailed ? (
+                {pipe.statusPanelUseGreenPulse ? (
 
-                  <div className="flex gap-1 h-1.5 w-full"><div className="h-full bg-orange-500 w-1/3 rounded-full animate-[pulse_1s_ease-in-out_infinite]" style={{animationDelay: '0ms'}}></div><div className="h-full bg-orange-500 w-1/3 rounded-full animate-[pulse_1s_ease-in-out_infinite]" style={{animationDelay: '200ms'}}></div><div className="h-full bg-orange-500 w-1/3 rounded-full animate-[pulse_1s_ease-in-out_infinite]" style={{animationDelay: '400ms'}}></div></div>
+                  <div className={`flex gap-1 h-1.5 w-full ${pipe.showEdgeChipLayout ? 'mt-0' : ''}`}><div className={`h-full w-1/3 rounded-full animate-[pulse_1s_ease-in-out_infinite] ${pipe.showEdgeChipLayout ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{animationDelay: '0ms'}}></div><div className={`h-full w-1/3 rounded-full animate-[pulse_1s_ease-in-out_infinite] ${pipe.showEdgeChipLayout ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{animationDelay: '200ms'}}></div><div className={`h-full w-1/3 rounded-full animate-[pulse_1s_ease-in-out_infinite] ${pipe.showEdgeChipLayout ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{animationDelay: '400ms'}}></div></div>
 
                 ) : (
 
@@ -762,7 +1107,17 @@ const TransferOverlay = () => {
 
 const FloatingProgress = () => {
 
-  const { t, transferStep, transferProgress, isTransferMinimized, setIsTransferMinimized, networkState, falconState } = useAppContext();
+  const {
+    t,
+    transferStep,
+    transferProgress,
+    isTransferMinimized,
+    setIsTransferMinimized,
+    analysisPipeline,
+    hybridPastEdge,
+    hybridLocalOnlyThisRun,
+    hybridCloudDeepThisRun,
+  } = useAppContext();
 
   if (!isTransferMinimized || transferStep === 'idle' || transferStep === 'completed') return null;
 
@@ -774,39 +1129,26 @@ const FloatingProgress = () => {
 
   const isPaused = transferStep === 'paused';
 
-  
+  const fp = getTransferPipelinePresentation({
+    analysisPipeline,
+    transferStep,
+    hybridPastEdge,
+    hybridLocalOnlyThisRun,
+    hybridCloudDeepThisRun,
+    isFailed,
+    isPaused,
+  });
 
   let icon = <Sparkles className="w-4 h-4 text-orange-400" />;
+  if (fp.floatingIcon === 'alert') icon = <AlertTriangle className="w-4 h-4 text-red-500" />;
+  else if (fp.floatingIcon === 'paused') icon = <AlertTriangle className="w-4 h-4 text-yellow-500" />;
+  else if (fp.floatingIcon === 'cpu') icon = <Cpu className="w-4 h-4 text-emerald-400" />;
+  else if (fp.floatingIcon === 'download') icon = <DownloadCloud className="w-4 h-4 text-blue-400" />;
+  else if (fp.floatingIcon === 'upload') icon = <UploadCloud className="w-4 h-4 text-purple-400" />;
 
-  let text = `${transferProgress}%`;
-
-  
-
-  if (isFailed) {
-
-      icon = <AlertTriangle className="w-4 h-4 text-red-500" />;
-
-      text = t('ui.failed');
-
-  } else if (isPaused) {
-
-      icon = <AlertTriangle className="w-4 h-4 text-yellow-500" />;
-
-      text = t('ui.paused');
-
-  } else if (transferStep === 'downloading') {
-
-      icon = <DownloadCloud className="w-4 h-4 text-blue-400" />;
-
-  } else if (transferStep === 'uploading') {
-
-      icon = <UploadCloud className="w-4 h-4 text-purple-400" />;
-
-  } else if (isAnalyzing) {
-
-      text = t('ui.analyzing');
-
-  }
+  const text = fp.floatingShowPercentAfter
+    ? `${t(fp.floatingDisplayKey)} ${transferProgress}%`
+    : t(fp.floatingDisplayKey);
 
   return (
 
@@ -1287,6 +1629,74 @@ const ScenarioWizard = () => {
 
 };
 
+const TechRouteToggle = () => {
+  const { t, analysisPipeline, setAnalysisPipeline, transferStep } = useAppContext();
+  const busy =
+    transferStep !== 'idle' &&
+    transferStep !== 'completed' &&
+    transferStep !== 'failed';
+
+  const segmentClass = (active: boolean) =>
+    `w-full py-2 px-2 rounded-lg text-[11px] font-bold transition-colors text-left ${
+      active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+    }`;
+
+  const hint =
+    analysisPipeline === 'on_device'
+      ? t('ui.techRouteOnDeviceHint')
+      : analysisPipeline === 'falcon_app_cloud'
+        ? t('ui.techRouteFalconAppCloudHint')
+        : analysisPipeline === 'falcon_direct_cloud'
+          ? t('ui.techRouteFalconDirectCloudHint')
+          : t('ui.techRouteEdgeCloudHybridHint');
+
+  return (
+    <div className="w-full max-w-[240px] shrink-0 flex flex-col gap-2">
+      <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">{t('ui.techRouteTitle')}</p>
+      <div
+        className={`rounded-xl p-1.5 flex flex-col gap-1 border shadow-sm ${
+          busy ? 'bg-slate-200 border-slate-300 opacity-75' : 'bg-slate-100 border-slate-200'
+        }`}
+        title={busy ? t('ui.techRouteDisabledHint') : undefined}
+      >
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setAnalysisPipeline('on_device')}
+          className={`${segmentClass(analysisPipeline === 'on_device')} ${busy ? 'cursor-not-allowed' : ''}`}
+        >
+          {t('ui.techRouteOnDevice')}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setAnalysisPipeline('falcon_app_cloud')}
+          className={`${segmentClass(analysisPipeline === 'falcon_app_cloud')} ${busy ? 'cursor-not-allowed' : ''}`}
+        >
+          {t('ui.techRouteFalconAppCloud')}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setAnalysisPipeline('falcon_direct_cloud')}
+          className={`${segmentClass(analysisPipeline === 'falcon_direct_cloud')} ${busy ? 'cursor-not-allowed' : ''}`}
+        >
+          {t('ui.techRouteDirectCloud')}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setAnalysisPipeline('edge_cloud_hybrid')}
+          className={`${segmentClass(analysisPipeline === 'edge_cloud_hybrid')} ${busy ? 'cursor-not-allowed' : ''}`}
+        >
+          {t('ui.techRouteEdgeCloudHybrid')}
+        </button>
+      </div>
+      <p className="text-[10px] text-slate-500 leading-snug">{hint}</p>
+    </div>
+  );
+};
+
 // --- Player Selector Modal Component ---
 const PlayerSelectorModal = () => {
   const {
@@ -1467,7 +1877,29 @@ const TransferListScreen = () => {
 
 const TaskCenterScreen = () => {
 
-  const { t, transferStep, transferProgress, popView, setTargetAnalysisType, setAiMode, setIsTaskCompleted, pushView, failureReason, setResultSport, setTransferStep, setTransferProgress, cloudTasks, getAnalyzingTasksCount, getQueuedTasks, maxConcurrentTasks, setToastMessage } = useAppContext();
+  const {
+    t,
+    transferStep,
+    transferProgress,
+    popView,
+    setTargetAnalysisType,
+    setAiMode,
+    setIsTaskCompleted,
+    pushView,
+    failureReason,
+    setResultSport,
+    setTransferStep,
+    setTransferProgress,
+    cloudTasks,
+    getAnalyzingTasksCount,
+    getQueuedTasks,
+    maxConcurrentTasks,
+    setToastMessage,
+    analysisPipeline,
+    hybridPastEdge,
+    hybridLocalOnlyThisRun,
+    hybridCloudDeepThisRun,
+  } = useAppContext();
 
   // Get paused tasks from history
   const pausedTasks = HISTORY_TASKS.filter((task: any) => task.status === 'paused');
@@ -1507,6 +1939,28 @@ const TaskCenterScreen = () => {
     setEditingTaskId(null);
   };
 
+  const activePipe =
+    transferStep !== 'idle' && transferStep !== 'completed'
+      ? getTransferPipelinePresentation({
+          analysisPipeline,
+          transferStep,
+          hybridPastEdge,
+          hybridLocalOnlyThisRun,
+          hybridCloudDeepThisRun,
+          isFailed: transferStep === 'failed',
+          isPaused: transferStep === 'paused',
+        })
+      : null;
+
+  const taskCenterIconWrap =
+    activePipe?.taskCenterTone === 'red'
+      ? 'bg-red-100 text-red-600'
+      : activePipe?.taskCenterTone === 'orange'
+        ? 'bg-orange-100 text-orange-600'
+        : activePipe?.taskCenterTone === 'emerald'
+          ? 'bg-emerald-100 text-emerald-700'
+          : 'bg-blue-100 text-blue-600';
+
   return (
 
     <div className="flex flex-col h-full bg-[#F5F5F5] animate-in slide-in-from-right">
@@ -1540,9 +1994,17 @@ const TaskCenterScreen = () => {
 
                     <div className="flex items-center gap-3">
 
-                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${transferStep === 'failed' ? 'bg-red-100 text-red-600' : (transferStep === 'downloading' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600')}`}>
+                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${transferStep === 'failed' ? 'bg-red-100 text-red-600' : taskCenterIconWrap}`}>
 
-                           {transferStep === 'failed' ? <AlertTriangle className="w-5 h-5"/> : (transferStep === 'downloading' ? <DownloadCloud className="w-5 h-5" /> : <UploadCloud className="w-5 h-5" />)}
+                           {activePipe?.taskCenterIcon === 'alert' ? (
+                             <AlertTriangle className="w-5 h-5" />
+                           ) : activePipe?.taskCenterIcon === 'cpu' ? (
+                             <Cpu className="w-5 h-5" />
+                           ) : activePipe?.taskCenterIcon === 'download' ? (
+                             <DownloadCloud className="w-5 h-5" />
+                           ) : (
+                             <UploadCloud className="w-5 h-5" />
+                           )}
 
                        </div>
 
@@ -1550,7 +2012,7 @@ const TaskCenterScreen = () => {
 
                            <h4 className={`text-sm font-bold ${transferStep === 'failed' ? 'text-red-700' : 'text-slate-800'}`}>
 
-                               {transferStep === 'failed' ? t('ui.taskFailedShort') : (transferStep === 'paused' ? t('ui.taskPaused') : (transferStep === 'downloading' ? t('ui.downloadingFromFalcon') : t('ui.uploadingToCloudShort')))}
+                               {activePipe ? t(activePipe.taskCenterTitleKey) : ''}
 
                            </h4>
 
@@ -2191,6 +2653,8 @@ const GalleryScreen = () => {
     setSportType,
     submitAiAnalysis,
     cloudTasks,
+    analysisPipeline,
+    setGalleryHybridDemoView,
   } = useAppContext();
   const [sourceTab, setSourceTab] = useState<VideoSource>('falcon');
   const [typeTab, setTypeTab] = useState<'all' | 'video' | 'image' | 'collect'>('all');
@@ -2198,6 +2662,10 @@ const GalleryScreen = () => {
   const [detailFromAnalyzedCard, setDetailFromAnalyzedCard] = useState(false);
   const [detailAnalyzedType, setDetailAnalyzedType] = useState<'highlight' | 'analysis'>('analysis');
   const [aiDecisionPayload, setAiDecisionPayload] = useState<{ videoId: number; relatedIds: number[] } | null>(null);
+  /** 第四条路线：相册详情 / 合并决策后，选择「本地快析」或「云端深析」 */
+  const [hybridAnalysisTierSheet, setHybridAnalysisTierSheet] = useState<
+    null | { videoIds: number[]; mode: 'single' | 'merge' }
+  >(null);
 
   const soccerVideos = React.useMemo(() => {
     const bySport = ALL_VIDEOS.filter((video) => video.category === 'soccer');
@@ -2250,6 +2718,19 @@ const GalleryScreen = () => {
     pushView(analysisType === 'highlight' ? 'ai_result_highlight' : 'ai_result_analysis');
   };
   const detailVideo = detailVideoId != null ? ALL_VIDEOS.find((video) => video.id === detailVideoId) : null;
+
+  const queueHybridOrSubmit = (videoIds: number[], mode: 'single' | 'merge') => {
+    setTargetAnalysisType('highlight');
+    setSelectionMode(mode === 'merge' ? 'multiple' : 'single');
+    setSportType('soccer');
+    setAiDecisionPayload(null);
+    if (analysisPipeline === 'edge_cloud_hybrid') {
+      setHybridAnalysisTierSheet({ videoIds, mode });
+      return;
+    }
+    submitAiAnalysis(videoIds, 'video_detail', mode);
+  };
+
   const getVideoTaskMeta = (videoId: number) => {
     const task = latestTaskByVideoId.get(videoId);
     if (!task) return { task: null as CloudTask | null, label: 'AI', className: 'bg-orange-500 text-white', action: 'start' as const };
@@ -2265,10 +2746,25 @@ const GalleryScreen = () => {
       setAiDecisionPayload({ videoId, relatedIds });
       return;
     }
-    setTargetAnalysisType('highlight');
-    setSelectionMode('single');
-    setSportType('soccer');
-    submitAiAnalysis([videoId], 'video_detail', 'single');
+    queueHybridOrSubmit([videoId], 'single');
+  };
+
+  const openHybridGalleryEdgeResult = () => {
+    setGalleryHybridDemoView('edge_result');
+    setTargetAnalysisType('analysis');
+    setAiMode('cloud');
+    setIsTaskCompleted(true);
+    setResultSport('soccer');
+    pushView('ai_result_analysis');
+  };
+
+  const openHybridGalleryCloudResult = () => {
+    setGalleryHybridDemoView('cloud_result');
+    setTargetAnalysisType('analysis');
+    setAiMode('cloud');
+    setIsTaskCompleted(true);
+    setResultSport('soccer');
+    pushView('ai_result_analysis');
   };
 
   return (
@@ -2333,6 +2829,69 @@ const GalleryScreen = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-5">
+        {analysisPipeline === 'edge_cloud_hybrid' && (
+          <section className="space-y-2">
+            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide px-0.5">
+              {t('gallery.hybridRouteSectionTitle')}
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={openHybridGalleryEdgeResult}
+                className="rounded-xl overflow-hidden border border-emerald-200 bg-white text-left shadow-sm aspect-[4/5] flex flex-col"
+              >
+                <div className="relative flex-1 min-h-0">
+                  <AssetThumbnail type="video" category="soccer" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                  <div className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-emerald-500/90 flex items-center justify-center border border-white/30">
+                    <Cpu className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+                <div className="px-2 py-2 border-t border-slate-100">
+                  <p className="text-[11px] font-bold text-slate-900 leading-tight">{t('gallery.hybridCardEdgeTitle')}</p>
+                  <p className="text-[9px] text-slate-500 mt-0.5">{t('gallery.hybridCardEdgeSub')}</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={openHybridGalleryCloudResult}
+                className="rounded-xl overflow-hidden border border-indigo-200 bg-white text-left shadow-sm aspect-[4/5] flex flex-col"
+              >
+                <div className="relative flex-1 min-h-0">
+                  <AssetThumbnail type="video" category="soccer" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                  <div className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-indigo-500/90 flex items-center justify-center border border-white/30">
+                    <Cloud className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+                <div className="px-2 py-2 border-t border-slate-100">
+                  <p className="text-[11px] font-bold text-slate-900 leading-tight">{t('gallery.hybridCardCloudTitle')}</p>
+                  <p className="text-[9px] text-slate-500 mt-0.5">{t('gallery.hybridCardCloudSub')}</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDetailVideoId(HYBRID_GALLERY_DETAIL_VIDEO_ID);
+                  setDetailFromAnalyzedCard(false);
+                }}
+                className="rounded-xl overflow-hidden border border-orange-200 bg-white text-left shadow-sm aspect-[4/5] flex flex-col"
+              >
+                <div className="relative flex-1 min-h-0">
+                  <AssetThumbnail type="video" category="soccer" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                  <div className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-orange-500/90 flex items-center justify-center border border-white/30">
+                    <PlayCircle className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+                <div className="px-2 py-2 border-t border-slate-100">
+                  <p className="text-[11px] font-bold text-slate-900 leading-tight">{t('gallery.hybridCardDetailTitle')}</p>
+                  <p className="text-[9px] text-slate-500 mt-0.5">{t('gallery.hybridCardDetailSub')}</p>
+                </div>
+              </button>
+            </div>
+          </section>
+        )}
         {groupedVideos.length === 0 && (
           <div className="text-center text-slate-400 text-sm py-10">{t('ui.pickerNoMatches')}</div>
         )}
@@ -2523,7 +3082,14 @@ const GalleryScreen = () => {
       {detailVideo && (
         <div className="absolute inset-0 z-[75] bg-black text-white flex flex-col">
           <div className="h-12 flex items-center justify-between px-3 border-b border-white/10">
-            <button type="button" onClick={() => setDetailVideoId(null)} className="p-2">
+            <button
+              type="button"
+              onClick={() => {
+                setDetailVideoId(null);
+                setHybridAnalysisTierSheet(null);
+              }}
+              className="p-2"
+            >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <span className="text-sm font-bold truncate">{t((detailVideo as any).labelKey)}</span>
@@ -2582,11 +3148,7 @@ const GalleryScreen = () => {
             <button
               type="button"
               onClick={() => {
-                setTargetAnalysisType('highlight');
-                setSelectionMode('single');
-                setSportType('soccer');
-                submitAiAnalysis([aiDecisionPayload.videoId], 'video_detail', 'single');
-                setAiDecisionPayload(null);
+                queueHybridOrSubmit([aiDecisionPayload.videoId], 'single');
               }}
               className="w-full py-3 rounded-xl border border-white/10 text-white text-sm font-bold"
             >
@@ -2595,15 +3157,63 @@ const GalleryScreen = () => {
             <button
               type="button"
               onClick={() => {
-                setTargetAnalysisType('highlight');
-                setSelectionMode('multiple');
-                setSportType('soccer');
-                submitAiAnalysis(aiDecisionPayload.relatedIds, 'video_detail', 'merge');
-                setAiDecisionPayload(null);
+                queueHybridOrSubmit(aiDecisionPayload.relatedIds, 'merge');
               }}
               className="w-full py-3 rounded-xl bg-orange-500 text-white text-sm font-bold"
             >
               {t('ui.aiAnalyzeMergeRecommended', { count: aiDecisionPayload.relatedIds.length })}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {hybridAnalysisTierSheet && analysisPipeline === 'edge_cloud_hybrid' && (
+        <div className="absolute inset-0 z-[85] flex items-end justify-center">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+            onClick={() => setHybridAnalysisTierSheet(null)}
+            aria-label={t('gallery.hybridTierCancel')}
+          />
+          <div className="relative w-full max-w-md rounded-t-[22px] bg-gradient-to-b from-[#0f172a] to-[#0a1628] border-t border-emerald-500/20 shadow-[0_-12px_40px_rgba(0,0,0,0.45)] px-4 pt-4 pb-8">
+            <div className="w-9 h-1 rounded-full bg-white/15 mx-auto mb-4" />
+            <h3 className="text-[15px] font-black text-white text-center leading-snug">{t('gallery.hybridTierSheetTitle')}</h3>
+            <p className="text-[11px] text-slate-400 text-center mt-1.5 mb-4 px-1">{t('gallery.hybridTierSheetSubtitle')}</p>
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const payload = hybridAnalysisTierSheet;
+                  setHybridAnalysisTierSheet(null);
+                  submitAiAnalysis(payload.videoIds, 'video_detail', payload.mode, 'local_fast');
+                }}
+                className="w-full text-left rounded-2xl border border-emerald-500/35 bg-emerald-950/40 px-4 py-3.5 active:scale-[0.99] transition-transform"
+              >
+                <p className="text-[14px] font-black text-emerald-100">{t('gallery.hybridTierLocalTitle')}</p>
+                <p className="text-[11px] text-emerald-100/75 mt-1 leading-relaxed">{t('gallery.hybridTierLocalDesc')}</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const payload = hybridAnalysisTierSheet;
+                  setHybridAnalysisTierSheet(null);
+                  submitAiAnalysis(payload.videoIds, 'video_detail', payload.mode, 'cloud_deep');
+                }}
+                className="w-full text-left rounded-2xl border border-indigo-400/40 bg-indigo-950/50 px-4 py-3.5 relative overflow-hidden active:scale-[0.99] transition-transform ring-1 ring-indigo-400/25"
+              >
+                <span className="absolute top-3 right-3 text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full bg-indigo-500 text-white shadow-sm">
+                  {t('gallery.hybridTierRecommend')}
+                </span>
+                <p className="text-[14px] font-black text-indigo-100 pr-16">{t('gallery.hybridTierCloudTitle')}</p>
+                <p className="text-[11px] text-indigo-100/80 mt-1 leading-relaxed">{t('gallery.hybridTierCloudDesc')}</p>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHybridAnalysisTierSheet(null)}
+              className="w-full mt-4 py-2.5 text-[12px] font-semibold text-slate-500"
+            >
+              {t('gallery.hybridTierCancel')}
             </button>
           </div>
         </div>
@@ -4203,6 +4813,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       setToastMessage,
       isVip,
       t,
+      galleryHybridDemoView,
+      setGalleryHybridDemoView,
     } = useAppContext();
 
     const [currentTime, setCurrentTime] = useState('00:00');
@@ -4251,9 +4863,16 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         setClipsState(AI_CLIPS_ADVANCED.filter(clip => clip.sport === (resultSport || 'soccer')));
     }, [resultSport]);
 
+    const hybridEdgeSparse = galleryHybridDemoView === 'edge_result';
+
+    const tierSourceClips = React.useMemo(() => {
+      if (!hybridEdgeSparse) return clipsState;
+      return filterClipsForHybridEdgeTier(clipsState);
+    }, [clipsState, hybridEdgeSparse]);
+
     // Extract unique players (labels) from eventClaims + clip.player for filter
     const availablePlayers = Array.from(new Set(
-        clipsState.flatMap(clip => {
+        tierSourceClips.flatMap(clip => {
           const L = (eventClaims[clip.id] ?? clip.player) as string | null | undefined;
           return L && L.trim() ? [L.trim()] : [];
         })
@@ -4533,6 +5152,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const handleMergeClips = () => {
         if (selectedClipIds.length === 0) return;
+        if (hybridEdgeSparse) {
+            setToastMessage(t('gallery.hybridNeedCloudForExport'));
+            setTimeout(() => setToastMessage(null), 2800);
+            return;
+        }
 
         setShareContext({ type: 'selected' });
         setProgressModal({ show: true, title: t('ui.mergingSaving'), progress: 0 });
@@ -4554,7 +5178,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     };
 
     const handleSharePlayerClips = (label: string) => {
-        const playerClips = clipsState.filter(c => (eventClaims[c.id] ?? c.player) === label);
+        const playerClips = tierSourceClips.filter(c => (eventClaims[c.id] ?? c.player) === label);
         if (playerClips.length === 0) {
             setToastMessage(t('ui.noClipsForPlayer'));
             setTimeout(() => setToastMessage(null), 2000);
@@ -4585,6 +5209,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     };
 
     const handleExportAll = () => {
+        if (hybridEdgeSparse) {
+            setToastMessage(t('gallery.hybridNeedCloudForExport'));
+            setTimeout(() => setToastMessage(null), 2800);
+            return;
+        }
         setProgressModal({ show: true, title: t('ui.exportingAll'), progress: 0 });
 
         let progress = 0;
@@ -4604,6 +5233,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     };
 
     const handleExportReport = () => {
+        if (hybridEdgeSparse) {
+            setToastMessage(t('gallery.hybridNeedCloudForExport'));
+            setTimeout(() => setToastMessage(null), 2800);
+            return;
+        }
         setProgressModal({ show: true, title: t('ui.generatingReport'), progress: 0 });
 
         let progress = 0;
@@ -4625,23 +5259,41 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const statsData = isSoccer ? SOCCER_MATCH_STATS : TEAM_MATCH_STATS;
 
+    const tierStatsData = React.useMemo(() => {
+      if (!hybridEdgeSparse) return statsData;
+      if (isSoccer) {
+        return {
+          ...SOCCER_MATCH_STATS,
+          comparison: SOCCER_MATCH_STATS.comparison.filter((row: { rowKey: string }) =>
+            ['goals', 'shotsOnTarget', 'corners'].includes(row.rowKey)
+          ),
+        } as typeof statsData;
+      }
+      return {
+        ...TEAM_MATCH_STATS,
+        comparison: TEAM_MATCH_STATS.comparison.filter((row: { rowKey: string }) =>
+          ['totalPoints', 'threePtPct', 'rebounds', 'assists'].includes(row.rowKey)
+        ),
+      } as typeof statsData;
+    }, [hybridEdgeSparse, isSoccer, statsData]);
+
     // Helper function to find first event of a specific type
     const findFirstEventByType = (eventType: string | number) => {
         if (isSoccer) {
             if (eventType === 'goal') {
-                return clipsState.find(clip => clip.scoreType === 'goal');
+                return tierSourceClips.find(clip => clip.scoreType === 'goal');
             }
-            return clipsState.find(clip => clip.scoreType === eventType);
+            return tierSourceClips.find(clip => clip.scoreType === eventType);
         } else {
             if (eventType === 'score') {
                 // For 'score' (总得分), return first score event
-                return clipsState.find(clip => clip.type === 'score');
+                return tierSourceClips.find(clip => clip.type === 'score');
             }
             if (eventType === 1 || eventType === 2 || eventType === 3) {
-                return clipsState.find(clip => clip.type === 'score' && clip.scoreType === eventType);
+                return tierSourceClips.find(clip => clip.type === 'score' && clip.scoreType === eventType);
             }
             if (eventType === 'rebound' || eventType === 'steal' || eventType === 'assist') {
-                return clipsState.find(clip => clip.type === 'basketball_event' && clip.scoreType === eventType);
+                return tierSourceClips.find(clip => clip.type === 'basketball_event' && clip.scoreType === eventType);
             }
         }
         return undefined;
@@ -4712,9 +5364,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     // Process stats comparison for Pro view (basketball order; rows use rowKey)
     const processedStatsComparison = isSoccer 
-        ? statsData.comparison 
+        ? tierStatsData.comparison 
         : (() => {
-            const comparison = [...statsData.comparison] as Array<{ rowKey: string; a: any; b: any; highlight?: boolean }>;
+            const comparison = [...tierStatsData.comparison] as Array<{ rowKey: string; a: any; b: any; highlight?: boolean }>;
             const findRowByKey = (rowKey: string) => comparison.find(item => item.rowKey === rowKey);
 
             const rows: Array<{ rowKey: string; a: any; b: any; highlight?: boolean }> = [];
@@ -4751,7 +5403,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       : [ { id: 'all', labelKey: 'filter.all' }, { id: 3, labelKey: 'clips.3ptShort' }, { id: 2, labelKey: 'clips.2ptShort' }, { id: 1, labelKey: 'filter.ft' }, { id: 'rebound', labelKey: 'filter.rebound' }, { id: 'steal', labelKey: 'filter.steal' }, { id: 'assist', labelKey: 'filter.assist' } ];
 
     // Display clips for clips tab
-    const displayClips = clipsState.filter(clip => { 
+    const displayClips = tierSourceClips.filter(clip => { 
         if (selectedCollection === 'team_a' && clip.team !== 'A') return false;
         if (selectedCollection === 'team_b' && clip.team !== 'B') return false;
         
@@ -4786,7 +5438,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const proWeeklyTrainingByIssues = React.useMemo(() => {
         const sport = isSoccer ? 'soccer' : 'basketball';
         const seen = new Map<string, { issueKey: string; hintKey: string; fromClips: string[]; drillIds: string[] }>();
-        for (const clip of clipsState.filter((c) => c.sport === sport)) {
+        for (const clip of tierSourceClips.filter((c) => c.sport === sport)) {
             const ext = CLIP_COACH_EXTENSIONS[clip.id];
             if (!ext) continue;
             const label = clip.labelKey ? t(clip.labelKey) : '';
@@ -4810,7 +5462,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             }
         }
         return Array.from(seen.values());
-    }, [clipsState, isSoccer, t]);
+    }, [tierSourceClips, isSoccer, t]);
 
     /** Pro 报告内跟练：进入全屏预览页（演示进度与文案），不弹订阅窗 */
     const openProTrainingFollowAlong = (payload: {
@@ -4841,6 +5493,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         HIGHLIGHT_COLLECTIONS.find((c) => c.id === selectedCollection)?.labelKey ?? HIGHLIGHT_COLLECTIONS[0].labelKey;
 
     const handleProTemplateCompose = (templateId: string, labelKey: string, proOnly: boolean) => {
+        if (hybridEdgeSparse) {
+            setToastMessage(t('gallery.hybridComposeLockedToast'));
+            setTimeout(() => setToastMessage(null), 2800);
+            return;
+        }
         if (proOnly && !isVip) {
             setToastMessage(t('compose.proOnlyTemplate'));
             setTimeout(() => setToastMessage(null), 2500);
@@ -4881,7 +5538,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         } 
     };
 
-    const filteredEvents = clipsState.filter(clip => { 
+    const filteredEvents = tierSourceClips.filter(clip => { 
 
         if (clip.sport !== (resultSport || 'soccer')) return false;
 
@@ -4917,11 +5574,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       : [{ id: 'all', labelKey: 'filterShort.all' }, { id: 3, labelKey: 'filterShort.3' }, { id: 2, labelKey: 'filterShort.2' }, { id: 1, labelKey: 'filterShort.1' }, { id: 'rebound', labelKey: 'filterShort.rebound' }, { id: 'steal', labelKey: 'filterShort.steal' }, { id: 'assist', labelKey: 'filterShort.assist' }];
     const keyTimelineEvents = React.useMemo(() => {
         if (!isSoccer) return [] as any[];
-        return clipsState
+        return tierSourceClips
             .filter((clip) => ['goal', 'corner', 'setpiece', 'penalty'].includes(String(clip.scoreType)))
             .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)))
             .slice(0, 6);
-    }, [clipsState, isSoccer]);
+    }, [tierSourceClips, isSoccer]);
     const getSoccerEventInsightKey = (scoreType: string) => {
         if (scoreType === 'goal') return 'matchReport.eventInsightGoal';
         if (scoreType === 'corner') return 'matchReport.eventInsightCorner';
@@ -4933,8 +5590,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         [keyTimelineEvents, timelineFilter]
     );
     const comparativeRows = React.useMemo(
-        () => statsData.comparison.filter((row: any) => ['goals', 'shotsOnTarget', 'possession', 'corners'].includes(row.rowKey)),
-        [statsData]
+        () => tierStatsData.comparison.filter((row: any) => ['goals', 'shotsOnTarget', 'possession', 'corners'].includes(row.rowKey)),
+        [tierStatsData]
     );
 
     return (
@@ -4947,6 +5604,36 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
            </button>
          </div>
 
+         {galleryHybridDemoView === 'edge_result' && (
+           <div className="relative z-25 px-4 pt-14 pb-2">
+             <div className="rounded-xl border border-emerald-500/45 bg-emerald-950/55 px-3 py-2.5 space-y-2">
+               <p className="text-[12px] font-bold text-white leading-snug">{t('gallery.hybridEdgeBannerTitle')}</p>
+               <p className="text-[10px] text-emerald-100/85 leading-relaxed">{t('gallery.hybridEdgeBannerSub')}</p>
+               <button
+                 type="button"
+                 onClick={() => {
+                   setGalleryHybridDemoView('cloud_result');
+                   setToastMessage(t('gallery.hybridCloudPreviewToast'));
+                   setTimeout(() => setToastMessage(null), 2800);
+                 }}
+                 className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/30"
+               >
+                 {t('gallery.hybridUploadToCloudCta')}
+               </button>
+             </div>
+           </div>
+         )}
+         {galleryHybridDemoView === 'cloud_result' && (
+           <div className="relative z-25 px-4 pt-14 pb-2">
+             <div className="rounded-xl border border-indigo-500/45 bg-indigo-950/55 px-3 py-2.5">
+               <p className="text-[11px] text-indigo-100/95 leading-snug flex items-center gap-2">
+                 <Crown className="w-4 h-4 text-amber-300 shrink-0" />
+                 {t('gallery.hybridCloudBanner')}
+               </p>
+             </div>
+           </div>
+         )}
+
          {isSoccer && (
            <div className="px-4 pt-4 pb-3 border-b border-white/10 bg-[#0F172A]">
              <div className="rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] p-3 space-y-3">
@@ -4958,15 +5645,18 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                </div>
                <div className="mt-2 grid grid-cols-3 items-end">
                  <div className="text-left">
-                   <p className={`text-3xl font-black ${statsData.teamA.color}`}>{statsData.teamA.score}</p>
-                   <p className="text-[11px] font-bold text-slate-200">{t(statsData.teamA.nameKey)}</p>
+                   <p className={`text-3xl font-black ${tierStatsData.teamA.color}`}>{tierStatsData.teamA.score}</p>
+                   <p className="text-[11px] font-bold text-slate-200">{t(tierStatsData.teamA.nameKey)}</p>
                  </div>
                  <div className="text-center text-slate-500 text-xs font-black pb-1">VS</div>
                  <div className="text-right">
-                   <p className={`text-3xl font-black ${statsData.teamB.color}`}>{statsData.teamB.score}</p>
-                   <p className="text-[11px] font-bold text-slate-200">{t(statsData.teamB.nameKey)}</p>
+                   <p className={`text-3xl font-black ${tierStatsData.teamB.color}`}>{tierStatsData.teamB.score}</p>
+                   <p className="text-[11px] font-bold text-slate-200">{t(tierStatsData.teamB.nameKey)}</p>
                  </div>
                </div>
+               {hybridEdgeSparse && (
+                 <p className="text-[9px] text-amber-200/85 leading-snug">{t('gallery.hybridEdgeStatsFootnote')}</p>
+               )}
              </div>
            </div>
          )}
@@ -4993,13 +5683,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
              {!isSoccer && <div className="absolute bottom-0 left-0 right-0 p-4 pb-4 z-20 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/80 to-transparent">
                  <div className="flex justify-between items-end mb-2">
                      <div className="flex flex-col items-center">
-                         <span className={`text-3xl font-black ${statsData.teamA.color} drop-shadow-lg`}>{statsData.teamA.score}</span>
-                         <span className="text-xs font-bold text-white/90">{t(statsData.teamA.nameKey)}</span>
+                         <span className={`text-3xl font-black ${tierStatsData.teamA.color} drop-shadow-lg`}>{tierStatsData.teamA.score}</span>
+                         <span className="text-xs font-bold text-white/90">{t(tierStatsData.teamA.nameKey)}</span>
                      </div>
                      <div className="text-2xl font-black text-slate-500 pb-2">VS</div>
                      <div className="flex flex-col items-center">
-                         <span className={`text-3xl font-black ${statsData.teamB.color} drop-shadow-lg`}>{statsData.teamB.score}</span>
-                         <span className="text-xs font-bold text-white/90">{t(statsData.teamB.nameKey)}</span>
+                         <span className={`text-3xl font-black ${tierStatsData.teamB.color} drop-shadow-lg`}>{tierStatsData.teamB.score}</span>
+                         <span className="text-xs font-bold text-white/90">{t(tierStatsData.teamB.nameKey)}</span>
                      </div>
                  </div>
              </div>}
@@ -5019,7 +5709,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                </div>
                <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{t('matchReport.sessionDescPro')}</p>
                <p className="text-[10px] text-slate-500 mt-2 font-medium">
-                 {t(statsData.teamA.nameKey)} {statsData.teamA.score} {t('matchReport.scoreLineSep')} {statsData.teamB.score} {t(statsData.teamB.nameKey)}
+                 {t(tierStatsData.teamA.nameKey)} {tierStatsData.teamA.score} {t('matchReport.scoreLineSep')} {tierStatsData.teamB.score} {t(tierStatsData.teamB.nameKey)}
                  <span className="text-slate-600 mx-1.5">·</span>
                  {isSoccer ? t('matchReport.sportSoccer') : t('matchReport.sportBasketball')}
                </p>
@@ -5086,6 +5776,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                  </span>
                                ))}
                              </div>
+                             {!hybridEdgeSparse ? (
+                               <>
                              <div className="flex flex-wrap gap-2 pt-0.5">
                                <button
                                  type="button"
@@ -5120,10 +5812,18 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-white/10 text-sky-200/90 border border-sky-500/25">{t('proReel.badgeBeat')}</span>
                                </div>
                              </div>
+                               </>
+                             ) : (
+                               <div className="rounded-xl border border-slate-600/60 bg-slate-900/40 p-3 space-y-1.5">
+                                 <p className="text-[10px] font-bold text-slate-300">{t('gallery.hybridComposeLockedTitle')}</p>
+                                 <p className="text-[9px] text-slate-500 leading-relaxed">{t('gallery.hybridComposeLocked')}</p>
+                               </div>
+                             )}
                            </div>
                          </div>
 
                          {/* 快捷套用模板（含 Pro 专属与影院级档位） */}
+                         {!hybridEdgeSparse && (
                          <div className="mb-4">
                            <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
                              <h4 className="text-xs font-bold text-white">{t('proReel.quickTemplatesTitle')}</h4>
@@ -5166,6 +5866,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                              })}
                            </div>
                          </div>
+                         )}
 
                          {/* Collections - Horizontal Scroll */}
 
@@ -6311,7 +7012,18 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   const [showExportToast, setShowExportToast] = useState(false); 
 
-  const [aiMode, setAiMode] = useState<AIMode>('cloud'); 
+  const [aiMode, setAiMode] = useState<AIMode>('cloud');
+
+  const [analysisPipeline, setAnalysisPipeline] = useState<AnalysisPipeline>('falcon_app_cloud');
+
+  /** Hybrid pipeline: false = 端侧核心分析阶段；true = 已完成端侧，进入上传/云端全量阶段 */
+  const [hybridPastEdge, setHybridPastEdge] = useState(false);
+
+  /** 当前混合任务素材来源（用于重试时从下载或端侧分析重启） */
+  const [hybridSourceMedia, setHybridSourceMedia] = useState<'falcon' | 'local' | null>(null);
+
+  /** 相册第四条路线演示：从卡片进入赛果页时的预览类型 */
+  const [galleryHybridDemoView, setGalleryHybridDemoView] = useState<null | 'edge_result' | 'cloud_result'>(null);
 
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('single');
 
@@ -6367,6 +7079,43 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
   } | null>(null);
 
   const prevTransferStepRef = useRef<TransferStep>('idle');
+
+  /** 与 hybridPastEdge 同步，供传输进度 interval 内可靠读取 */
+  const hybridPastEdgeRef = useRef(false);
+
+  /** 混合路线：用户选「云端深析」时，Falcon 素材下载完成后跳过端侧快析，直接进入上云 */
+  const hybridSkipEdgeAfterDownloadRef = useRef(false);
+
+  /** 混合路线：用户选「极速本地快析」时，端侧阶段结束后不再上云（与运营文案一致） */
+  const hybridLocalOnlyThisRunRef = useRef(false);
+
+  /** 与 ref 同步，供 TransferOverlay / FloatingProgress 展示端侧「处理中」布局 */
+  const [hybridLocalOnlyThisRun, setHybridLocalOnlyThisRun] = useState(false);
+
+  /** 混合路线 +「专业云端深析」：流水线第三格走云端（Falcon→App→云→AI），而非本机快析 */
+  const [hybridCloudDeepThisRun, setHybridCloudDeepThisRun] = useState(false);
+
+  useEffect(() => {
+    hybridPastEdgeRef.current = hybridPastEdge;
+  }, [hybridPastEdge]);
+
+  useEffect(() => {
+    if (transferStep === 'idle' || transferStep === 'completed') {
+      setHybridPastEdge(false);
+      hybridPastEdgeRef.current = false;
+      hybridSkipEdgeAfterDownloadRef.current = false;
+      hybridLocalOnlyThisRunRef.current = false;
+      setHybridLocalOnlyThisRun(false);
+      setHybridCloudDeepThisRun(false);
+      setHybridSourceMedia(null);
+    }
+    if (transferStep === 'failed') {
+      hybridSkipEdgeAfterDownloadRef.current = false;
+      hybridLocalOnlyThisRunRef.current = false;
+      setHybridLocalOnlyThisRun(false);
+      setHybridCloudDeepThisRun(false);
+    }
+  }, [transferStep]);
 
   const [networkState, setNetworkState] = useState<NetworkState>('wifi');
 
@@ -6526,7 +7275,10 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   const popView = () => setViewStack(viewStack.slice(0, -1));
 
-  const popToHome = () => setViewStack(['home']);
+  const popToHome = () => {
+    setGalleryHybridDemoView(null);
+    setViewStack(['home']);
+  };
 
   const replaceView = (view: ViewState) => setViewStack(prev => [...prev.slice(0, -1), view]);
 
@@ -6601,7 +7353,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
   const submitAiAnalysis = (
     videoIds: number[],
     entrySurface: 'media_picker_next' | 'gallery_badge' | 'gallery_aggregate' | 'video_detail',
-    mode: 'single' | 'merge'
+    mode: 'single' | 'merge',
+    hybridTierChoice?: 'local_fast' | 'cloud_deep'
   ) => {
     if (videoIds.length === 0) {
       setToastMessage(t('ui.selectVideoFirst'));
@@ -6623,12 +7376,17 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     setSelectedMedia(videoIds);
     setSelectionMode(merged ? 'multiple' : 'single');
 
+    hybridLocalOnlyThisRunRef.current = false;
+    setHybridLocalOnlyThisRun(false);
+    setHybridCloudDeepThisRun(false);
+
     console.info('[ai_entry]', {
       event: 'ai_entry_click',
       entrySurface,
       mode,
       segmentCount: selectedVideos.length,
       videoIds,
+      hybridTierChoice: hybridTierChoice ?? null,
     });
 
     if (mainVideo.source === 'falcon') {
@@ -6639,13 +7397,112 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         analysisType: targetAnalysisType || 'highlight',
         sport: String((mainVideo as any).category || 'soccer'),
       });
-      setTransferStep('downloading');
+      if (analysisPipeline === 'on_device') {
+        setTransferStep('analyzing');
+      } else if (analysisPipeline === 'falcon_direct_cloud') {
+        setTransferStep('uploading');
+      } else if (analysisPipeline === 'edge_cloud_hybrid') {
+        hybridSkipEdgeAfterDownloadRef.current = hybridTierChoice === 'cloud_deep';
+        const localOnly = hybridTierChoice === 'local_fast';
+        const cloudDeep = hybridTierChoice === 'cloud_deep';
+        hybridLocalOnlyThisRunRef.current = localOnly;
+        setHybridLocalOnlyThisRun(localOnly);
+        setHybridCloudDeepThisRun(cloudDeep);
+        setHybridPastEdge(false);
+        hybridPastEdgeRef.current = false;
+        setHybridSourceMedia('falcon');
+        setTransferStep('downloading');
+      } else {
+        setTransferStep('downloading');
+      }
       setTransferProgress(0);
       pushView('home');
       return;
     }
 
     if (mainVideo.source === 'local') {
+      if (analysisPipeline === 'on_device') {
+        setPostRecordModalPayload({
+          cloudAlreadyQueued: false,
+          videoId: mainVideo.id,
+          videoName: taskName,
+          analysisType: targetAnalysisType || 'highlight',
+          sport: String((mainVideo as any).category || 'soccer'),
+        });
+        setTransferStep('analyzing');
+        setTransferProgress(0);
+        pushView('home');
+        if (merged) {
+          setToastMessage(t('ui.aiMergeTaskCreated', { count: selectedVideos.length }));
+          setTimeout(() => setToastMessage(null), 2800);
+        }
+        return;
+      }
+
+      if (analysisPipeline === 'edge_cloud_hybrid') {
+        setPostRecordModalPayload({
+          cloudAlreadyQueued: false,
+          videoId: mainVideo.id,
+          videoName: taskName,
+          analysisType: targetAnalysisType || 'highlight',
+          sport: String((mainVideo as any).category || 'soccer'),
+        });
+        if (hybridTierChoice === 'cloud_deep') {
+          hybridLocalOnlyThisRunRef.current = false;
+          setHybridLocalOnlyThisRun(false);
+          setHybridCloudDeepThisRun(true);
+          hybridPastEdgeRef.current = true;
+          setHybridPastEdge(true);
+          setHybridSourceMedia('local');
+          addCloudTask(mainVideo.id, taskName, targetAnalysisType || 'highlight');
+          setPostRecordModalPayload({
+            cloudAlreadyQueued: true,
+            videoId: mainVideo.id,
+            videoName: taskName,
+            analysisType: targetAnalysisType || 'highlight',
+            sport: String((mainVideo as any).category || 'soccer'),
+          });
+          const analyzingCount = getAnalyzingTasksCount();
+          const isQueued = analyzingCount >= maxConcurrentTasks;
+          if (networkState === '4g') {
+            setShowCellularAlert(true);
+            pushView('home');
+          } else if (networkState === 'offline') {
+            setTransferStep('paused');
+            pushView('home');
+          } else {
+            setTransferStep('uploading');
+            setTransferProgress(0);
+            pushView('home');
+            if (isQueued) {
+              setToastMessage('分析任务繁忙，等待排队分析');
+              setTimeout(() => setToastMessage(null), 8000);
+            } else if (merged) {
+              setToastMessage(t('ui.aiMergeTaskCreated', { count: selectedVideos.length }));
+              setTimeout(() => setToastMessage(null), 2800);
+            }
+          }
+          return;
+        }
+        hybridLocalOnlyThisRunRef.current = true;
+        setHybridLocalOnlyThisRun(true);
+        setHybridCloudDeepThisRun(false);
+        setHybridPastEdge(false);
+        hybridPastEdgeRef.current = false;
+        setHybridSourceMedia('local');
+        setTransferStep('analyzing');
+        setTransferProgress(0);
+        pushView('home');
+        if (merged) {
+          setToastMessage(t('ui.aiMergeTaskCreated', { count: selectedVideos.length }));
+          setTimeout(() => setToastMessage(null), 2800);
+        }
+        return;
+      }
+
+      hybridLocalOnlyThisRunRef.current = false;
+      setHybridLocalOnlyThisRun(false);
+      setHybridCloudDeepThisRun(false);
       addCloudTask(mainVideo.id, taskName, targetAnalysisType || 'highlight');
       setPostRecordModalPayload({
         cloudAlreadyQueued: true,
@@ -6951,12 +7808,17 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     }
 
-    if (transferStep === 'uploading' && networkState === '4g' && !showCellularAlert) {
+    if (
+      (analysisPipeline === 'falcon_app_cloud' ||
+        analysisPipeline === 'falcon_direct_cloud' ||
+        analysisPipeline === 'edge_cloud_hybrid') &&
+      transferStep === 'uploading' &&
+      networkState === '4g' &&
+      !showCellularAlert
+    ) {
+      setTransferStep('paused');
 
-        setTransferStep('paused'); 
-
-        return;
-
+      return;
     }
 
     // 2. Resume logic (Auto resume for demo if environment fixed)
@@ -6974,6 +7836,27 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
                 if (transferStep === 'downloading') {
 
+                     if (analysisPipeline === 'edge_cloud_hybrid') {
+                       if (hybridSkipEdgeAfterDownloadRef.current) {
+                         hybridSkipEdgeAfterDownloadRef.current = false;
+                         hybridPastEdgeRef.current = true;
+                         setHybridPastEdge(true);
+                         if (postRecordModalPayload) {
+                           addCloudTask(
+                             postRecordModalPayload.videoId,
+                             postRecordModalPayload.videoName,
+                             postRecordModalPayload.analysisType
+                           );
+                         }
+                         setTransferStep('uploading');
+                         return 0;
+                       }
+                       hybridPastEdgeRef.current = false;
+                       setHybridPastEdge(false);
+                       setTransferStep('analyzing');
+                       return 0;
+                     }
+
                      setTransferStep('uploading');
 
                      return 0;
@@ -6990,6 +7873,35 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                      return 0;
 
                 } else if (transferStep === 'analyzing') {
+
+                     if (analysisPipeline === 'edge_cloud_hybrid' && !hybridPastEdgeRef.current) {
+                       if (hybridLocalOnlyThisRunRef.current) {
+                         setTransferStep('completed');
+                         const toastMsg =
+                           targetAnalysisType === 'highlight'
+                             ? t('ui.highlightCompleteToast')
+                             : t('ui.analysisCompleteToast');
+                         setAnalysisCompleteToast({
+                           show: true,
+                           message: toastMsg,
+                           targetAnalysisType: targetAnalysisType,
+                           resultSport: 'soccer',
+                         });
+                         clearInterval(interval);
+                         return 100;
+                       }
+                       hybridPastEdgeRef.current = true;
+                       setHybridPastEdge(true);
+                       if (postRecordModalPayload) {
+                         addCloudTask(
+                           postRecordModalPayload.videoId,
+                           postRecordModalPayload.videoName,
+                           postRecordModalPayload.analysisType
+                         );
+                       }
+                       setTransferStep('uploading');
+                       return 0;
+                     }
 
                      setTransferStep('completed');
                      
@@ -7020,8 +7932,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             // FIX: Ensure progress increments during analyzing step
             const newProgress = prev + 1;
             
-            // Update cloud task progress
-            if (currentTaskId && transferStep === 'analyzing') {
+            // Update cloud task progress（混合路线仅在云端分析段有 currentTaskId）
+            if (
+              currentTaskId &&
+              transferStep === 'analyzing' &&
+              (analysisPipeline !== 'edge_cloud_hybrid' || hybridPastEdgeRef.current)
+            ) {
               updateTaskProgress(currentTaskId, newProgress);
             }
 
@@ -7049,7 +7965,24 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     return () => clearInterval(interval);
 
-  }, [transferStep, pushView, networkState, falconState, showCellularAlert, targetAnalysisType, setAnalysisCompleteToast, setIsTaskCompleted, setResultSport, currentTaskId, startTaskAnalysis, updateTaskProgress, completeTask]);
+  }, [
+    transferStep,
+    pushView,
+    networkState,
+    falconState,
+    showCellularAlert,
+    targetAnalysisType,
+    setAnalysisCompleteToast,
+    setIsTaskCompleted,
+    setResultSport,
+    currentTaskId,
+    startTaskAnalysis,
+    updateTaskProgress,
+    completeTask,
+    analysisPipeline,
+    postRecordModalPayload,
+    t,
+  ]);
 
   useEffect(() => {
     const prev = prevTransferStepRef.current;
@@ -7065,7 +7998,25 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
       showUpsellModal, setShowUpsellModal, showExportToast, handleExport,
 
-      aiMode, setAiMode, selectionMode, setSelectionMode, selectedMedia, setSelectedMedia,
+      aiMode, setAiMode,
+
+      analysisPipeline, setAnalysisPipeline,
+
+      hybridPastEdge,
+
+      setHybridPastEdge,
+
+      hybridSourceMedia,
+
+      hybridLocalOnlyThisRun,
+
+      hybridCloudDeepThisRun,
+
+      galleryHybridDemoView,
+
+      setGalleryHybridDemoView,
+
+      selectionMode, setSelectionMode, selectedMedia, setSelectedMedia,
 
       isTaskCompleted, setIsTaskCompleted, sportType, setSportType,
 
@@ -7141,9 +8092,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     }}>
 
-      <div className="flex justify-center items-center min-h-screen bg-gray-100 font-sans text-slate-800">
+      <div className="flex flex-col sm:flex-row justify-center items-center min-h-screen bg-gray-100 font-sans text-slate-800 gap-6 p-4">
 
-        <div className="w-full max-w-[375px] h-[812px] bg-black overflow-hidden relative shadow-2xl flex flex-col rounded-[40px] border-[8px] border-slate-900 ring-4 ring-slate-300/50">
+        <TechRouteToggle />
+
+        <div className="w-full max-w-[375px] h-[812px] bg-black overflow-hidden relative shadow-2xl flex flex-col rounded-[40px] border-[8px] border-slate-900 ring-4 ring-slate-300/50 shrink-0">
 
           <div className="absolute inset-0 bg-white">
 
