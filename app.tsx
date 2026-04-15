@@ -31,7 +31,9 @@ import {
 
   Activity, Map as MapIcon, Lock, Footprints, AreaChart, Flame,
 
-  MessageSquare, Save, User, Users, ChevronDown, Library, Heart, Trash2
+  MessageSquare, Save, User, Users, ChevronDown, Heart, Trash2,
+
+  ArrowDownUp,
 
 } from 'lucide-react';
 
@@ -45,6 +47,7 @@ type ViewState =
   | 'ai_result_analysis'
   | 'task_submitted'
   | 'task_center'
+  | 'transfer_list'
   | 'merge_preview';
 
 type AIMode = 'cloud'; 
@@ -79,7 +82,8 @@ interface CloudTask {
 /** Unified row in「我的文档」— merges history, drafts, and cloud queue */
 type AssetItemKind = 'completed_match' | 'draft' | 'cloud_job' | 'failed' | 'paused';
 
-type AssetDocFilter = 'all' | 'processing' | 'outputs' | 'reports' | 'drafts';
+/** 「我的项目」筛选：云端处理 = 未完成 cloud_job；本地草稿 = draft；与传输列表（Download/Upload）分工不同 */
+type AssetDocFilter = 'all' | 'cloud' | 'drafts';
 
 interface AssetItem {
   id: string;
@@ -244,20 +248,8 @@ function buildAssetItems(cloudTasks: CloudTask[]): AssetItem[] {
 function filterAssetItems(items: AssetItem[], f: AssetDocFilter): AssetItem[] {
   if (f === 'all') return items;
   return items.filter((it) => {
-    if (f === 'processing') {
-      return it.kind === 'draft' || (it.kind === 'cloud_job' && it.cloudStatus && !['completed', 'failed'].includes(it.cloudStatus));
-    }
-    if (f === 'outputs') {
-      return (
-        (it.kind === 'completed_match' && it.analysisType === 'highlight') ||
-        (it.kind === 'cloud_job' && it.cloudStatus === 'completed' && it.analysisType === 'highlight')
-      );
-    }
-    if (f === 'reports') {
-      return (
-        (it.kind === 'completed_match' && it.analysisType === 'analysis') ||
-        (it.kind === 'cloud_job' && it.cloudStatus === 'completed' && it.analysisType === 'analysis')
-      );
+    if (f === 'cloud') {
+      return it.kind === 'cloud_job' && it.cloudStatus && !['completed', 'failed'].includes(it.cloudStatus);
     }
     if (f === 'drafts') return it.kind === 'draft';
     return true;
@@ -1022,9 +1014,9 @@ const ProgressModal = () => {
 
 const ShareModal = () => {
 
-  const { t, showShareModal, setShowShareModal, setProgressModal, setToastMessage, currentView, shareContext } = useAppContext();
+  const { t, showShareModal, setShowShareModal, setProgressModal, setToastMessage, shareContext, isVip } = useAppContext();
   const [watermarkEnabled, setWatermarkEnabled] = useState(true);
-  const isPro = currentView === 'ai_result_analysis';
+  const showNoWatermarkOption = isVip && shareContext.type !== 'player_dashboard';
 
   const handleShare = (type: 'album' | 'facebook' | 'youtube', watermark: boolean = true) => {
     setShowShareModal(false);
@@ -1077,13 +1069,13 @@ const ShareModal = () => {
 
             <h3 className="text-xl font-black text-white mb-6 text-center">{t('ui.chooseShareMethod')}</h3>
 
-            {/* Pro Watermark Toggle */}
-            {isPro && shareContext.type !== 'player_dashboard' && (
+            {/* Member: no-watermark export */}
+            {showNoWatermarkOption && (
                 <div className="mb-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Crown className="w-4 h-4 text-amber-400" />
-                            <span className="text-sm font-bold text-white">{t('ui.proOnly')}</span>
+                            <span className="text-sm font-bold text-white">{t('ui.memberShareBadge')}</span>
                         </div>
                         <label className="flex items-center gap-2 cursor-pointer">
                             <input
@@ -1424,12 +1416,62 @@ const PlayerSelectorModal = () => {
 
 // --- Updated Screens ---
 
+/** 传输列表：与「我的项目」分工；Download/Upload 为管道记录（原型占位） */
+const TransferListScreen = () => {
+  const { t, popView } = useAppContext();
+  const [segment, setSegment] = useState<'download' | 'upload'>('download');
+
+  return (
+    <div className="flex flex-col h-full bg-[#F5F5F5] animate-in slide-in-from-right">
+      <div className="pt-12 pb-2 px-5 bg-white flex items-center sticky top-0 z-10 border-b border-slate-100">
+        <div className="flex items-center gap-3 min-w-0">
+          <button type="button" onClick={popView} className="shrink-0">
+            <ArrowLeft className="w-6 h-6 text-slate-800" />
+          </button>
+          <h1 className="text-lg font-black text-slate-900 tracking-tight truncate">{t('transferList.title')}</h1>
+        </div>
+      </div>
+
+      <div className="px-4 pt-3 pb-2">
+        <div className="flex rounded-xl bg-slate-200/80 p-1">
+          <button
+            type="button"
+            onClick={() => setSegment('download')}
+            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${
+              segment === 'download' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+            }`}
+          >
+            {t('transferList.tabDownload')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSegment('upload')}
+            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${
+              segment === 'upload' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+            }`}
+          >
+            {t('transferList.tabUpload')}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center px-8 pb-12 text-center">
+        <div className="w-20 h-20 rounded-full bg-slate-200/90 flex items-center justify-center mb-4 text-slate-400">
+          {segment === 'download' ? <Download className="w-10 h-10" /> : <UploadCloud className="w-10 h-10" />}
+        </div>
+        <p className="text-sm font-medium text-slate-500">{segment === 'download' ? t('transferList.emptyDownload') : t('transferList.emptyUpload')}</p>
+      </div>
+    </div>
+  );
+};
+
 const TaskCenterScreen = () => {
 
-  const { t, transferStep, transferProgress, popView, setTargetAnalysisType, setAiMode, setIsTaskCompleted, pushView, failureReason, setResultSport, setTransferStep, setTransferProgress, cloudTasks, getAnalyzingTasksCount, getQueuedTasks, maxConcurrentTasks } = useAppContext();
+  const { t, transferStep, transferProgress, popView, setTargetAnalysisType, setAiMode, setIsTaskCompleted, pushView, failureReason, setResultSport, setTransferStep, setTransferProgress, cloudTasks, getAnalyzingTasksCount, getQueuedTasks, maxConcurrentTasks, setToastMessage } = useAppContext();
 
   // Get paused tasks from history
   const pausedTasks = HISTORY_TASKS.filter((task: any) => task.status === 'paused');
+  const analysisHistoryRows = HISTORY_TASKS.filter((task: any) => task.status !== 'paused');
   
   // Get cloud tasks
   const analyzingTasks = cloudTasks.filter((task: CloudTask) => task.status === 'analyzing');
@@ -1471,7 +1513,7 @@ const TaskCenterScreen = () => {
 
       <div className="pt-12 pb-2 px-5 bg-white flex justify-between items-center sticky top-0 z-10 border-b border-slate-100">
 
-         <div className="flex items-center gap-3"><button onClick={popView}><ArrowLeft className="w-6 h-6 text-slate-800" /></button><h1 className="text-xl font-black text-slate-900 tracking-tight">{t('ui.taskCenter')}</h1></div>
+         <div className="flex items-center gap-3"><button onClick={popView}><ArrowLeft className="w-6 h-6 text-slate-800" /></button><h1 className="text-xl font-black text-slate-900 tracking-tight">{t('ui.toolboxSubTabMyProjects')}</h1></div>
 
          {/* Settings Removed per request */}
 
@@ -1731,7 +1773,42 @@ const TaskCenterScreen = () => {
            </section>
          )}
 
-         {/* Analysis History Only - Only show completed and failed */}
+         {/* Local drafts (same source as 工具箱「我的项目」卡片) */}
+
+         {DRAFT_TASKS.length > 0 && (
+           <section className="mb-4">
+             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-1">{t('ui.assetFilter_drafts')}</h3>
+             <div className="space-y-3">
+               {DRAFT_TASKS.map((draft: { id: string; titleKey: string; dateKey: string; progress: string; cover: string }) => (
+                 <button
+                   key={draft.id}
+                   type="button"
+                   onClick={() => {
+                     setToastMessage(t('ui.draftContinueHint'));
+                     setTimeout(() => setToastMessage(null), 2500);
+                   }}
+                   className="w-full text-left bg-white rounded-xl p-3 flex items-center gap-3 shadow-sm border border-amber-100 active:scale-[0.98] transition-transform"
+                 >
+                   <div className="w-14 h-14 rounded-lg flex items-center justify-center text-white shrink-0 bg-gradient-to-br from-amber-400 to-orange-600">
+                     <FileEdit className="w-6 h-6" />
+                   </div>
+                   <div className="flex-1 min-w-0">
+                     <div className="flex items-center gap-2 mb-1">
+                       <h4 className="text-sm font-bold text-slate-800 truncate">{t(draft.titleKey as any)}</h4>
+                       <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">{t('ui.assetBadgeDraft')}</span>
+                     </div>
+                     <p className="text-xs text-slate-400">
+                       {t(draft.dateKey as any)} · {draft.progress}
+                     </p>
+                   </div>
+                   <ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
+                 </button>
+               ))}
+             </div>
+           </section>
+         )}
+
+         {/* Completed / failed analysis jobs (cloud 成片与报告) */}
 
          <section>
 
@@ -1739,7 +1816,7 @@ const TaskCenterScreen = () => {
 
             <div className="space-y-3">
 
-                {HISTORY_TASKS.filter((task: any) => task.status !== 'paused').map((task: any) => {
+                {analysisHistoryRows.map((task: any) => {
 
                     const statusConfig = {
                         completed: { label: t('ui.completed'), bg: 'bg-green-100', text: 'text-green-700' },
@@ -1848,7 +1925,7 @@ const TaskCenterScreen = () => {
                     );
                 })}
 
-                {HISTORY_TASKS.length === 0 && <div className="text-center text-slate-400 py-8 text-xs">{t('ui.noHistory')}</div>}
+                {analysisHistoryRows.length === 0 && <div className="text-center text-slate-400 py-8 text-xs">{t('ui.noHistory')}</div>}
 
             </div>
 
@@ -2212,19 +2289,29 @@ const GalleryScreen = () => {
               {item.label}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => pushView('task_center')}
-            className="ml-auto relative w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center"
-            title={t('ui.taskCenter')}
-          >
-            <Clock className="w-4 h-4" />
-            {activeTaskCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-orange-500 text-white text-[9px] leading-[14px] text-center font-bold">
-                {activeTaskCount}
-              </span>
-            )}
-          </button>
+          <div className="ml-auto flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => pushView('task_center')}
+              className="relative w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center"
+              title={t('ui.historyTasksHint')}
+            >
+              <Clock className="w-4 h-4" />
+              {activeTaskCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-orange-500 text-white text-[9px] leading-[14px] text-center font-bold">
+                  {activeTaskCount}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => pushView('transfer_list')}
+              className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center"
+              title={t('transferList.title')}
+            >
+              <ArrowDownUp className="w-4 h-4" />
+            </button>
+          </div>
         </div>
         <div className="flex gap-2">
           {([
@@ -2268,6 +2355,10 @@ const GalleryScreen = () => {
                     key={card.id}
                     type="button"
                     onClick={() => {
+                      if (card.isAnalyzed) {
+                        openAnalyzedResult(card.analysisType);
+                        return;
+                      }
                       setDetailVideoId(card.videoId);
                       setDetailFromAnalyzedCard(true);
                       setDetailAnalyzedType(card.analysisType);
@@ -2316,6 +2407,11 @@ const GalleryScreen = () => {
                   key={video.id}
                   type="button"
                   onClick={() => {
+                    const taskMeta = getVideoTaskMeta(video.id);
+                    if (taskMeta.action === 'view' && taskMeta.task) {
+                      openAnalyzedResult((taskMeta.task.type || 'highlight') as 'highlight' | 'analysis');
+                      return;
+                    }
                     setDetailVideoId(video.id);
                     setDetailFromAnalyzedCard(false);
                   }}
@@ -2386,6 +2482,11 @@ const GalleryScreen = () => {
                       key={`agg-${video.id}`}
                       type="button"
                       onClick={() => {
+                        const taskMeta = getVideoTaskMeta(video.id);
+                        if (taskMeta.action === 'view' && taskMeta.task) {
+                          openAnalyzedResult((taskMeta.task.type || 'highlight') as 'highlight' | 'analysis');
+                          return;
+                        }
                         setDetailVideoId(video.id);
                         setDetailFromAnalyzedCard(false);
                       }}
@@ -3669,14 +3770,17 @@ const HighlightResultScreen = () => {
                 </div>
                 <p className="text-[10px] text-slate-400 mb-3">{t('compose.sheetDesc')}</p>
                 <div className="space-y-2">
-                  {COMPOSE_TEMPLATES.filter((tm) => !tm.proOnly).map((tm) => (
+                  {COMPOSE_TEMPLATES.filter((tm) => isVip || !tm.proOnly).map((tm) => (
                     <button
                       key={tm.id}
                       type="button"
                       onClick={() => handleApplyTemplate(tm.id, tm.labelKey, tm.proOnly)}
-                      className="w-full flex items-center justify-between px-3 py-3 rounded-xl border border-white/10 bg-[#1E293B] text-left"
+                      className="w-full flex items-center justify-between px-3 py-3 rounded-xl border border-white/10 bg-[#1E293B] text-left gap-2"
                     >
                       <span className="text-xs font-bold text-white">{t(tm.labelKey)}</span>
+                      {tm.proOnly && isVip && (
+                        <span className="text-[8px] font-black text-amber-300/90 shrink-0">{t('compose.badgeMemberTemplate')}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -5055,7 +5159,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                    <div className={`text-[7px] font-bold px-1.5 py-0.5 rounded border w-fit mb-1 ${tierClass}`}>{tierLabel}</div>
                                    <div className="text-[10px] font-bold text-white line-clamp-2 leading-tight">{t(tm.labelKey)}</div>
                                    {tm.proOnly && (
-                                     <span className="inline-block mt-1 text-[7px] font-black text-amber-300/90">PRO</span>
+                                     <span className="inline-block mt-1 text-[7px] font-black text-amber-300/90">{t('compose.badgeMemberTemplate')}</span>
                                    )}
                                  </button>
                                );
@@ -5502,7 +5606,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs font-bold text-white">{t(tm.labelKey)}</span>
                               {tm.proOnly && (
-                                <span className="text-[8px] font-black text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded">PRO</span>
+                                <span className="text-[8px] font-black text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded">{t('compose.badgeMemberTemplate')}</span>
                               )}
                               <span className="text-[8px] font-bold text-slate-500 border border-white/10 px-1.5 py-0.5 rounded">{tierLabel}</span>
                             </div>
@@ -5835,11 +5939,40 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
            </div>
 
-          <button onClick={() => pushView('task_center')} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors relative">
-
-            {transferStep !== 'idle' && transferStep !== 'completed' ? (<div className="absolute inset-0"><svg className="w-full h-full -rotate-90 p-0.5" viewBox="0 0 36 36"><path className="text-slate-200" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" /><path className={`${transferStep === 'failed' ? 'text-red-500' : (transferStep === 'paused' ? 'text-yellow-500' : 'text-blue-500')} transition-all duration-300`} strokeDasharray={`${transferProgress}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" /></svg></div>) : (<Clock className="w-5 h-5" />)}
-
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => pushView('task_center')}
+              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors relative"
+              title={t('ui.historyTasksHint')}
+            >
+              {transferStep !== 'idle' && transferStep !== 'completed' ? (
+                <div className="absolute inset-0">
+                  <svg className="w-full h-full -rotate-90 p-0.5" viewBox="0 0 36 36">
+                    <path className="text-slate-200" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
+                    <path
+                      className={`${transferStep === 'failed' ? 'text-red-500' : transferStep === 'paused' ? 'text-yellow-500' : 'text-blue-500'} transition-all duration-300`}
+                      strokeDasharray={`${transferProgress}, 100`}
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                    />
+                  </svg>
+                </div>
+              ) : (
+                <Clock className="w-5 h-5" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => pushView('transfer_list')}
+              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors"
+              title={t('transferList.title')}
+            >
+              <ArrowDownUp className="w-5 h-5" />
+            </button>
+          </div>
 
         </div>
 
@@ -5917,27 +6050,39 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         </section>
 
         <section className="min-h-[240px]">
-          <div className="flex items-center gap-8 mb-3 px-0.5">
-            <button
-              type="button"
-              onClick={() => setToolboxHomeTab('quality_templates')}
-              className={`relative pb-1 text-[22px] font-black transition-colors ${
-                toolboxHomeTab === 'quality_templates' ? 'text-slate-800' : 'text-slate-400'
-              }`}
-            >
-              Template
-              {toolboxHomeTab === 'quality_templates' && <span className="absolute left-0 right-0 -bottom-0.5 h-1 bg-orange-500 rounded-full" />}
-            </button>
-            <button
-              type="button"
-              onClick={() => setToolboxHomeTab('my_projects')}
-              className={`relative pb-1 text-[22px] font-black transition-colors ${
-                toolboxHomeTab === 'my_projects' ? 'text-slate-800' : 'text-slate-400'
-              }`}
-            >
-              Drafts
-              {toolboxHomeTab === 'my_projects' && <span className="absolute left-0 right-0 -bottom-0.5 h-1 bg-orange-500 rounded-full" />}
-            </button>
+          <div className="flex items-end justify-between gap-3 mb-3 px-0.5">
+            <div className="flex items-center gap-8 min-w-0">
+              <button
+                type="button"
+                onClick={() => setToolboxHomeTab('quality_templates')}
+                className={`relative pb-1 text-[22px] font-black transition-colors ${
+                  toolboxHomeTab === 'quality_templates' ? 'text-slate-800' : 'text-slate-400'
+                }`}
+              >
+                {t('ui.toolboxSubTabTemplates')}
+                {toolboxHomeTab === 'quality_templates' && <span className="absolute left-0 right-0 -bottom-0.5 h-1 bg-orange-500 rounded-full" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setToolboxHomeTab('my_projects')}
+                className={`relative pb-1 text-[22px] font-black transition-colors ${
+                  toolboxHomeTab === 'my_projects' ? 'text-slate-800' : 'text-slate-400'
+                }`}
+              >
+                {t('ui.toolboxSubTabMyProjects')}
+                {toolboxHomeTab === 'my_projects' && <span className="absolute left-0 right-0 -bottom-0.5 h-1 bg-orange-500 rounded-full" />}
+              </button>
+            </div>
+            {toolboxHomeTab === 'my_projects' && (
+              <button
+                type="button"
+                onClick={() => pushView('task_center')}
+                className="flex items-center gap-0.5 shrink-0 text-[13px] font-bold text-slate-600 active:text-slate-900 pb-1 -mr-0.5"
+              >
+                {t('ui.openTaskCenterFromDocs')}
+                <ChevronRight className="w-[18px] h-[18px] text-slate-400" />
+              </button>
+            )}
           </div>
 
           {toolboxHomeTab === 'quality_templates' && (
@@ -6011,22 +6156,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
           {toolboxHomeTab === 'my_projects' && (
             <>
-              <div className="flex items-center justify-between px-0.5 mb-2">
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Library className="w-[18px] h-[18px] text-slate-700" />
-                  {t('ui.toolboxSubTabMyProjects')}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => pushView('task_center')}
-                  className="text-xs text-slate-400 font-medium hover:text-slate-600 transition-colors"
-                >
-                  {t('ui.templatesMore')} &gt;
-                </button>
-              </div>
-
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 -mx-0.5 px-0.5">
-                {(['all', 'processing', 'outputs', 'reports', 'drafts'] as AssetDocFilter[]).map((f) => (
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-0.5 px-0.5 mb-3">
+                {(['all', 'cloud', 'drafts'] as AssetDocFilter[]).map((f) => (
                   <button
                     key={f}
                     type="button"
@@ -6041,18 +6172,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   </button>
                 ))}
               </div>
-
-              <button
-                type="button"
-                onClick={() => pushView('task_center')}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-white border border-slate-100 shadow-sm text-slate-800 text-xs font-bold mb-3 active:bg-slate-50"
-              >
-                <span className="flex items-center gap-2 text-slate-700">
-                  <Clock className="w-4 h-4 text-slate-500" />
-                  {t('ui.openTaskCenterFromDocs')}
-                </span>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
-              </button>
 
               {assetItems.length === 0 && (
                 <div className="text-center text-slate-400 py-10 text-xs">{t('ui.assetsEmpty')}</div>
@@ -6092,34 +6211,15 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
               };
 
               const sportLabel = it.cover === 'soccer' ? t('matchReport.sportSoccer') : t('matchReport.sportBasketball');
-              const tierLabel =
-                it.analysisType === 'analysis' ? t('matchReport.badgePro') : t('matchReport.badgeBasic');
 
-              let leftTag: string;
-              let rightTag: string;
-              let leftTagClass: string;
-              let rightTagClass: string;
-
-              if (it.kind === 'draft') {
-                leftTag = t('ui.assetBadgeDraft');
-                rightTag = sportLabel;
-                leftTagClass = 'bg-amber-500 text-white border-amber-400/50';
-                rightTagClass =
-                  it.cover === 'soccer'
+              /** 统一 AI 分析服务：卡片仅左上角单一标签（草稿 / 运动类型），不叠「集锦 vs 数据」产品档 */
+              const leftTag = it.kind === 'draft' ? t('ui.assetBadgeDraft') : sportLabel;
+              const leftTagClass =
+                it.kind === 'draft'
+                  ? 'bg-amber-500 text-white border-amber-400/50'
+                  : it.cover === 'soccer'
                     ? 'bg-emerald-600 text-white border-emerald-500/40'
                     : 'bg-orange-600 text-white border-orange-500/40';
-              } else {
-                leftTag = sportLabel;
-                rightTag = tierLabel;
-                leftTagClass =
-                  it.cover === 'soccer'
-                    ? 'bg-emerald-600 text-white border-emerald-500/40'
-                    : 'bg-orange-600 text-white border-orange-500/40';
-                rightTagClass =
-                  it.analysisType === 'analysis'
-                    ? 'bg-indigo-600 text-white border-indigo-500/40'
-                    : 'bg-slate-700 text-white border-slate-500/40';
-              }
 
               let subtitle = dateStr;
               if (it.kind === 'failed') {
@@ -6146,11 +6246,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                       className={`absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded-md border shadow-sm ${leftTagClass}`}
                     >
                       {leftTag}
-                    </span>
-                    <span
-                      className={`absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded-md border shadow-sm max-w-[55%] truncate ${rightTagClass}`}
-                    >
-                      {rightTag}
                     </span>
                   </div>
                   <div className="p-2.5 pt-2">
@@ -6226,9 +6321,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   const [sportType, setSportType] = useState<SportType>('soccer');
 
-  // Version subscription state: isVip = true means user has Pro subscription (which includes basic version features)
-  // Pro users have access to both basic (highlight) and advanced (analysis) features
-  // Basic version features are available to all users (including Pro users)
+  // Subscription: isVip = true means member subscription. Members get the same paid capabilities (templates, stats, share, etc.).
+  // Highlights entry stays available without subscription; full-game stats/analysis entry requires membership.
   const [isVip, setIsVip] = useState(false);
 
   const [targetAnalysisType, setTargetAnalysisType] = useState<AnalysisType>('highlight');
@@ -6452,10 +6546,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
       setTargetAnalysisType(type); 
 
-      // Version access logic:
-      // - Basic version (highlight): All users can access (including Pro users)
-      // - Advanced version (analysis): Only Pro users can access
-      // - Pro subscription includes both basic and advanced features
+      // Entry: highlight available to everyone; full-game stats/analysis requires membership.
 
       if (type === 'highlight') {
 
@@ -7071,6 +7162,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             {currentView === 'merge_preview' && <MergePreviewScreen />}
 
              {currentView === 'task_center' && <TaskCenterScreen />}
+
+             {currentView === 'transfer_list' && <TransferListScreen />}
 
           </div>
 
