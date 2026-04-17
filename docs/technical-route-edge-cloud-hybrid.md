@@ -2,6 +2,8 @@
 
 内部 PRD / 技术说明（与预研原型中的 `edge_cloud_hybrid` 管线对应）。
 
+**相关（足球 MVP · 默认直传云）**：[soccer-mvp-direct-cloud.md](./soccer-mvp-direct-cloud.md) · [soccer-mvp-api-contract.md](./soccer-mvp-api-contract.md)
+
 ## 1. 与现有三条路线的关系
 
 | 路线 | 行为概要 |

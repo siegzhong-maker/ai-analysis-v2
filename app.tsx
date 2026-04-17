@@ -512,6 +512,100 @@ const SOCCER_MATCH_STATS = {
 
 };
 
+const buildSoccerStatsWithScore = (
+  teamAScore: number,
+  teamBScore: number,
+  teamALabel: string,
+  teamBLabel: string
+) => ({
+  ...SOCCER_MATCH_STATS,
+  teamA: { ...SOCCER_MATCH_STATS.teamA, score: teamAScore, displayLabel: teamALabel },
+  teamB: { ...SOCCER_MATCH_STATS.teamB, score: teamBScore, displayLabel: teamBLabel },
+  comparison: SOCCER_MATCH_STATS.comparison.map((row) =>
+    row.rowKey === 'goals' ? { ...row, a: teamAScore, b: teamBScore } : row
+  ),
+});
+
+/** 足球 MVP 云端结果（演示形态，契约见 docs/soccer-mvp-api-contract.md） */
+type SoccerMvpCloudJobResult = {
+  version: 'soccer-mvp-1';
+  finalScore: { teamA: number; teamB: number };
+  events: Array<{
+    id: number;
+    time: string;
+    scoreType: 'goal' | 'penalty';
+    team: 'A' | 'B';
+    player: string | null;
+  }>;
+  summary: string;
+};
+
+function buildSoccerMvpCloudJobResultFromClips(
+  soccerClips: readonly {
+    id: number;
+    time: string;
+    scoreType?: string | number;
+    team: string;
+    player?: string | null;
+  }[],
+  teamAScore: number,
+  teamBScore: number,
+  translate: (key: string, opts?: Record<string, unknown>) => string,
+  teamDisplayNames: { teamA: string; teamB: string }
+): SoccerMvpCloudJobResult {
+  const events = soccerClips
+    .filter((c) => c.scoreType === 'goal' || c.scoreType === 'penalty')
+    .map((c) => ({
+      id: c.id,
+      time: String(c.time),
+      scoreType: c.scoreType as 'goal' | 'penalty',
+      team: (c.team === 'A' || c.team === 'B' ? c.team : 'A') as 'A' | 'B',
+      player: (c.player as string | null | undefined) ?? null,
+    }))
+    .sort((a, b) => parseMatchClockToSeconds(a.time) - parseMatchClockToSeconds(b.time));
+
+  const teamAName =
+    teamDisplayNames.teamA.trim() || translate(SOCCER_MATCH_STATS.teamA.nameKey);
+  const teamBName =
+    teamDisplayNames.teamB.trim() || translate(SOCCER_MATCH_STATS.teamB.nameKey);
+
+  let summary: string;
+  if (events.length === 0) {
+    summary = translate('matchReport.soccerMvpSummaryNoGoals', {
+      teamA: teamAName,
+      teamB: teamBName,
+      scoreA: teamAScore,
+      scoreB: teamBScore,
+    });
+  } else {
+    const lines = events.map((e) => {
+      const typeKey = e.scoreType === 'goal' ? 'matchReport.soccerMvpTypeGoal' : 'matchReport.soccerMvpTypePenalty';
+      const side = e.team === 'A' ? teamAName : teamBName;
+      const who = e.player ? translate('matchReport.soccerMvpPlayerSuffix', { player: e.player }) : '';
+      return translate('matchReport.soccerMvpEventLine', {
+        time: e.time,
+        side,
+        player: who,
+        type: translate(typeKey),
+      });
+    });
+    summary = translate('matchReport.soccerMvpSummaryWithEvents', {
+      teamA: teamAName,
+      teamB: teamBName,
+      scoreA: teamAScore,
+      scoreB: teamBScore,
+      events: lines.join('\n'),
+    });
+  }
+
+  return {
+    version: 'soccer-mvp-1',
+    finalScore: { teamA: teamAScore, teamB: teamBScore },
+    events,
+    summary,
+  };
+}
+
 // --- Shared Components ---
 
 const AssetThumbnail = ({ type, category }: { type: string, category: string }) => {
@@ -1662,10 +1756,10 @@ const TechRouteToggle = () => {
         <button
           type="button"
           disabled={busy}
-          onClick={() => setAnalysisPipeline('on_device')}
-          className={`${segmentClass(analysisPipeline === 'on_device')} ${busy ? 'cursor-not-allowed' : ''}`}
+          onClick={() => setAnalysisPipeline('falcon_direct_cloud')}
+          className={`${segmentClass(analysisPipeline === 'falcon_direct_cloud')} ${busy ? 'cursor-not-allowed' : ''}`}
         >
-          {t('ui.techRouteOnDevice')}
+          {t('ui.techRouteDirectCloud')}
         </button>
         <button
           type="button"
@@ -1678,10 +1772,10 @@ const TechRouteToggle = () => {
         <button
           type="button"
           disabled={busy}
-          onClick={() => setAnalysisPipeline('falcon_direct_cloud')}
-          className={`${segmentClass(analysisPipeline === 'falcon_direct_cloud')} ${busy ? 'cursor-not-allowed' : ''}`}
+          onClick={() => setAnalysisPipeline('on_device')}
+          className={`${segmentClass(analysisPipeline === 'on_device')} ${busy ? 'cursor-not-allowed' : ''}`}
         >
-          {t('ui.techRouteDirectCloud')}
+          {t('ui.techRouteOnDevice')}
         </button>
         <button
           type="button"
@@ -1689,7 +1783,7 @@ const TechRouteToggle = () => {
           onClick={() => setAnalysisPipeline('edge_cloud_hybrid')}
           className={`${segmentClass(analysisPipeline === 'edge_cloud_hybrid')} ${busy ? 'cursor-not-allowed' : ''}`}
         >
-          {t('ui.techRouteEdgeCloudHybrid')}
+          {t('ui.techRouteEdgeCloudHybrid')} · {t('ui.techRouteExperimentalShort')}
         </button>
       </div>
       <p className="text-[10px] text-slate-500 leading-snug">{hint}</p>
@@ -1708,7 +1802,8 @@ const PlayerSelectorModal = () => {
     eventClaims,
     setEventClaims,
     resultSport,
-    setToastMessage
+    setToastMessage,
+    liveSoccerStats,
   } = useAppContext();
   const [newLabel, setNewLabel] = useState('');
 
@@ -1720,8 +1815,10 @@ const PlayerSelectorModal = () => {
   const isSoccer = resultSport === 'soccer';
   const sport = resultSport || 'soccer';
   const team = eventToClaim.team;
-  const statsData = isSoccer ? SOCCER_MATCH_STATS : TEAM_MATCH_STATS;
-  const teamName = team === 'A' ? t(statsData.teamA.nameKey) : t(statsData.teamB.nameKey);
+  const statsData = isSoccer ? liveSoccerStats : TEAM_MATCH_STATS;
+  const teamName = team === 'A'
+    ? (isSoccer ? (statsData.teamA as { displayLabel: string }).displayLabel : t(statsData.teamA.nameKey))
+    : (isSoccer ? (statsData.teamB as { displayLabel: string }).displayLabel : t(statsData.teamB.nameKey));
 
   const currentLabel = eventClaims[selectedEventForClaim] ?? eventToClaim.player ?? null;
   const isAlreadyClaimed = currentLabel != null;
@@ -2655,6 +2752,7 @@ const GalleryScreen = () => {
     cloudTasks,
     analysisPipeline,
     setGalleryHybridDemoView,
+    liveSoccerStats,
   } = useAppContext();
   const [sourceTab, setSourceTab] = useState<VideoSource>('falcon');
   const [typeTab, setTypeTab] = useState<'all' | 'video' | 'image' | 'collect'>('all');
@@ -2909,7 +3007,18 @@ const GalleryScreen = () => {
             <div className="grid grid-cols-2 gap-3">
               {successCards
                 .filter((card) => card.dateKey === group.dateKey)
-                .map((card) => (
+                .map((card) => {
+                  const cardVideo = ALL_VIDEOS.find((video) => video.id === card.videoId);
+                  const isSoccerCard = cardVideo?.category === 'soccer';
+                  const scoreA = isSoccerCard ? liveSoccerStats.teamA.score : card.teamAScore;
+                  const scoreB = isSoccerCard ? liveSoccerStats.teamB.score : card.teamBScore;
+                  const nameA = isSoccerCard
+                    ? (liveSoccerStats.teamA as { displayLabel: string }).displayLabel
+                    : t(card.teamANameKey);
+                  const nameB = isSoccerCard
+                    ? (liveSoccerStats.teamB as { displayLabel: string }).displayLabel
+                    : t(card.teamBNameKey);
+                  return (
                   <button
                     key={card.id}
                     type="button"
@@ -2928,12 +3037,12 @@ const GalleryScreen = () => {
                       <div className="w-1/2 bg-gradient-to-br from-[#0E2A3C] to-[#1B4B68] text-white px-2.5 py-2 flex flex-col justify-between">
                         <div className="text-[9px] font-semibold text-white/80">{t('gallery.analysisReady')}</div>
                         <div className="grid grid-cols-[1fr_auto] items-end gap-1">
-                          <span className="text-[11px] font-bold leading-tight whitespace-nowrap overflow-hidden text-ellipsis pr-1">{t(card.teamANameKey)}</span>
-                          <span className="text-[19px] font-black leading-none">{card.teamAScore}</span>
+                          <span className="text-[11px] font-bold leading-tight whitespace-nowrap overflow-hidden text-ellipsis pr-1">{nameA}</span>
+                          <span className="text-[19px] font-black leading-none">{scoreA}</span>
                         </div>
                         <div className="grid grid-cols-[1fr_auto] items-end gap-1">
-                          <span className="text-[11px] font-bold leading-tight whitespace-nowrap overflow-hidden text-ellipsis pr-1">{t(card.teamBNameKey)}</span>
-                          <span className="text-[19px] font-black leading-none">{card.teamBScore}</span>
+                          <span className="text-[11px] font-bold leading-tight whitespace-nowrap overflow-hidden text-ellipsis pr-1">{nameB}</span>
+                          <span className="text-[19px] font-black leading-none">{scoreB}</span>
                         </div>
                         <div className="text-[9px] text-white/70">{t(card.statusKey)}</div>
                       </div>
@@ -2960,7 +3069,8 @@ const GalleryScreen = () => {
                       </div>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
               {group.videos.map((video) => (
                 <button
                   key={video.id}
@@ -3306,7 +3416,7 @@ const TaskSubmittedScreen = () => {
 
 const HighlightResultScreen = () => {
 
-    const { t, popToHome, replaceView, resultSport, setProgressModal, pushView, setShowShareModal, setShareType, setMergedVideoUrl, setSelectedEventForClaim, setShowPlayerSelector, eventClaims, setEventClaims, setToastMessage, isVip, setShareContext, highlightEntryIntent, setHighlightEntryIntent, setShowUpsellModal } = useAppContext();
+    const { t, popToHome, replaceView, resultSport, setProgressModal, pushView, setShowShareModal, setShareType, setMergedVideoUrl, setSelectedEventForClaim, setShowPlayerSelector, eventClaims, setEventClaims, setToastMessage, isVip, setShareContext, highlightEntryIntent, setHighlightEntryIntent, setShowUpsellModal, liveSoccerStats } = useAppContext();
 
     const [showComposeTemplateModal, setShowComposeTemplateModal] = useState(false);
 
@@ -3326,7 +3436,6 @@ const HighlightResultScreen = () => {
     const [selectedClipIds, setSelectedClipIds] = useState<number[]>([]);
 
     const [activeTab, setActiveTab] = useState<'clips' | 'stats'>('stats');
-    const [timelineFilter, setTimelineFilter] = useState<TimelineFilterId>('goals');
 
     
 
@@ -3485,55 +3594,26 @@ const HighlightResultScreen = () => {
         }
 
         if (selectedFilter !== 'all') { 
-            if (isSoccer) {
-                // Soccer: filter by goal or penalty
-                if (selectedFilter === 'goal') return clip.scoreType === 'goal';
-                if (selectedFilter === 'penalty') return clip.scoreType === 'penalty';
-            } else {
-                // Basketball: filter by event type - only score events (得分=2分, 罚球=1分, 三分=3分)
-                if (selectedFilter === 'score') {
-                    return clip.type === 'score' && clip.scoreType === 2;
-                }
-                if (selectedFilter === 1) {
-                    return clip.type === 'score' && clip.scoreType === 1;
-                }
-                if (selectedFilter === 3) {
-                    return clip.type === 'score' && clip.scoreType === 3;
-                }
+            // Basketball: filter by event type - only score events (得分=2分, 罚球=1分, 三分=3分)
+            if (selectedFilter === 'score') {
+                return clip.type === 'score' && clip.scoreType === 2;
+            }
+            if (selectedFilter === 1) {
+                return clip.type === 'score' && clip.scoreType === 1;
+            }
+            if (selectedFilter === 3) {
+                return clip.type === 'score' && clip.scoreType === 3;
             }
             return false;
         } 
 
-        // For 'all' filter, show only relevant events for basic view
-        if (isSoccer) {
-            // Soccer: only show goal and penalty
-            return clip.scoreType === 'goal' || clip.scoreType === 'penalty';
-        } else {
-            // Basketball: only show score events (1分, 2分, 3分)
-            return clip.type === 'score';
-        }
+        // For 'all' filter, show only score events (1分, 2分, 3分)
+        return clip.type === 'score';
 
     });
-    const keyTimelineEvents = React.useMemo(() => {
-        if (!isSoccer) return [] as any[];
-        return clips
-            .filter((clip) => ['goal', 'corner', 'setpiece', 'penalty'].includes(String(clip.scoreType)))
-            .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)))
-            .slice(0, 6);
-    }, [clips, isSoccer]);
-    const getSoccerEventInsightKey = (scoreType: string) => {
-        if (scoreType === 'goal') return 'matchReport.eventInsightGoal';
-        if (scoreType === 'corner') return 'matchReport.eventInsightCorner';
-        if (scoreType === 'setpiece') return 'matchReport.eventInsightSetpiece';
-        return 'matchReport.eventInsightPenalty';
-    };
-    const timelinePoints = React.useMemo(
-        () => buildSoccerTimelinePoints(keyTimelineEvents as any, timelineFilter),
-        [keyTimelineEvents, timelineFilter]
-    );
 
     const basicWeeklyTrainingByIssues = React.useMemo(() => {
-        const sport = isSoccer ? 'soccer' : 'basketball';
+        const sport = 'basketball';
         const seen = new Map<string, { issueKey: string; hintKey: string; fromClips: string[] }>();
         for (const clip of clips.filter((c) => c.sport === sport)) {
             const ext = CLIP_COACH_EXTENSIONS[clip.id];
@@ -3551,7 +3631,7 @@ const HighlightResultScreen = () => {
             }
         }
         return Array.from(seen.values());
-    }, [clips, isSoccer, t]);
+    }, [clips, t]);
 
     const featuredReelDuration =
         HIGHLIGHT_COLLECTIONS.find((c) => c.id === selectedCollection)?.duration ?? HIGHLIGHT_COLLECTIONS[0].duration;
@@ -3654,14 +3734,7 @@ const HighlightResultScreen = () => {
 
     // Manual correction: 事件类型 / 得分结果 (type + scoreType + label; 得分结果含 命中/未中)
     type EventTypeOption = { id: string | number; labelKey: string; type: string; scoreType: number | string; scored?: boolean };
-    const eventTypeOptions: EventTypeOption[] = isSoccer
-        ? [
-            { id: 'goal', labelKey: 'clips.goal', type: 'soccer_event', scoreType: 'goal' },
-            { id: 'corner', labelKey: 'clips.cornerShort', type: 'soccer_event', scoreType: 'corner' },
-            { id: 'setpiece', labelKey: 'clips.setpieceShort', type: 'soccer_event', scoreType: 'setpiece' },
-            { id: 'penalty', labelKey: 'clips.penaltyShort', type: 'soccer_event', scoreType: 'penalty' },
-        ]
-        : [
+    const eventTypeOptions: EventTypeOption[] = [
             { id: 3, labelKey: 'clips.3ptShort', type: 'score', scoreType: 3, scored: true },
             { id: 2, labelKey: 'clips.2ptShort', type: 'score', scoreType: 2, scored: true },
             { id: 1, labelKey: 'clips.ftShort', type: 'score', scoreType: 1, scored: true },
@@ -3672,11 +3745,6 @@ const HighlightResultScreen = () => {
 
     // Label helper for event type correction (type + scoreType → display label)
     const getLabelForEvent = (sport: string, type: string, scoreType: number | string): string => {
-        const isSoc = sport === 'soccer';
-        if (isSoc) {
-            const m: Record<string, string> = { goal: 'clips.goal', corner: 'clips.corner', setpiece: 'clips.setpiece', penalty: 'clips.penalty' };
-            return t(m[String(scoreType)] ?? 'clips.goal');
-        }
         const m: Record<string, string> = { '3': 'clips.3ptShort', '2': 'clips.2ptShort', '1': 'clips.ftShort', rebound: 'clips.reboundShort', steal: 'clips.steal', assist: 'clips.assist' };
         return t(m[String(scoreType)] ?? 'clips.score');
     };
@@ -3755,11 +3823,9 @@ const HighlightResultScreen = () => {
         setTimeout(() => setToastMessage(null), 2000);
     };
 
-    const filters = isSoccer 
-      ? [ { id: 'all', labelKey: 'filter.all' }, { id: 'goal', labelKey: 'filter.goal' }, { id: 'penalty', labelKey: 'filter.penalty' } ]
-      : [ { id: 'all', labelKey: 'filter.all' }, { id: 'score', labelKey: 'filter.score' }, { id: 1, labelKey: 'filter.ft' }, { id: 3, labelKey: 'filter.threePt' } ];
+    const filters = [ { id: 'all', labelKey: 'filter.all' }, { id: 'score', labelKey: 'filter.score' }, { id: 1, labelKey: 'filter.ft' }, { id: 3, labelKey: 'filter.threePt' } ];
 
-    const statsData = isSoccer ? SOCCER_MATCH_STATS : TEAM_MATCH_STATS;
+    const statsData = isSoccer ? liveSoccerStats : TEAM_MATCH_STATS;
     const comparativeRows = React.useMemo(
         () => statsData.comparison.filter((row: any) => ['goals', 'shotsOnTarget', 'possession', 'corners'].includes(row.rowKey)),
         [statsData]
@@ -3788,6 +3854,79 @@ const HighlightResultScreen = () => {
 
     }
 
+    if (isSoccer) {
+      const soccerMvpPayload = buildSoccerMvpCloudJobResultFromClips(
+        clips.filter((c) => c.sport === 'soccer'),
+        statsData.teamA.score,
+        statsData.teamB.score,
+        t,
+        {
+          teamA: (statsData.teamA as { displayLabel: string }).displayLabel,
+          teamB: (statsData.teamB as { displayLabel: string }).displayLabel,
+        }
+      );
+      return (
+        <div className="flex flex-col h-full bg-[#0F172A] text-white relative" onClick={() => setEditingClipId(null)}>
+          <div className="absolute top-4 left-4 z-30">
+            <button type="button" onClick={popToHome} className="p-2 bg-black/40 rounded-full">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="shrink-0 pt-12">
+            <div className="h-[156px] bg-black relative">
+            <AssetThumbnail type="video" category={resultSport || 'soccer'} />
+            {showJumpToast && (
+              <div className="absolute top-[60%] left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 animate-in zoom-in-95 z-30">
+                <RotateCcw className="w-3 h-3" /> {t('ui.jumpTo')} {currentTime}
+              </div>
+            )}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-10" data-correction-scroll>
+            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-950/20 p-3">
+              <p className="text-[10px] font-bold text-emerald-200/90 mb-2">{t('matchReport.soccerMvpKeyEventsTitle')}</p>
+              {soccerMvpPayload.events.length === 0 ? (
+                <p className="text-[10px] text-slate-500">{t('matchReport.soccerMvpNoCoreEvents')}</p>
+              ) : (
+                <div className="space-y-2">
+                  {soccerMvpPayload.events.map((ev) => (
+                    <button
+                      key={ev.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleClipClick(ev.time);
+                      }}
+                      className="w-full text-left rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 active:scale-[0.99] transition-transform"
+                    >
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-xs font-bold text-white">
+                          {ev.time}
+                          <span className="text-slate-500 font-medium mx-1">·</span>
+                          {ev.scoreType === 'goal' ? t('matchReport.soccerMvpTypeGoal') : t('matchReport.soccerMvpTypePenalty')}
+                        </span>
+                        <span
+                          className={`text-[8px] px-1.5 py-0.5 rounded shrink-0 ${ev.team === 'A' ? 'bg-blue-900 text-blue-200' : 'bg-red-900 text-red-200'}`}
+                        >
+                          {ev.team === 'A'
+                            ? (statsData.teamA as { displayLabel: string }).displayLabel
+                            : (statsData.teamB as { displayLabel: string }).displayLabel}
+                        </span>
+                      </div>
+                      {ev.player ? <p className="text-[9px] text-slate-400 mt-1">{ev.player}</p> : null}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
     return (
 
       <div className="flex flex-col h-full bg-[#0F172A] text-white relative" onClick={() => { setEditingClipId(null); }}>
@@ -3797,30 +3936,6 @@ const HighlightResultScreen = () => {
              <ArrowLeft className="w-5 h-5" />
            </button>
          </div>
-
-         {isSoccer && (
-           <div className="px-4 pt-4 pb-3 border-b border-white/10 bg-[#0F172A]">
-             <div className="rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] p-3 space-y-3">
-               <div className="flex items-center justify-between gap-2">
-                 <span className="text-[10px] font-bold text-emerald-200/90 tracking-wide">{t('matchReport.gameStatistics')}</span>
-                 <span className="text-[9px] font-bold px-2 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-100">
-                   {t('matchReport.matchStatusFinal')}
-                 </span>
-               </div>
-               <div className="grid grid-cols-3 items-end">
-                 <div className="text-left">
-                   <p className={`text-3xl font-black ${statsData.teamA.color}`}>{statsData.teamA.score}</p>
-                   <p className="text-[11px] font-bold text-slate-200">{t(statsData.teamA.nameKey)}</p>
-                 </div>
-                 <div className="text-center text-slate-500 text-xs font-black pb-1">VS</div>
-                 <div className="text-right">
-                   <p className={`text-3xl font-black ${statsData.teamB.color}`}>{statsData.teamB.score}</p>
-                   <p className="text-[11px] font-bold text-slate-200">{t(statsData.teamB.nameKey)}</p>
-                 </div>
-               </div>
-             </div>
-           </div>
-         )}
 
         {/* Tab Switcher (Score-first layout) */}
         <div className="flex border-b border-white/10 bg-[#0F172A]">
@@ -3883,7 +3998,7 @@ const HighlightResultScreen = () => {
                <p className="text-[11px] text-slate-300 mt-2 font-medium leading-snug">
                  {t(statsData.teamA.nameKey)} {statsData.teamA.score} {t('matchReport.scoreLineSep')} {statsData.teamB.score} {t(statsData.teamB.nameKey)}
                  <span className="text-slate-500 mx-1.5">·</span>
-                 {isSoccer ? t('matchReport.sportSoccer') : t('matchReport.sportBasketball')}
+                 {t('matchReport.sportBasketball')}
                </p>
              </div>
            </div>
@@ -4154,54 +4269,6 @@ const HighlightResultScreen = () => {
             ) : (
 
                 <div className="p-4 space-y-4">
-                    {isSoccer && (
-                      <div className="rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-950/45 via-[#111827] to-[#0F172A] p-3 space-y-2">
-                        <p className="text-[10px] font-bold text-slate-300">{t('matchReport.videoEventTimeline')}</p>
-                        <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-                          {([
-                            ['goals', 'matchReport.timelineGoals'],
-                            ['assists', 'matchReport.timelineAssists'],
-                            ['possession', 'matchReport.timelinePossession'],
-                            ['saves', 'matchReport.timelineSaves'],
-                          ] as Array<[TimelineFilterId, string]>).map(([id, labelKey]) => (
-                            <button
-                              key={id}
-                              type="button"
-                              onClick={() => setTimelineFilter(id)}
-                              className={`px-2 py-1 rounded-md text-[9px] font-bold border whitespace-nowrap ${
-                                timelineFilter === id ? 'bg-white text-slate-900 border-white' : 'bg-white/5 text-slate-300 border-white/10'
-                              }`}
-                            >
-                              {t(labelKey)}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="rounded-lg border border-white/10 bg-[#0b1220] px-2 py-2">
-                          <div className="relative h-6">
-                            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[2px] bg-slate-700" />
-                            {timelinePoints.map((clip: any) => {
-                              const minute = parseMatchClockToSeconds(String(clip.time)) / 60;
-                              const left = Math.min(98, Math.max(2, (minute / 90) * 100));
-                              return (
-                                <button
-                                  key={clip.id}
-                                  type="button"
-                                  onClick={() => handleClipClick(String(clip.time))}
-                                  className={`absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full border border-white ${clip.team === 'A' ? 'bg-blue-500' : 'bg-orange-400'}`}
-                                  style={{ left: `${left}%` }}
-                                  title={`${clip.time}`}
-                                />
-                              );
-                            })}
-                          </div>
-                          <div className="flex items-center justify-between text-[8px] text-slate-500 mt-1">
-                            <span>0</span>
-                            <span>45:00</span>
-                            <span>90:00</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
                     <div className="rounded-2xl border border-white/10 bg-[#0F172A] p-3 space-y-2">
                       <p className="text-[10px] font-bold text-slate-300">{t('matchReport.comparativeData')}</p>
@@ -4815,6 +4882,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       t,
       galleryHybridDemoView,
       setGalleryHybridDemoView,
+      liveSoccerStats,
+      updateSoccerMatchPresentation,
     } = useAppContext();
 
     const [currentTime, setCurrentTime] = useState('00:00');
@@ -4825,6 +4894,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const [timelineFilter, setTimelineFilter] = useState<TimelineFilterId>('goals');
 
     const [activeTab, setActiveTab] = useState<'clips' | 'review'>('review');
+    const [showScoreEditModal, setShowScoreEditModal] = useState(false);
+    const [editingScoreA, setEditingScoreA] = useState<string>(String(liveSoccerStats.teamA.score));
+    const [editingScoreB, setEditingScoreB] = useState<string>(String(liveSoccerStats.teamB.score));
+    const [editingNameA, setEditingNameA] = useState<string>(String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel));
+    const [editingNameB, setEditingNameB] = useState<string>(String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel));
 
     const [editingClipId, setEditingClipId] = useState<number | null>(null);
     const [editingDuration, setEditingDuration] = useState<number>(0);
@@ -4862,6 +4936,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     useEffect(() => {
         setClipsState(AI_CLIPS_ADVANCED.filter(clip => clip.sport === (resultSport || 'soccer')));
     }, [resultSport]);
+
+    useEffect(() => {
+        if (!showScoreEditModal) return;
+        setEditingScoreA(String(liveSoccerStats.teamA.score));
+        setEditingScoreB(String(liveSoccerStats.teamB.score));
+        setEditingNameA(String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel));
+        setEditingNameB(String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel));
+    }, [showScoreEditModal, liveSoccerStats]);
 
     const hybridEdgeSparse = galleryHybridDemoView === 'edge_result';
 
@@ -5023,6 +5105,20 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const isSoccer = resultSport === 'soccer';
 
+    useEffect(() => {
+        if (!isSoccer) return;
+        if (activeEventTab === 'corner' || activeEventTab === 'setpiece') {
+            setActiveEventTab('all');
+        }
+    }, [isSoccer, activeEventTab]);
+
+    useEffect(() => {
+        if (!isSoccer) return;
+        if (selectedFilter === 'corner' || selectedFilter === 'setpiece') {
+            setSelectedFilter('all');
+        }
+    }, [isSoccer, selectedFilter]);
+
     // Manual correction handlers
     const handleStartEditTime = (clipId: number, currentTime: string) => {
         setEditingTime(currentTime);
@@ -5068,8 +5164,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         if (isSoc) {
             const keyMap: Record<string, string> = {
                 goal: 'clips.goal',
-                corner: 'clips.corner',
-                setpiece: 'clips.setpiece',
                 penalty: 'clips.penalty',
             };
             const key = keyMap[String(scoreType)] ?? 'clips.goal';
@@ -5109,8 +5203,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const eventTypeOptions: EventTypeOption[] = isSoccer
         ? [
             { id: 'goal', labelKey: 'clips.goal', type: 'soccer_event', scoreType: 'goal' },
-            { id: 'corner', labelKey: 'clips.cornerShort', type: 'soccer_event', scoreType: 'corner' },
-            { id: 'setpiece', labelKey: 'clips.setpieceShort', type: 'soccer_event', scoreType: 'setpiece' },
             { id: 'penalty', labelKey: 'clips.penaltyShort', type: 'soccer_event', scoreType: 'penalty' },
         ]
         : [
@@ -5148,6 +5240,32 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         setOpenTypeMenuId(null);
         setToastMessage(t('ui.typeCorrected'));
         setTimeout(() => setToastMessage(null), 2000);
+    };
+
+    const handleSaveSoccerScore = () => {
+        const scoreA = Number.parseInt(editingScoreA, 10);
+        const scoreB = Number.parseInt(editingScoreB, 10);
+        const invalid =
+            !Number.isFinite(scoreA) ||
+            !Number.isFinite(scoreB) ||
+            scoreA < 0 ||
+            scoreB < 0 ||
+            scoreA > 99 ||
+            scoreB > 99;
+        if (invalid) {
+            setToastMessage(t('matchReport.scoreEditInvalid'));
+            setTimeout(() => setToastMessage(null), 2200);
+            return;
+        }
+        updateSoccerMatchPresentation({
+            teamAScore: scoreA,
+            teamBScore: scoreB,
+            teamALabel: editingNameA,
+            teamBLabel: editingNameB,
+        });
+        setShowScoreEditModal(false);
+        setToastMessage(t('matchReport.scoreEditSaved'));
+        setTimeout(() => setToastMessage(null), 1800);
     };
 
     const handleMergeClips = () => {
@@ -5257,14 +5375,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         }, 200);
     };
 
-    const statsData = isSoccer ? SOCCER_MATCH_STATS : TEAM_MATCH_STATS;
+    const statsData = isSoccer ? liveSoccerStats : TEAM_MATCH_STATS;
 
     const tierStatsData = React.useMemo(() => {
       if (!hybridEdgeSparse) return statsData;
       if (isSoccer) {
         return {
-          ...SOCCER_MATCH_STATS,
-          comparison: SOCCER_MATCH_STATS.comparison.filter((row: { rowKey: string }) =>
+          ...statsData,
+          comparison: statsData.comparison.filter((row: { rowKey: string }) =>
             ['goals', 'shotsOnTarget', 'corners'].includes(row.rowKey)
           ),
         } as typeof statsData;
@@ -5399,7 +5517,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     // Filters for clips tab
     const filters = isSoccer 
-      ? [ { id: 'all', labelKey: 'filter.all' }, { id: 'goal', labelKey: 'filter.goal' }, { id: 'corner', labelKey: 'filter.corner' }, { id: 'setpiece', labelKey: 'filter.setpiece' }, { id: 'penalty', labelKey: 'filter.penalty' } ]
+      ? [ { id: 'all', labelKey: 'filter.all' }, { id: 'goal', labelKey: 'filter.goal' }, { id: 'penalty', labelKey: 'filter.penalty' } ]
       : [ { id: 'all', labelKey: 'filter.all' }, { id: 3, labelKey: 'clips.3ptShort' }, { id: 2, labelKey: 'clips.2ptShort' }, { id: 1, labelKey: 'filter.ft' }, { id: 'rebound', labelKey: 'filter.rebound' }, { id: 'steal', labelKey: 'filter.steal' }, { id: 'assist', labelKey: 'filter.assist' } ];
 
     // Display clips for clips tab
@@ -5416,8 +5534,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         if (selectedFilter !== 'all') { 
             if (isSoccer) {
                 if (selectedFilter === 'goal') return clip.scoreType === 'goal';
-                if (selectedFilter === 'corner') return clip.scoreType === 'corner';
-                if (selectedFilter === 'setpiece') return clip.scoreType === 'setpiece';
                 if (selectedFilter === 'penalty') return clip.scoreType === 'penalty';
             } else {
                 // Basketball: handle score types and basketball_event types
@@ -5430,7 +5546,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             }
             return false;
         } 
-        // For 'all' filter, show all events (no confidence filtering for Pro)
+        if (isSoccer) {
+            return clip.scoreType === 'goal' || clip.scoreType === 'penalty';
+        }
         return true; 
     });
 
@@ -5545,7 +5663,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         if (activeEventTab === 'all') {
             // For basketball, include both score events and basketball_event types (rebound/steal/assist)
             if (isSoccer) {
-                return true; // All soccer events
+                return clip.scoreType === 'goal' || clip.scoreType === 'penalty';
             } else {
                 return clip.type === 'score' || clip.type === 'basketball_event';
             }
@@ -5569,7 +5687,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const eventTabs = isSoccer 
 
-      ? [{ id: 'all', labelKey: 'filterShort.all' }, { id: 'goal', labelKey: 'filterShort.goal' }, { id: 'corner', labelKey: 'filterShort.corner' }, { id: 'setpiece', labelKey: 'filterShort.setpiece' }, { id: 'penalty', labelKey: 'filterShort.penalty' }]
+      ? [{ id: 'all', labelKey: 'filterShort.all' }, { id: 'goal', labelKey: 'filterShort.goal' }, { id: 'penalty', labelKey: 'filterShort.penalty' }]
 
       : [{ id: 'all', labelKey: 'filterShort.all' }, { id: 3, labelKey: 'filterShort.3' }, { id: 2, labelKey: 'filterShort.2' }, { id: 1, labelKey: 'filterShort.1' }, { id: 'rebound', labelKey: 'filterShort.rebound' }, { id: 'steal', labelKey: 'filterShort.steal' }, { id: 'assist', labelKey: 'filterShort.assist' }];
     const keyTimelineEvents = React.useMemo(() => {
@@ -5639,19 +5757,29 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
              <div className="rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] p-3 space-y-3">
                <div className="flex items-center justify-between gap-2">
                  <span className="text-[10px] font-bold text-emerald-200/90 tracking-wide">{t('matchReport.gameStatistics')}</span>
-                 <span className="text-[9px] font-bold px-2 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-100">
-                   {t('matchReport.matchStatusFinal')}
-                 </span>
+                 <div className="flex items-center gap-2">
+                   <button
+                     type="button"
+                     onClick={() => setShowScoreEditModal(true)}
+                     className="text-[9px] font-bold px-2 py-1 rounded-full bg-white/10 border border-white/15 text-emerald-100 inline-flex items-center gap-1"
+                   >
+                     <Edit3 className="w-3 h-3" />
+                     {t('matchReport.adjustMatchButton')}
+                   </button>
+                   <span className="text-[9px] font-bold px-2 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-100">
+                     {t('matchReport.matchStatusFinal')}
+                   </span>
+                 </div>
                </div>
                <div className="mt-2 grid grid-cols-3 items-end">
                  <div className="text-left">
                    <p className={`text-3xl font-black ${tierStatsData.teamA.color}`}>{tierStatsData.teamA.score}</p>
-                   <p className="text-[11px] font-bold text-slate-200">{t(tierStatsData.teamA.nameKey)}</p>
+                   <p className="text-[11px] font-bold text-slate-200">{(tierStatsData.teamA as { displayLabel: string }).displayLabel}</p>
                  </div>
                  <div className="text-center text-slate-500 text-xs font-black pb-1">VS</div>
                  <div className="text-right">
                    <p className={`text-3xl font-black ${tierStatsData.teamB.color}`}>{tierStatsData.teamB.score}</p>
-                   <p className="text-[11px] font-bold text-slate-200">{t(tierStatsData.teamB.nameKey)}</p>
+                   <p className="text-[11px] font-bold text-slate-200">{(tierStatsData.teamB as { displayLabel: string }).displayLabel}</p>
                  </div>
                </div>
                {hybridEdgeSparse && (
@@ -5751,7 +5879,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                            </button>
                            <div className="p-3.5 space-y-2.5">
                              <div>
-                               <p className="text-[10px] font-bold text-indigo-200/90 tracking-wide">{t('proReel.heroKicker')}</p>
                                <h3 className="text-base font-black text-white leading-tight mt-0.5">{t('proReel.heroTitle')}</h3>
                                <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
                                  {t('proReel.heroMeta', {
@@ -6119,6 +6246,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             </div>
                         </div>
 
+                        {!isSoccer ? (
+                        <>
                         <div className="rounded-2xl border border-white/10 bg-[#0F172A] p-3 space-y-2">
                             <p className="text-[10px] font-bold text-slate-300">{t('matchReport.comparativeData')}</p>
                             {comparativeRows.map((row: any) => {
@@ -6161,6 +6290,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                 </div>
                             )}
                         </div>
+                        </>
+                        ) : null}
 
                     </div>
 
@@ -6204,6 +6335,84 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
          {activeTab === 'review' && (
              <div className="p-4 bg-[#0F172A] border-t border-white/10"><button onClick={handleExportReport} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-colors"><Download className="w-4 h-4" /> {t('ui.exportReport')}</button></div>
          )}
+
+        {isSoccer && showScoreEditModal && (
+            <div className="absolute inset-0 z-40 flex items-end">
+                <button
+                    type="button"
+                    className="absolute inset-0 bg-black/60"
+                    onClick={() => setShowScoreEditModal(false)}
+                    aria-label="close"
+                />
+                <div className="relative w-full rounded-t-3xl bg-[#111827] border-t border-white/10 p-4 space-y-3">
+                    <h3 className="text-sm font-bold text-white">{t('matchReport.editMatchPresentation')}</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        <label className="space-y-1.5">
+                            <span className="text-[10px] text-slate-400">{t('matchReport.teamNameSideA')}</span>
+                            <input
+                                type="text"
+                                maxLength={24}
+                                value={editingNameA}
+                                onChange={(e) => setEditingNameA(e.target.value)}
+                                className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
+                            />
+                        </label>
+                        <label className="space-y-1.5">
+                            <span className="text-[10px] text-slate-400">{t('matchReport.teamNameSideB')}</span>
+                            <input
+                                type="text"
+                                maxLength={24}
+                                value={editingNameB}
+                                onChange={(e) => setEditingNameB(e.target.value)}
+                                className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
+                            />
+                        </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <label className="space-y-1.5">
+                            <span className="text-[10px] text-slate-400">{t('matchReport.scoreSideA')}</span>
+                            <input
+                                type="number"
+                                min={0}
+                                max={99}
+                                inputMode="numeric"
+                                value={editingScoreA}
+                                onChange={(e) => setEditingScoreA(e.target.value)}
+                                className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
+                            />
+                        </label>
+                        <label className="space-y-1.5">
+                            <span className="text-[10px] text-slate-400">{t('matchReport.scoreSideB')}</span>
+                            <input
+                                type="number"
+                                min={0}
+                                max={99}
+                                inputMode="numeric"
+                                value={editingScoreB}
+                                onChange={(e) => setEditingScoreB(e.target.value)}
+                                className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
+                            />
+                        </label>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                        <button
+                            type="button"
+                            onClick={() => setShowScoreEditModal(false)}
+                            className="flex-1 py-2.5 rounded-xl bg-slate-700 text-white text-sm font-bold"
+                        >
+                            {t('ui.cancel')}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSaveSoccerScore}
+                            className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold"
+                        >
+                            {t('ui.save')}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
 
          {/* Portal dropdowns for type / player correction (avoid clip card overflow clipping) */}
          {openTypeMenuId != null && typeDropdownRect != null && (() => {
@@ -7002,7 +7211,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   const App = () => {
 
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [viewStack, setViewStack] = useState<ViewState[]>(['home']);
 
@@ -7014,7 +7223,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   const [aiMode, setAiMode] = useState<AIMode>('cloud');
 
-  const [analysisPipeline, setAnalysisPipeline] = useState<AnalysisPipeline>('falcon_app_cloud');
+  const [analysisPipeline, setAnalysisPipeline] = useState<AnalysisPipeline>('falcon_direct_cloud');
 
   /** Hybrid pipeline: false = 端侧核心分析阶段；true = 已完成端侧，进入上传/云端全量阶段 */
   const [hybridPastEdge, setHybridPastEdge] = useState(false);
@@ -7094,6 +7303,52 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   /** 混合路线 +「专业云端深析」：流水线第三格走云端（Falcon→App→云→AI），而非本机快析 */
   const [hybridCloudDeepThisRun, setHybridCloudDeepThisRun] = useState(false);
+
+  /** 最近一次足球集锦云端分析完成时间戳（演示：直传云完成后写入，见 docs/soccer-mvp-api-contract.md） */
+  const [soccerMvpCloudReadyAt, setSoccerMvpCloudReadyAt] = useState<number | null>(null);
+  const [soccerDisplayScore, setSoccerDisplayScore] = useState(() => ({
+    teamA: SOCCER_MATCH_STATS.teamA.score,
+    teamB: SOCCER_MATCH_STATS.teamB.score,
+  }));
+  const [soccerTeamLabels, setSoccerTeamLabels] = useState(() => ({
+    teamA: i18n.t('ui.teamA'),
+    teamB: i18n.t('ui.teamB'),
+  }));
+  const liveSoccerStats = React.useMemo(
+    () =>
+      buildSoccerStatsWithScore(
+        soccerDisplayScore.teamA,
+        soccerDisplayScore.teamB,
+        soccerTeamLabels.teamA,
+        soccerTeamLabels.teamB
+      ),
+    [soccerDisplayScore.teamA, soccerDisplayScore.teamB, soccerTeamLabels.teamA, soccerTeamLabels.teamB]
+  );
+  const updateSoccerMatchPresentation = (patch: {
+    teamAScore?: number;
+    teamBScore?: number;
+    teamALabel?: string;
+    teamBLabel?: string;
+  }) => {
+    const clampScore = (n: number) => Math.max(0, Math.min(99, Math.trunc(n)));
+    const normalizeName = (raw: string | undefined, fallbackKey: 'ui.teamA' | 'ui.teamB') => {
+      if (raw === undefined) return undefined;
+      const s = raw.trim().slice(0, 24);
+      return s.length > 0 ? s : i18n.t(fallbackKey);
+    };
+    setSoccerDisplayScore((prev) => ({
+      teamA: patch.teamAScore !== undefined ? clampScore(patch.teamAScore) : prev.teamA,
+      teamB: patch.teamBScore !== undefined ? clampScore(patch.teamBScore) : prev.teamB,
+    }));
+    setSoccerTeamLabels((prev) => ({
+      teamA:
+        patch.teamALabel !== undefined ? normalizeName(patch.teamALabel, 'ui.teamA')! : prev.teamA,
+      teamB:
+        patch.teamBLabel !== undefined ? normalizeName(patch.teamBLabel, 'ui.teamB')! : prev.teamB,
+    }));
+  };
+
+  const lastSubmittedAnalysisRef = useRef<{ sport: string; analysisType: AnalysisType } | null>(null);
 
   useEffect(() => {
     hybridPastEdgeRef.current = hybridPastEdge;
@@ -7372,6 +7627,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const taskName = merged
       ? t('ui.aiMergedTaskName', { title: t((mainVideo as any).labelKey), count: selectedVideos.length - 1 })
       : t((mainVideo as any).labelKey);
+
+    lastSubmittedAnalysisRef.current = {
+      sport: String((mainVideo as any).category || 'soccer'),
+      analysisType: (targetAnalysisType || 'highlight') as AnalysisType,
+    };
+    setSoccerMvpCloudReadyAt(null);
 
     setSelectedMedia(videoIds);
     setSelectionMode(merged ? 'multiple' : 'single');
@@ -7990,6 +8251,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     prevTransferStepRef.current = transferStep;
   }, [transferStep, postRecordModalPayload]);
 
+  useEffect(() => {
+    if (transferStep !== 'completed') return;
+    const ctx = lastSubmittedAnalysisRef.current;
+    if (!ctx || ctx.sport !== 'soccer' || ctx.analysisType !== 'highlight') return;
+    setSoccerMvpCloudReadyAt(Date.now());
+  }, [transferStep]);
+
   return (
 
     <AppContext.Provider value={{
@@ -8087,6 +8355,10 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
       postRecordModalPayload,
       setPostRecordModalPayload,
+
+      soccerMvpCloudReadyAt,
+      liveSoccerStats,
+      updateSoccerMatchPresentation,
 
       t,
 
