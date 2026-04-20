@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, createContext, useRef } from 'r
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from './src/i18n';
-import soccerVideoBg from './sofascore.png';
+import soccerVideoBg from './下载.jpeg';
 
 import { 
 
