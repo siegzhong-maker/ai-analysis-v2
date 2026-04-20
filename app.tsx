@@ -88,6 +88,18 @@ interface CloudTask {
   createdAt: number;
 }
 
+type MediaPickerSessionState = {
+  sourceTab: VideoSource;
+  typeTab: 'all' | 'video' | 'image' | 'collect';
+  detailVideoId: number | null;
+};
+
+let mediaPickerSessionState: MediaPickerSessionState = {
+  sourceTab: 'falcon',
+  typeTab: 'all',
+  detailVideoId: null,
+};
+
 /** Unified row in「我的文档」— merges history, drafts, and cloud queue */
 type AssetItemKind = 'completed_match' | 'draft' | 'cloud_job' | 'failed' | 'paused';
 
@@ -2754,9 +2766,9 @@ const GalleryScreen = () => {
     setGalleryHybridDemoView,
     liveSoccerStats,
   } = useAppContext();
-  const [sourceTab, setSourceTab] = useState<VideoSource>('falcon');
-  const [typeTab, setTypeTab] = useState<'all' | 'video' | 'image' | 'collect'>('all');
-  const [detailVideoId, setDetailVideoId] = useState<number | null>(null);
+  const [sourceTab, setSourceTab] = useState<VideoSource>(() => mediaPickerSessionState.sourceTab);
+  const [typeTab, setTypeTab] = useState<'all' | 'video' | 'image' | 'collect'>(() => mediaPickerSessionState.typeTab);
+  const [detailVideoId, setDetailVideoId] = useState<number | null>(() => mediaPickerSessionState.detailVideoId);
   const [detailFromAnalyzedCard, setDetailFromAnalyzedCard] = useState(false);
   const [detailAnalyzedType, setDetailAnalyzedType] = useState<'highlight' | 'analysis'>('analysis');
   const [aiDecisionPayload, setAiDecisionPayload] = useState<{ videoId: number; relatedIds: number[] } | null>(null);
@@ -2764,6 +2776,14 @@ const GalleryScreen = () => {
   const [hybridAnalysisTierSheet, setHybridAnalysisTierSheet] = useState<
     null | { videoIds: number[]; mode: 'single' | 'merge' }
   >(null);
+
+  useEffect(() => {
+    mediaPickerSessionState = {
+      sourceTab,
+      typeTab,
+      detailVideoId,
+    };
+  }, [sourceTab, typeTab, detailVideoId]);
 
   const soccerVideos = React.useMemo(() => {
     const bySport = ALL_VIDEOS.filter((video) => video.category === 'soccer');
@@ -3004,7 +3024,7 @@ const GalleryScreen = () => {
               <h3 className="text-[34px] leading-none text-slate-500 font-medium">{t(group.dateKey as any)}</h3>
               <ChevronDown className="w-4 h-4 text-slate-400" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3">
               {successCards
                 .filter((card) => card.dateKey === group.dateKey)
                 .map((card) => {
@@ -3031,43 +3051,46 @@ const GalleryScreen = () => {
                       setDetailFromAnalyzedCard(true);
                       setDetailAnalyzedType(card.analysisType);
                     }}
-                    className="rounded-xl overflow-hidden border border-emerald-200 bg-white text-left shadow-sm aspect-[16/10]"
+                    className="relative w-full rounded-xl overflow-hidden border border-emerald-200 bg-white text-left shadow-sm aspect-[16/8.5]"
                   >
-                    <div className="flex h-full">
-                      <div className="w-1/2 bg-gradient-to-br from-[#0E2A3C] to-[#1B4B68] text-white px-2.5 py-2 flex flex-col justify-between">
-                        <div className="text-[9px] font-semibold text-white/80">{t('gallery.analysisReady')}</div>
-                        <div className="grid grid-cols-[1fr_auto] items-end gap-1">
-                          <span className="text-[11px] font-bold leading-tight whitespace-nowrap overflow-hidden text-ellipsis pr-1">{nameA}</span>
-                          <span className="text-[19px] font-black leading-none">{scoreA}</span>
+                    <AssetThumbnail type="video" category="soccer" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/94 via-[#12324A]/78 to-black/52" />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (card.isAnalyzed) {
+                          openAnalyzedResult(card.analysisType);
+                          return;
+                        }
+                        setTargetAnalysisType('highlight');
+                        setSelectionMode('single');
+                        setSportType('soccer');
+                        submitAiAnalysis([card.videoId], 'gallery_badge', 'single');
+                      }}
+                      className="absolute top-2 right-2 px-2 py-1 rounded-md text-[10px] font-black bg-emerald-500 text-white"
+                    >
+                      {card.isAnalyzed ? t('gallery.viewAnalysis') : 'AI'}
+                    </button>
+                    <div className="absolute inset-0 p-3 text-white flex flex-col">
+                      <div className="text-[10px] font-semibold text-white/85">{t('gallery.analysisReady')}</div>
+                      <div className="flex-1 flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex items-end gap-1.5">
+                          <span className="text-[12px] font-bold truncate max-w-[80px]">{nameA}</span>
+                          <span className="text-[30px] font-black leading-none">{scoreA}</span>
                         </div>
-                        <div className="grid grid-cols-[1fr_auto] items-end gap-1">
-                          <span className="text-[11px] font-bold leading-tight whitespace-nowrap overflow-hidden text-ellipsis pr-1">{nameB}</span>
-                          <span className="text-[19px] font-black leading-none">{scoreB}</span>
+                        <div className="text-center">
+                          <div className="text-[28px] font-black leading-none">:</div>
+                          <div className="text-[9px] font-bold text-white/70 mt-0.5">VS</div>
                         </div>
-                        <div className="text-[9px] text-white/70">{t(card.statusKey)}</div>
+                        <div className="min-w-0 flex items-end gap-1.5 justify-end">
+                          <span className="text-[12px] font-bold truncate max-w-[80px]">{nameB}</span>
+                          <span className="text-[30px] font-black leading-none">{scoreB}</span>
+                        </div>
                       </div>
-                      <div className="w-1/2 relative">
-                        <AssetThumbnail type="video" category="soccer" />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (card.isAnalyzed) {
-                              openAnalyzedResult(card.analysisType);
-                              return;
-                            }
-                            setTargetAnalysisType('highlight');
-                            setSelectionMode('single');
-                            setSportType('soccer');
-                            submitAiAnalysis([card.videoId], 'gallery_badge', 'single');
-                          }}
-                          className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black bg-emerald-500 text-white"
-                        >
-                          {card.isAnalyzed ? t('gallery.viewAnalysis') : 'AI'}
-                        </button>
-                        <div className="absolute inset-0 bg-black/15" />
-                      </div>
+                      <div className="h-3" />
                     </div>
+                    <div className="absolute inset-0 pointer-events-none border border-white/16 rounded-xl" />
                   </button>
                   );
                 })}
@@ -3084,9 +3107,10 @@ const GalleryScreen = () => {
                     setDetailVideoId(video.id);
                     setDetailFromAnalyzedCard(false);
                   }}
-                  className="relative rounded-xl overflow-hidden aspect-[16/10] text-left"
+                  className="relative w-full rounded-xl overflow-hidden aspect-[16/8.5] text-left"
                 >
                   <AssetThumbnail type="video" category={video.category as 'basketball' | 'soccer'} />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25" />
                   {(() => {
                     const taskMeta = getVideoTaskMeta(video.id);
                     return (
@@ -3104,16 +3128,21 @@ const GalleryScreen = () => {
                       }
                       openAiDecision(video.id);
                     }}
-                    className={`absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-black ${taskMeta.className}`}
+                    className={`absolute top-2 right-2 px-2 py-1 rounded-md text-[10px] font-black ${taskMeta.className}`}
                   >
                     {taskMeta.label}
                   </button>
                     );
                   })()}
-                  <div className="absolute left-2 bottom-2 text-white"><Heart className="w-4 h-4 fill-white stroke-white" /></div>
-                  <div className="absolute left-2 right-2 bottom-2 flex items-end justify-between text-white pl-5">
-                    <span className="text-[10px] font-semibold truncate max-w-[60%]">{t((video as any).labelKey)}</span>
-                    <span className="text-[10px] font-semibold">{video.duration}</span>
+                  <div className="absolute left-3 right-3 bottom-3 flex items-end justify-between text-white">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Heart className="w-4 h-4 fill-white stroke-white" />
+                        <span className="text-[11px] font-semibold truncate max-w-[160px]">{t((video as any).labelKey)}</span>
+                      </div>
+                      <span className="text-[10px] text-white/75">{t('ui.aiEntryLabel')}</span>
+                    </div>
+                    <span className="text-[11px] font-semibold">{video.duration}</span>
                   </div>
                 </button>
               ))}
@@ -4862,23 +4891,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
 
   const AnalysisResultScreen = () => {
-
     const {
       popToHome,
-      replaceView,
       resultSport,
-      setProgressModal,
-      pushView,
       setShowShareModal,
       setShareType,
-      setMergedVideoUrl,
       setShareContext,
-      setSelectedEventForClaim,
-      setShowPlayerSelector,
-      eventClaims,
-      setEventClaims,
       setToastMessage,
-      isVip,
       t,
       galleryHybridDemoView,
       setGalleryHybridDemoView,
@@ -4886,1656 +4905,558 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       updateSoccerMatchPresentation,
     } = useAppContext();
 
-    const [currentTime, setCurrentTime] = useState('00:00');
-
-    const [showJumpToast, setShowJumpToast] = useState(false);
-
-    const [activeEventTab, setActiveEventTab] = useState<EventFilterType>('all');
-    const [timelineFilter, setTimelineFilter] = useState<TimelineFilterId>('goals');
-
-    const [activeTab, setActiveTab] = useState<'clips' | 'review'>('review');
+    const isSoccer = resultSport === 'soccer';
+    const [viewMode, setViewMode] = useState<'review' | 'fullMatch'>('review');
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [currentTimeSec, setCurrentTimeSec] = useState(0);
+    const [durationSec, setDurationSec] = useState(90 * 60);
+    const [activeEventId, setActiveEventId] = useState<number | null>(null);
     const [showScoreEditModal, setShowScoreEditModal] = useState(false);
+    const [isScoreCollapsed, setIsScoreCollapsed] = useState(false);
     const [editingScoreA, setEditingScoreA] = useState<string>(String(liveSoccerStats.teamA.score));
     const [editingScoreB, setEditingScoreB] = useState<string>(String(liveSoccerStats.teamB.score));
     const [editingNameA, setEditingNameA] = useState<string>(String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel));
     const [editingNameB, setEditingNameB] = useState<string>(String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel));
+    const [editingEventId, setEditingEventId] = useState<number | null>(null);
+    const [eventDraft, setEventDraft] = useState<{ scoreType: string; time: string }>({ scoreType: 'goal', time: '00:00' });
+    const [eventCorrections, setEventCorrections] = useState<Record<number, { scoreType?: string; time?: string }>>({});
+    const [carouselIndex, setCarouselIndex] = useState(0);
+    const [activeTimelineFilter, setActiveTimelineFilter] = useState<'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'>('all');
 
-    const [editingClipId, setEditingClipId] = useState<number | null>(null);
-    const [editingDuration, setEditingDuration] = useState<number>(0);
-    
-    // Manual correction states
-    const [editingTimeClipId, setEditingTimeClipId] = useState<number | null>(null);
-    const [editingTime, setEditingTime] = useState<string>('');
+    const eventItemRefs = useRef<Record<number, HTMLDivElement | null>>({});
+    const ignoreCollapseUntilRef = useRef(0);
 
-    // Clips-related states for advanced view
-    const [selectedCollection, setSelectedCollection] = useState('full');
-    const [selectedFilter, setSelectedFilter] = useState<EventFilterType>('all');
-    const [isSelectionMode, setIsSelectionMode] = useState(false);
-    const [selectedClipIds, setSelectedClipIds] = useState<number[]>([]);
-    
-    // Player filter state for Pro personal highlights
-    const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
-    
-    // Player marking dropdown state
-    const [openPlayerMenuId, setOpenPlayerMenuId] = useState<number | null>(null);
-    // Event type correction dropdown state
-    const [openTypeMenuId, setOpenTypeMenuId] = useState<number | null>(null);
+    const sourceClips = React.useMemo(
+      () => AI_CLIPS_ADVANCED.filter((clip) => clip.sport === (resultSport || 'soccer')),
+      [resultSport]
+    );
 
-    const [showProComposeModal, setShowProComposeModal] = useState(false);
+    const soccerTimelineEvents = React.useMemo(() => {
+      if (!isSoccer) return [] as any[];
+      return sourceClips
+        .filter((clip) => ['goal', 'corner', 'setpiece', 'penalty'].includes(String(clip.scoreType)))
+        .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)));
+    }, [isSoccer, sourceClips]);
 
-    type DropdownRect = { top?: number; bottom?: number; left: number; minWidth: number; placement: 'above' | 'below' };
-    const typeTriggerRefs = useRef<Record<number, HTMLButtonElement | null>>({});
-    const playerTriggerRefs = useRef<Record<number, HTMLButtonElement | null>>({});
-    const [typeDropdownRect, setTypeDropdownRect] = useState<DropdownRect | null>(null);
-    const [playerDropdownRect, setPlayerDropdownRect] = useState<DropdownRect | null>(null);
+    const resolvedEvents = React.useMemo(
+      () =>
+        soccerTimelineEvents.map((clip) => ({
+          ...clip,
+          scoreType: eventCorrections[clip.id]?.scoreType ?? String(clip.scoreType),
+          time: eventCorrections[clip.id]?.time ?? String(clip.time),
+        })),
+      [soccerTimelineEvents, eventCorrections]
+    );
 
-    // Get clips for the current sport
-    const clips = AI_CLIPS_ADVANCED.filter(clip => clip.sport === (resultSport || 'soccer'));
-    const [clipsState, setClipsState] = useState(clips);
+    const filteredTimelineEvents = React.useMemo(() => {
+      if (activeTimelineFilter === 'all') return resolvedEvents;
+      return resolvedEvents.filter((event) => String(event.scoreType) === activeTimelineFilter);
+    }, [resolvedEvents, activeTimelineFilter]);
+
+    const maxEventTimeSec = React.useMemo(
+      () => resolvedEvents.reduce((acc, event) => Math.max(acc, parseMatchClockToSeconds(String(event.time))), 0),
+      [resolvedEvents]
+    );
+
+    const selectedVideoDuration =
+      viewMode === 'fullMatch'
+        ? 95 * 60
+        : Math.min(20 * 60, Math.max(45, maxEventTimeSec + 30));
 
     useEffect(() => {
-        setClipsState(AI_CLIPS_ADVANCED.filter(clip => clip.sport === (resultSport || 'soccer')));
-    }, [resultSport]);
+      setDurationSec(selectedVideoDuration);
+      setCurrentTimeSec(0);
+      setIsPlaying(false);
+      setActiveEventId(null);
+    }, [selectedVideoDuration, viewMode]);
 
     useEffect(() => {
-        if (!showScoreEditModal) return;
-        setEditingScoreA(String(liveSoccerStats.teamA.score));
-        setEditingScoreB(String(liveSoccerStats.teamB.score));
-        setEditingNameA(String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel));
-        setEditingNameB(String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel));
+      if (!isPlaying) return;
+      const id = window.setInterval(() => {
+        setCurrentTimeSec((prev) => Math.min(prev + 1, durationSec));
+      }, 1000);
+      return () => window.clearInterval(id);
+    }, [isPlaying, durationSec]);
+
+    useEffect(() => {
+      if (currentTimeSec >= durationSec) setIsPlaying(false);
+    }, [currentTimeSec, durationSec]);
+
+    useEffect(() => {
+      if (viewMode !== 'review') return;
+      let idx = -1;
+      for (let i = 0; i < resolvedEvents.length; i += 1) {
+        if (parseMatchClockToSeconds(String(resolvedEvents[i].time)) <= currentTimeSec + 1) {
+          idx = i;
+        }
+      }
+      if (idx < 0) return;
+      const candidate = resolvedEvents[idx];
+      if (candidate?.id !== activeEventId) {
+        setActiveEventId(candidate.id);
+        ignoreCollapseUntilRef.current = Date.now() + 450;
+        eventItemRefs.current[candidate.id]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }, [currentTimeSec, viewMode, resolvedEvents, activeEventId]);
+
+    useEffect(() => {
+      if (!showScoreEditModal) return;
+      setEditingScoreA(String(liveSoccerStats.teamA.score));
+      setEditingScoreB(String(liveSoccerStats.teamB.score));
+      setEditingNameA(String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel));
+      setEditingNameB(String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel));
     }, [showScoreEditModal, liveSoccerStats]);
 
-    const hybridEdgeSparse = galleryHybridDemoView === 'edge_result';
-
-    const tierSourceClips = React.useMemo(() => {
-      if (!hybridEdgeSparse) return clipsState;
-      return filterClipsForHybridEdgeTier(clipsState);
-    }, [clipsState, hybridEdgeSparse]);
-
-    // Extract unique players (labels) from eventClaims + clip.player for filter
-    const availablePlayers = Array.from(new Set(
-        tierSourceClips.flatMap(clip => {
-          const L = (eventClaims[clip.id] ?? clip.player) as string | null | undefined;
-          return L && L.trim() ? [L.trim()] : [];
-        })
-    )).sort();
-    
-    // Reset player filter if selected player is no longer available
-    useEffect(() => {
-        if (selectedPlayer && selectedPlayer !== 'all' && !availablePlayers.includes(selectedPlayer)) {
-            setSelectedPlayer('all');
-        }
-    }, [availablePlayers, selectedPlayer]);
-
-    // Close correction menus (player / type) when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            const insideAny = target.closest('[data-correction-menu]');
-            if ((openPlayerMenuId !== null || openTypeMenuId !== null) && !insideAny) {
-                setOpenPlayerMenuId(null);
-                setOpenTypeMenuId(null);
-                setTypeDropdownRect(null);
-                setPlayerDropdownRect(null);
-            }
-        };
-        if (openPlayerMenuId !== null || openTypeMenuId !== null) {
-            document.addEventListener('click', handleClickOutside);
-            return () => document.removeEventListener('click', handleClickOutside);
-        }
-    }, [openPlayerMenuId, openTypeMenuId]);
-
-    // Compute Portal dropdown position when type or player menu opens; clear on close
-    useEffect(() => {
-        const measure = (refs: Record<number, HTMLButtonElement | null>, id: number | null, setRect: (r: DropdownRect | null) => void, maxH: number, minW: number) => {
-            if (id == null) {
-                setRect(null);
-                return;
-            }
-            const el = refs[id];
-            if (!el) {
-                setRect(null);
-                return;
-            }
-            const run = () => {
-                const r = el.getBoundingClientRect();
-                const w = Math.max(r.width, minW);
-                const spaceBelow = window.innerHeight - r.bottom;
-                const spaceAbove = r.top;
-                const preferBelow = spaceBelow >= maxH || spaceBelow >= spaceAbove;
-                if (preferBelow) {
-                    setRect({ top: r.bottom + 4, left: r.left, minWidth: w, placement: 'below' });
-                } else {
-                    setRect({ bottom: window.innerHeight - r.top + 4, left: r.left, minWidth: w, placement: 'above' });
-                }
-            };
-            requestAnimationFrame(run);
-        };
-        if (openTypeMenuId != null) {
-            measure(typeTriggerRefs.current, openTypeMenuId, setTypeDropdownRect, 220, 100);
-            setPlayerDropdownRect(null);
-        } else {
-            setTypeDropdownRect(null);
-        }
-        if (openPlayerMenuId != null) {
-            measure(playerTriggerRefs.current, openPlayerMenuId, setPlayerDropdownRect, 200, 120);
-            setTypeDropdownRect(null);
-        } else {
-            setPlayerDropdownRect(null);
-        }
-    }, [openTypeMenuId, openPlayerMenuId]);
-
-    // Close correction menus on scroll (Portal dropdowns would otherwise get detached)
-    useEffect(() => {
-        const onScroll = () => {
-            if (openTypeMenuId !== null || openPlayerMenuId !== null) {
-                setOpenTypeMenuId(null);
-                setOpenPlayerMenuId(null);
-                setTypeDropdownRect(null);
-                setPlayerDropdownRect(null);
-            }
-        };
-        const scrollEl = document.querySelector('[data-correction-scroll]');
-        if (scrollEl && (openTypeMenuId !== null || openPlayerMenuId !== null)) {
-            scrollEl.addEventListener('scroll', onScroll, { passive: true });
-            return () => scrollEl.removeEventListener('scroll', onScroll);
-        }
-    }, [openTypeMenuId, openPlayerMenuId]);
-
-    const handleClipClick = (time: string) => { 
-        setCurrentTime(time); 
-        setShowJumpToast(true); 
-        setTimeout(() => setShowJumpToast(false), 2000); 
+    const handleSeekToEvent = (event: { id: number; time: string; scoreType: string }) => {
+      const sec = parseMatchClockToSeconds(String(event.time));
+      setCurrentTimeSec(sec);
+      if (viewMode === 'review') {
+        setActiveEventId(event.id);
+      }
+      setToastMessage(t('ui.jumpToEvent', { event: scoreTypeLabel(String(event.scoreType)) }));
+      setTimeout(() => setToastMessage(null), 1200);
     };
 
-    const handleEditDuration = (clipId: number, currentDuration: string) => {
-        const seconds = parseInt(currentDuration.replace('s', '')) || 0;
-        setEditingDuration(Math.min(15, seconds));
-        setEditingClipId(clipId);
+    const formatClock = (sec: number) => {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     };
 
-    const handleSaveDuration = () => {
-        if (editingClipId === null) return;
-        
-        if (editingDuration > 15) {
-            setToastMessage(t('ui.clipMax15s'));
-            setTimeout(() => setToastMessage(null), 2000);
-            setEditingDuration(15);
-            return;
-        }
-        
-        setClipsState(prevClips => 
-            prevClips.map(clip => 
-                clip.id === editingClipId 
-                    ? { ...clip, duration: `${editingDuration}s` }
-                    : clip
-            )
-        );
-        
-        // Also update the global clips array
-        const globalClipIndex = AI_CLIPS_ADVANCED.findIndex(c => c.id === editingClipId);
-        if (globalClipIndex !== -1) {
-            (AI_CLIPS_ADVANCED[globalClipIndex] as any).duration = `${editingDuration}s`;
-        }
-        
-        setEditingClipId(null);
-        setEditingDuration(0);
+    const scoreTypeLabel = (scoreType: string) => {
+      if (scoreType === 'goal') return t('ui.eventGoal');
+      if (scoreType === 'corner') return t('ui.eventCornerKick');
+      if (scoreType === 'setpiece') return t('ui.eventFreeKick');
+      return t('ui.eventPenaltyKicks');
     };
 
-    const handleCancelEdit = () => {
-        setEditingClipId(null);
-        setEditingDuration(0);
+    const scoreTypeIcon = (scoreType: string) => {
+      if (scoreType === 'goal') return <CircleDot className="w-3.5 h-3.5 text-emerald-300" />;
+      if (scoreType === 'corner') return <Hexagon className="w-3.5 h-3.5 text-sky-300" />;
+      if (scoreType === 'setpiece') return <Disc className="w-3.5 h-3.5 text-violet-300" />;
+      return <Target className="w-3.5 h-3.5 text-amber-300" />;
     };
 
-    // Quick mark player function
-    const handleQuickMarkPlayer = (clipId: number, playerLabel: string) => {
-        setEventClaims((prev: Record<number, string>) => ({
-            ...prev,
-            [clipId]: playerLabel
-        }));
-        const globalClipIndex = AI_CLIPS_ADVANCED.findIndex(c => c.id === clipId);
-        if (globalClipIndex !== -1) {
-            (AI_CLIPS_ADVANCED[globalClipIndex] as any).player = playerLabel;
-            (AI_CLIPS_ADVANCED[globalClipIndex] as any).confidence = 'high';
-        }
-        setOpenPlayerMenuId(null);
-        setToastMessage(t('ui.marked'));
-        setTimeout(() => setToastMessage(null), 2000);
+    const startEditEvent = (event: { id: number; time: string; scoreType: string }) => {
+      setEditingEventId(event.id);
+      setEventDraft({ scoreType: String(event.scoreType), time: String(event.time) });
     };
 
-    const isSoccer = resultSport === 'soccer';
-
-    useEffect(() => {
-        if (!isSoccer) return;
-        if (activeEventTab === 'corner' || activeEventTab === 'setpiece') {
-            setActiveEventTab('all');
-        }
-    }, [isSoccer, activeEventTab]);
-
-    useEffect(() => {
-        if (!isSoccer) return;
-        if (selectedFilter === 'corner' || selectedFilter === 'setpiece') {
-            setSelectedFilter('all');
-        }
-    }, [isSoccer, selectedFilter]);
-
-    // Manual correction handlers
-    const handleStartEditTime = (clipId: number, currentTime: string) => {
-        setEditingTime(currentTime);
-        setEditingTimeClipId(clipId);
+    const saveEventEdit = (eventId: number) => {
+      const timeRegex = /^([0-5]?[0-9]):([0-5][0-9])$/;
+      if (!timeRegex.test(eventDraft.time)) {
+        setToastMessage(t('matchReport.scoreEditInvalid'));
+        setTimeout(() => setToastMessage(null), 1600);
+        return;
+      }
+      setEventCorrections((prev) => ({
+        ...prev,
+        [eventId]: { scoreType: eventDraft.scoreType, time: eventDraft.time },
+      }));
+      setEditingEventId(null);
+      setToastMessage(t('ui.updated'));
+      setTimeout(() => setToastMessage(null), 1200);
     };
 
-    const handleSaveTime = (clipId: number) => {
-        // Validate time format MM:SS
-        const timeRegex = /^([0-5]?[0-9]):([0-5][0-9])$/;
-        if (!timeRegex.test(editingTime)) {
-            // Invalid format, don't save
-            setEditingTimeClipId(null);
-            setEditingTime('');
-            return;
-        }
-        
-        setClipsState(prevClips => 
-            prevClips.map(clip => 
-                clip.id === clipId 
-                    ? { ...clip, time: editingTime }
-                    : clip
-            )
-        );
-        
-        // Also update global clips array
-        const globalClipIndex = AI_CLIPS_ADVANCED.findIndex(c => c.id === clipId);
-        if (globalClipIndex !== -1) {
-            (AI_CLIPS_ADVANCED[globalClipIndex] as any).time = editingTime;
-        }
-        
-        setEditingTimeClipId(null);
-        setEditingTime('');
-    };
-
-    const handleCancelTimeEdit = () => {
-        setEditingTimeClipId(null);
-        setEditingTime('');
-    };
-
-    // Label helper for event type correction (type + scoreType → display label)
-    const getLabelForEvent = (sport: string, type: string, scoreType: number | string): string => {
-        const isSoc = sport === 'soccer';
-        if (isSoc) {
-            const keyMap: Record<string, string> = {
-                goal: 'clips.goal',
-                penalty: 'clips.penalty',
-            };
-            const key = keyMap[String(scoreType)] ?? 'clips.goal';
-            return t(key);
-        }
-        if (type === 'score') {
-            const keyMap: Record<number, string> = {
-                1: 'clips.1ptFt',
-                2: 'clips.2pt',
-                3: 'clips.3pt',
-            };
-            const key = keyMap[Number(scoreType)] ?? 'clips.2pt';
-            return t(key);
-        }
-        const keyMap: Record<string, string> = {
-            rebound: 'clips.rebound',
-            steal: 'clips.steal',
-            assist: 'clips.assist',
-        };
-        const key = keyMap[String(scoreType)] ?? 'clips.rebound';
-        return t(key);
-    };
-
-    // Manual correction: 阵营识别
-    const handleCorrectTeam = (clipId: number, newTeam: 'A' | 'B') => {
-        setClipsState(prev =>
-            prev.map(c => (c.id === clipId ? { ...c, team: newTeam } : c))
-        );
-        const idx = AI_CLIPS_ADVANCED.findIndex(c => c.id === clipId);
-        if (idx !== -1) (AI_CLIPS_ADVANCED[idx] as any).team = newTeam;
-        setToastMessage(t('ui.sideCorrected'));
-        setTimeout(() => setToastMessage(null), 2000);
-    };
-
-    // Manual correction: 事件类型 / 得分结果 (type + scoreType + label; 得分结果含 命中/未中)
-    type EventTypeOption = { id: string | number; labelKey: string; type: string; scoreType: number | string; scored?: boolean };
-    const eventTypeOptions: EventTypeOption[] = isSoccer
-        ? [
-            { id: 'goal', labelKey: 'clips.goal', type: 'soccer_event', scoreType: 'goal' },
-            { id: 'penalty', labelKey: 'clips.penaltyShort', type: 'soccer_event', scoreType: 'penalty' },
-        ]
-        : [
-            { id: 3, labelKey: 'clips.3ptShort', type: 'score', scoreType: 3, scored: true },
-            { id: 2, labelKey: 'clips.2ptShort', type: 'score', scoreType: 2, scored: true },
-            { id: 1, labelKey: 'clips.ftShort', type: 'score', scoreType: 1, scored: true },
-            { id: 'rebound', labelKey: 'clips.reboundShort', type: 'basketball_event', scoreType: 'rebound' },
-            { id: 'steal', labelKey: 'clips.steal', type: 'basketball_event', scoreType: 'steal' },
-            { id: 'assist', labelKey: 'clips.assist', type: 'basketball_event', scoreType: 'assist' },
-        ];
-
-    const handleCorrectEventType = (clipId: number, opt: EventTypeOption) => {
-        const sport = resultSport || 'soccer';
-        const label = t(opt.labelKey);
-        const scored = opt.scored;
-        setClipsState(prev =>
-            prev.map(c => {
-                if (c.id !== clipId) return c;
-                const next = { ...c, type: opt.type, scoreType: opt.scoreType } as (typeof prev)[number];
-                (next as any).labelKey = undefined;
-                (next as any).label = label;
-                if (scored !== undefined) (next as any).scored = scored;
-                return next;
-            })
-        );
-        const idx = AI_CLIPS_ADVANCED.findIndex(c => c.id === clipId);
-        if (idx !== -1) {
-            const clip = AI_CLIPS_ADVANCED[idx] as any;
-            clip.type = opt.type;
-            clip.scoreType = opt.scoreType;
-            clip.labelKey = undefined;
-            clip.label = label;
-            if (scored !== undefined) clip.scored = scored;
-        }
-        setOpenTypeMenuId(null);
-        setToastMessage(t('ui.typeCorrected'));
-        setTimeout(() => setToastMessage(null), 2000);
+    const handleTimelineScroll = (e: React.UIEvent<HTMLDivElement>) => {
+      if (Date.now() < ignoreCollapseUntilRef.current) return;
+      const top = e.currentTarget.scrollTop;
+      if (top > 12 && !isScoreCollapsed) setIsScoreCollapsed(true);
+      if (top <= 4 && isScoreCollapsed) setIsScoreCollapsed(false);
     };
 
     const handleSaveSoccerScore = () => {
-        const scoreA = Number.parseInt(editingScoreA, 10);
-        const scoreB = Number.parseInt(editingScoreB, 10);
-        const invalid =
-            !Number.isFinite(scoreA) ||
-            !Number.isFinite(scoreB) ||
-            scoreA < 0 ||
-            scoreB < 0 ||
-            scoreA > 99 ||
-            scoreB > 99;
-        if (invalid) {
-            setToastMessage(t('matchReport.scoreEditInvalid'));
-            setTimeout(() => setToastMessage(null), 2200);
-            return;
-        }
-        updateSoccerMatchPresentation({
-            teamAScore: scoreA,
-            teamBScore: scoreB,
-            teamALabel: editingNameA,
-            teamBLabel: editingNameB,
-        });
-        setShowScoreEditModal(false);
-        setToastMessage(t('matchReport.scoreEditSaved'));
-        setTimeout(() => setToastMessage(null), 1800);
-    };
-
-    const handleMergeClips = () => {
-        if (selectedClipIds.length === 0) return;
-        if (hybridEdgeSparse) {
-            setToastMessage(t('gallery.hybridNeedCloudForExport'));
-            setTimeout(() => setToastMessage(null), 2800);
-            return;
-        }
-
-        setShareContext({ type: 'selected' });
-        setProgressModal({ show: true, title: t('ui.mergingSaving'), progress: 0 });
-
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += Math.random() * 3 + 2;
-            if (progress >= 100) {
-                progress = 100;
-                clearInterval(interval);
-                setTimeout(() => {
-                    setProgressModal({ show: false, title: '', progress: 0 });
-                    setMergedVideoUrl('merged_video_url_mock');
-                    pushView('merge_preview');
-                }, 1000);
-            }
-            setProgressModal((prev: { show: boolean; title: string; progress: number; message?: string }) => ({ ...prev, progress: Math.min(progress, 100) }));
-        }, 200);
-    };
-
-    const handleSharePlayerClips = (label: string) => {
-        const playerClips = tierSourceClips.filter(c => (eventClaims[c.id] ?? c.player) === label);
-        if (playerClips.length === 0) {
-            setToastMessage(t('ui.noClipsForPlayer'));
-            setTimeout(() => setToastMessage(null), 2000);
-            return;
-        }
-        setShareContext({ type: 'player_clips', playerLabel: label });
-        setProgressModal({ show: true, title: t('ui.mergingLabel', { label }), progress: 0 });
-
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += Math.random() * 3 + 2;
-            if (progress >= 100) {
-                progress = 100;
-                clearInterval(interval);
-                setTimeout(() => {
-                    setProgressModal({ show: false, title: '', progress: 0 });
-                    setMergedVideoUrl('merged_video_url_mock');
-                    pushView('merge_preview');
-                }, 1000);
-            }
-            setProgressModal((prev: { show: boolean; title: string; progress: number; message?: string }) => ({ ...prev, progress: Math.min(progress, 100) }));
-        }, 200);
-    };
-
-    const handleShare = () => {
-        setShareType('selected');
-        setShowShareModal(true);
-    };
-
-    const handleExportAll = () => {
-        if (hybridEdgeSparse) {
-            setToastMessage(t('gallery.hybridNeedCloudForExport'));
-            setTimeout(() => setToastMessage(null), 2800);
-            return;
-        }
-        setProgressModal({ show: true, title: t('ui.exportingAll'), progress: 0 });
-
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += Math.random() * 3 + 5;
-            if (progress >= 100) {
-                progress = 100;
-                clearInterval(interval);
-                setTimeout(() => {
-                    setProgressModal({ show: false, title: '', progress: 0 });
-                    setShareType('all');
-                    setShowShareModal(true);
-                }, 1000);
-            }
-            setProgressModal((prev: { show: boolean; title: string; progress: number; message?: string }) => ({ ...prev, progress: Math.min(progress, 100) }));
-        }, 200);
-    };
-
-    const handleExportReport = () => {
-        if (hybridEdgeSparse) {
-            setToastMessage(t('gallery.hybridNeedCloudForExport'));
-            setTimeout(() => setToastMessage(null), 2800);
-            return;
-        }
-        setProgressModal({ show: true, title: t('ui.generatingReport'), progress: 0 });
-
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += Math.random() * 3 + 5;
-            if (progress >= 100) {
-                progress = 100;
-                clearInterval(interval);
-                setTimeout(() => {
-                    setProgressModal({ show: false, title: '', progress: 0 });
-                    setShareType('report');
-                    setShareContext({ type: 'report' });
-                    setShowShareModal(true);
-                }, 1000);
-            }
-            setProgressModal((prev: { show: boolean; title: string; progress: number; message?: string }) => ({ ...prev, progress: Math.min(progress, 100) }));
-        }, 200);
-    };
-
-    const statsData = isSoccer ? liveSoccerStats : TEAM_MATCH_STATS;
-
-    const tierStatsData = React.useMemo(() => {
-      if (!hybridEdgeSparse) return statsData;
-      if (isSoccer) {
-        return {
-          ...statsData,
-          comparison: statsData.comparison.filter((row: { rowKey: string }) =>
-            ['goals', 'shotsOnTarget', 'corners'].includes(row.rowKey)
-          ),
-        } as typeof statsData;
+      const scoreA = Number.parseInt(editingScoreA, 10);
+      const scoreB = Number.parseInt(editingScoreB, 10);
+      const invalid = !Number.isFinite(scoreA) || !Number.isFinite(scoreB) || scoreA < 0 || scoreB < 0 || scoreA > 99 || scoreB > 99;
+      if (invalid) {
+        setToastMessage(t('matchReport.scoreEditInvalid'));
+        setTimeout(() => setToastMessage(null), 2200);
+        return;
       }
-      return {
-        ...TEAM_MATCH_STATS,
-        comparison: TEAM_MATCH_STATS.comparison.filter((row: { rowKey: string }) =>
-          ['totalPoints', 'threePtPct', 'rebounds', 'assists'].includes(row.rowKey)
-        ),
-      } as typeof statsData;
-    }, [hybridEdgeSparse, isSoccer, statsData]);
-
-    // Helper function to find first event of a specific type
-    const findFirstEventByType = (eventType: string | number) => {
-        if (isSoccer) {
-            if (eventType === 'goal') {
-                return tierSourceClips.find(clip => clip.scoreType === 'goal');
-            }
-            return tierSourceClips.find(clip => clip.scoreType === eventType);
-        } else {
-            if (eventType === 'score') {
-                // For 'score' (总得分), return first score event
-                return tierSourceClips.find(clip => clip.type === 'score');
-            }
-            if (eventType === 1 || eventType === 2 || eventType === 3) {
-                return tierSourceClips.find(clip => clip.type === 'score' && clip.scoreType === eventType);
-            }
-            if (eventType === 'rebound' || eventType === 'steal' || eventType === 'assist') {
-                return tierSourceClips.find(clip => clip.type === 'basketball_event' && clip.scoreType === eventType);
-            }
-        }
-        return undefined;
+      updateSoccerMatchPresentation({
+        teamAScore: scoreA,
+        teamBScore: scoreB,
+        teamALabel: editingNameA,
+        teamBLabel: editingNameB,
+      });
+      setShowScoreEditModal(false);
+      setToastMessage(t('matchReport.scoreEditSaved'));
+      setTimeout(() => setToastMessage(null), 1200);
     };
 
-    // Map data row rowKey to event type for click navigation (first matching clip in timeline)
-    const getEventTypeFromRowKey = (rowKey: string): string | number | null => {
-        if (isSoccer) {
-            if (rowKey === 'goals' || rowKey === 'xg') return 'goal';
-            if (rowKey === 'corners') return 'corner';
-            if (rowKey === 'setpiece') return 'setpiece';
-            if (rowKey === 'penalty') return 'penalty';
-            if (rowKey === 'shotsOnTarget') return 'goal';
-            return null;
-        } else {
-            if (rowKey === 'totalPoints') return 'score';
-            if (rowKey === 'threePtPoints' || rowKey === 'threePtPct') return 3;
-            if (rowKey === 'ftPoints' || rowKey === 'ftPct' || rowKey === 'ftAttempts') return 1;
-            if (rowKey === 'fgPct') return 2;
-            if (rowKey === 'rebounds' || rowKey === 'oreb' || rowKey === 'dreb') return 'rebound';
-            if (rowKey === 'steals') return 'steal';
-            if (rowKey === 'assists') return 'assist';
-            if (rowKey === 'blocks' || rowKey === 'turnovers' || rowKey === 'fouls') return null;
-        }
-        return null;
+    const shareMatchVideo = () => {
+      setShareType('all');
+      setShareContext({ type: 'all' });
+      setShowShareModal(true);
     };
 
-    /** 与高光列表筛选同步，便于从数据行跳进「高光与成片」后立刻看到同类片段 */
-    const getClipFilterForStatsRow = (rowKey: string): EventFilterType => {
-        if (isSoccer) {
-            if (rowKey === 'goals' || rowKey === 'xg' || rowKey === 'shotsOnTarget') return 'goal';
-            if (rowKey === 'corners') return 'corner';
-            if (rowKey === 'setpiece') return 'setpiece';
-            if (rowKey === 'penalty') return 'penalty';
-            return 'all';
-        }
-        if (rowKey === 'totalPoints') return 'all';
-        if (rowKey === 'threePtPoints' || rowKey === 'threePtPct') return 3;
-        if (rowKey === 'ftPoints' || rowKey === 'ftPct' || rowKey === 'ftAttempts') return 1;
-        if (rowKey === 'fgPct') return 2;
-        if (rowKey === 'rebounds' || rowKey === 'oreb' || rowKey === 'dreb') return 'rebound';
-        if (rowKey === 'assists') return 'assist';
-        if (rowKey === 'steals') return 'steal';
-        return 'all';
-    };
+    useEffect(() => {
+      setCarouselIndex(0);
+    }, [activeTimelineFilter]);
 
-    const jumpFromStatsRowToHighlights = (rowKey: string) => {
-        const eventType = getEventTypeFromRowKey(rowKey);
-        if (eventType === null) return;
+    const activeKeyEvent = filteredTimelineEvents.length > 0 ? filteredTimelineEvents[carouselIndex % filteredTimelineEvents.length] : null;
 
-        const filter = getClipFilterForStatsRow(rowKey);
-        setIsSelectionMode(false);
-        setSelectedCollection('full');
-        setSelectedPlayer(null);
-        setSelectedFilter(filter);
-        setActiveEventTab(filter === 'all' ? 'all' : filter);
+    const timelineFilters: Array<{ id: 'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'; label: string }> = [
+      { id: 'all', label: t('filter.all') },
+      { id: 'goal', label: scoreTypeLabel('goal') },
+      { id: 'corner', label: scoreTypeLabel('corner') },
+      { id: 'setpiece', label: scoreTypeLabel('setpiece') },
+      { id: 'penalty', label: scoreTypeLabel('penalty') },
+    ];
 
-        const firstEvent = findFirstEventByType(eventType);
-        if (!firstEvent) {
-            setToastMessage(t('ui.noClipForStat'));
-            setTimeout(() => setToastMessage(null), 2200);
-            return;
-        }
-
-        setActiveTab('clips');
-        handleClipClick(firstEvent.time);
-    };
-
-    // Process stats comparison for Pro view (basketball order; rows use rowKey)
-    const processedStatsComparison = isSoccer 
-        ? tierStatsData.comparison 
-        : (() => {
-            const comparison = [...tierStatsData.comparison] as Array<{ rowKey: string; a: any; b: any; highlight?: boolean }>;
-            const findRowByKey = (rowKey: string) => comparison.find(item => item.rowKey === rowKey);
-
-            const rows: Array<{ rowKey: string; a: any; b: any; highlight?: boolean }> = [];
-
-            const pushIf = (row: any) => {
-                if (row) rows.push(row);
-            };
-
-            pushIf(findRowByKey('totalPoints'));
-            pushIf(findRowByKey('rebounds'));
-            pushIf(findRowByKey('oreb'));
-            pushIf(findRowByKey('dreb'));
-            pushIf(findRowByKey('assists'));
-            pushIf(findRowByKey('steals'));
-            pushIf(findRowByKey('blocks'));
-            pushIf(findRowByKey('turnovers'));
-            pushIf(findRowByKey('fouls'));
-
-            const ftRate: any = findRowByKey('ftPct');
-            if (ftRate && ftRate.a && typeof ftRate.a === 'object') {
-                rows.push({ rowKey: 'ftAttempts', a: ftRate.a.att, b: ftRate.b.att });
-                rows.push(ftRate);
-            }
-
-            pushIf(findRowByKey('fgPct'));
-            pushIf(findRowByKey('threePtPct'));
-
-            return rows;
-        })();
-
-    // Filters for clips tab
-    const filters = isSoccer 
-      ? [ { id: 'all', labelKey: 'filter.all' }, { id: 'goal', labelKey: 'filter.goal' }, { id: 'penalty', labelKey: 'filter.penalty' } ]
-      : [ { id: 'all', labelKey: 'filter.all' }, { id: 3, labelKey: 'clips.3ptShort' }, { id: 2, labelKey: 'clips.2ptShort' }, { id: 1, labelKey: 'filter.ft' }, { id: 'rebound', labelKey: 'filter.rebound' }, { id: 'steal', labelKey: 'filter.steal' }, { id: 'assist', labelKey: 'filter.assist' } ];
-
-    // Display clips for clips tab
-    const displayClips = tierSourceClips.filter(clip => { 
-        if (selectedCollection === 'team_a' && clip.team !== 'A') return false;
-        if (selectedCollection === 'team_b' && clip.team !== 'B') return false;
-        
-        // Player filter: use eventClaims first, then clip.player
-        if (selectedPlayer && selectedPlayer !== 'all') {
-            const effective = (eventClaims[clip.id] ?? clip.player) as string | null | undefined;
-            if (effective !== selectedPlayer) return false;
-        }
-        
-        if (selectedFilter !== 'all') { 
-            if (isSoccer) {
-                if (selectedFilter === 'goal') return clip.scoreType === 'goal';
-                if (selectedFilter === 'penalty') return clip.scoreType === 'penalty';
-            } else {
-                // Basketball: handle score types and basketball_event types
-                if (selectedFilter === 3) return clip.type === 'score' && clip.scoreType === 3;
-                if (selectedFilter === 2) return clip.type === 'score' && clip.scoreType === 2;
-                if (selectedFilter === 1) return clip.type === 'score' && clip.scoreType === 1;
-                if (selectedFilter === 'rebound') return clip.type === 'basketball_event' && clip.scoreType === 'rebound';
-                if (selectedFilter === 'steal') return clip.type === 'basketball_event' && clip.scoreType === 'steal';
-                if (selectedFilter === 'assist') return clip.type === 'basketball_event' && clip.scoreType === 'assist';
-            }
-            return false;
-        } 
-        if (isSoccer) {
-            return clip.scoreType === 'goal' || clip.scoreType === 'penalty';
-        }
-        return true; 
-    });
-
-    /** 与基础版同源 issue + 文案建议，并合并 linkedTrainingIds 供下方跟练视频卡使用 */
-    const proWeeklyTrainingByIssues = React.useMemo(() => {
-        const sport = isSoccer ? 'soccer' : 'basketball';
-        const seen = new Map<string, { issueKey: string; hintKey: string; fromClips: string[]; drillIds: string[] }>();
-        for (const clip of tierSourceClips.filter((c) => c.sport === sport)) {
-            const ext = CLIP_COACH_EXTENSIONS[clip.id];
-            if (!ext) continue;
-            const label = clip.labelKey ? t(clip.labelKey) : '';
-            for (const issueKey of ext.issueTagKeys) {
-                const hintKey = BASIC_TRAIN_HINT_KEYS[issueKey];
-                if (!hintKey) continue;
-                if (!seen.has(issueKey)) {
-                    seen.set(issueKey, {
-                        issueKey,
-                        hintKey,
-                        fromClips: label ? [label] : [],
-                        drillIds: [...ext.linkedTrainingIds],
-                    });
-                } else {
-                    const cur = seen.get(issueKey)!;
-                    if (label && !cur.fromClips.includes(label)) cur.fromClips.push(label);
-                    for (const d of ext.linkedTrainingIds) {
-                        if (!cur.drillIds.includes(d)) cur.drillIds.push(d);
-                    }
-                }
-            }
-        }
-        return Array.from(seen.values());
-    }, [tierSourceClips, isSoccer, t]);
-
-    /** Pro 报告内跟练：进入全屏预览页（演示进度与文案），不弹订阅窗 */
-    const openProTrainingFollowAlong = (payload: {
-        variant: 'issue_drill' | 'catalog_plan';
-        tier: 'curated_sample' | 'paid_catalog';
-        titleKey: string;
-        durationKey: string;
-        focusKey?: string;
-        descKey?: string;
-    }) => {
-        setShareContext({
-            type: 'pro_training_video',
-            variant: payload.variant,
-            tier: payload.tier,
-            titleKey: payload.titleKey,
-            durationKey: payload.durationKey,
-            focusKey: payload.focusKey,
-            descKey: payload.descKey,
-            sport: (resultSport || 'soccer') as 'basketball' | 'soccer',
-        });
-        setMergedVideoUrl('mock://pro-training-follow-along');
-        pushView('merge_preview');
-    };
-
-    const featuredReelDuration =
-        HIGHLIGHT_COLLECTIONS.find((c) => c.id === selectedCollection)?.duration ?? HIGHLIGHT_COLLECTIONS[0].duration;
-    const featuredCollectionLabelKey =
-        HIGHLIGHT_COLLECTIONS.find((c) => c.id === selectedCollection)?.labelKey ?? HIGHLIGHT_COLLECTIONS[0].labelKey;
-
-    const handleProTemplateCompose = (templateId: string, labelKey: string, proOnly: boolean) => {
-        if (hybridEdgeSparse) {
-            setToastMessage(t('gallery.hybridComposeLockedToast'));
-            setTimeout(() => setToastMessage(null), 2800);
-            return;
-        }
-        if (proOnly && !isVip) {
-            setToastMessage(t('compose.proOnlyTemplate'));
-            setTimeout(() => setToastMessage(null), 2500);
-            return;
-        }
-        const tmpl = COMPOSE_TEMPLATES.find((x) => x.id === templateId);
-        const tag = tmpl?.tag || 'full_game';
-        const sport = (resultSport || 'soccer') as 'basketball' | 'soccer';
-        const pick = pickClipIdsForTemplate(sport, tag);
-        setShowProComposeModal(false);
-        setShareContext({ type: 'template_compose', templateId, selectedClipIds: pick, templateLabelKey: labelKey });
-        setProgressModal({ show: true, title: t('compose.generating'), progress: 0 });
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += Math.random() * 4 + 3;
-            if (progress >= 100) {
-                progress = 100;
-                clearInterval(interval);
-                setTimeout(() => {
-                    setProgressModal({ show: false, title: '', progress: 0 });
-                    setMergedVideoUrl('mock://pro-template-compose');
-                    pushView('merge_preview');
-                }, 500);
-                return;
-            }
-            setProgressModal((prev: { show: boolean; title: string; progress: number; message?: string }) => ({
-                ...prev,
-                progress: Math.min(progress, 100),
-            }));
-        }, 180);
-    };
-
-    const toggleClipSelection = (id: number) => { 
-        if (selectedClipIds.includes(id)) { 
-            setSelectedClipIds(selectedClipIds.filter(cid => cid !== id)); 
-        } else { 
-            setSelectedClipIds([...selectedClipIds, id]); 
-        } 
-    };
-
-    const filteredEvents = tierSourceClips.filter(clip => { 
-
-        if (clip.sport !== (resultSport || 'soccer')) return false;
-
-        if (activeEventTab === 'all') {
-            // For basketball, include both score events and basketball_event types (rebound/steal/assist)
-            if (isSoccer) {
-                return clip.scoreType === 'goal' || clip.scoreType === 'penalty';
-            } else {
-                return clip.type === 'score' || clip.type === 'basketball_event';
-            }
-        }
-
-        if (isSoccer) {
-            return clip.scoreType === activeEventTab;
-        } else {
-            // Basketball: handle score types (1, 2, 3) and basketball_event types (rebound, steal, assist)
-            if (activeEventTab === 1 || activeEventTab === 2 || activeEventTab === 3) {
-                return clip.type === 'score' && clip.scoreType === activeEventTab;
-            }
-            if (activeEventTab === 'rebound' || activeEventTab === 'steal' || activeEventTab === 'assist') {
-                return clip.type === 'basketball_event' && clip.scoreType === activeEventTab;
-            }
-        }
-
-        return false;
-
-    });
-
-    const eventTabs = isSoccer 
-
-      ? [{ id: 'all', labelKey: 'filterShort.all' }, { id: 'goal', labelKey: 'filterShort.goal' }, { id: 'penalty', labelKey: 'filterShort.penalty' }]
-
-      : [{ id: 'all', labelKey: 'filterShort.all' }, { id: 3, labelKey: 'filterShort.3' }, { id: 2, labelKey: 'filterShort.2' }, { id: 1, labelKey: 'filterShort.1' }, { id: 'rebound', labelKey: 'filterShort.rebound' }, { id: 'steal', labelKey: 'filterShort.steal' }, { id: 'assist', labelKey: 'filterShort.assist' }];
-    const keyTimelineEvents = React.useMemo(() => {
-        if (!isSoccer) return [] as any[];
-        return tierSourceClips
-            .filter((clip) => ['goal', 'corner', 'setpiece', 'penalty'].includes(String(clip.scoreType)))
-            .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)))
-            .slice(0, 6);
-    }, [tierSourceClips, isSoccer]);
-    const getSoccerEventInsightKey = (scoreType: string) => {
-        if (scoreType === 'goal') return 'matchReport.eventInsightGoal';
-        if (scoreType === 'corner') return 'matchReport.eventInsightCorner';
-        if (scoreType === 'setpiece') return 'matchReport.eventInsightSetpiece';
-        return 'matchReport.eventInsightPenalty';
-    };
-    const timelinePoints = React.useMemo(
-        () => buildSoccerTimelinePoints(keyTimelineEvents as any, timelineFilter),
-        [keyTimelineEvents, timelineFilter]
-    );
-    const comparativeRows = React.useMemo(
-        () => tierStatsData.comparison.filter((row: any) => ['goals', 'shotsOnTarget', 'possession', 'corners'].includes(row.rowKey)),
-        [tierStatsData]
-    );
+    if (!isSoccer) {
+      return (
+        <div className="h-full bg-[#0F172A] text-white flex flex-col items-center justify-center px-6 text-center">
+          <FileText className="w-10 h-10 text-slate-500 mb-3" />
+          <p className="text-sm font-bold">{t('matchReport.sessionTitle')}</p>
+          <p className="text-xs text-slate-400 mt-2">{t('ui.eventReview')}</p>
+          <button onClick={popToHome} className="mt-4 px-4 py-2 rounded-lg bg-blue-600 text-sm font-bold">{t('ui.backToHome')}</button>
+        </div>
+      );
+    }
 
     return (
-
       <div className="flex flex-col h-full bg-[#0F172A] text-white relative">
-
-         <div className="absolute top-4 left-4 z-30">
-           <button onClick={popToHome} className="p-2 bg-black/40 rounded-full">
-             <ArrowLeft className="w-5 h-5" />
-           </button>
-         </div>
-
-         {galleryHybridDemoView === 'edge_result' && (
-           <div className="relative z-25 px-4 pt-14 pb-2">
-             <div className="rounded-xl border border-emerald-500/45 bg-emerald-950/55 px-3 py-2.5 space-y-2">
-               <p className="text-[12px] font-bold text-white leading-snug">{t('gallery.hybridEdgeBannerTitle')}</p>
-               <p className="text-[10px] text-emerald-100/85 leading-relaxed">{t('gallery.hybridEdgeBannerSub')}</p>
-               <button
-                 type="button"
-                 onClick={() => {
-                   setGalleryHybridDemoView('cloud_result');
-                   setToastMessage(t('gallery.hybridCloudPreviewToast'));
-                   setTimeout(() => setToastMessage(null), 2800);
-                 }}
-                 className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/30"
-               >
-                 {t('gallery.hybridUploadToCloudCta')}
-               </button>
-             </div>
-           </div>
-         )}
-         {galleryHybridDemoView === 'cloud_result' && (
-           <div className="relative z-25 px-4 pt-14 pb-2">
-             <div className="rounded-xl border border-indigo-500/45 bg-indigo-950/55 px-3 py-2.5">
-               <p className="text-[11px] text-indigo-100/95 leading-snug flex items-center gap-2">
-                 <Crown className="w-4 h-4 text-amber-300 shrink-0" />
-                 {t('gallery.hybridCloudBanner')}
-               </p>
-             </div>
-           </div>
-         )}
-
-         {isSoccer && (
-           <div className="px-4 pt-4 pb-3 border-b border-white/10 bg-[#0F172A]">
-             <div className="rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] p-3 space-y-3">
-               <div className="flex items-center justify-between gap-2">
-                 <span className="text-[10px] font-bold text-emerald-200/90 tracking-wide">{t('matchReport.gameStatistics')}</span>
-                 <div className="flex items-center gap-2">
-                   <button
-                     type="button"
-                     onClick={() => setShowScoreEditModal(true)}
-                     className="text-[9px] font-bold px-2 py-1 rounded-full bg-white/10 border border-white/15 text-emerald-100 inline-flex items-center gap-1"
-                   >
-                     <Edit3 className="w-3 h-3" />
-                     {t('matchReport.adjustMatchButton')}
-                   </button>
-                   <span className="text-[9px] font-bold px-2 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-100">
-                     {t('matchReport.matchStatusFinal')}
-                   </span>
-                 </div>
-               </div>
-               <div className="mt-2 grid grid-cols-3 items-end">
-                 <div className="text-left">
-                   <p className={`text-3xl font-black ${tierStatsData.teamA.color}`}>{tierStatsData.teamA.score}</p>
-                   <p className="text-[11px] font-bold text-slate-200">{(tierStatsData.teamA as { displayLabel: string }).displayLabel}</p>
-                 </div>
-                 <div className="text-center text-slate-500 text-xs font-black pb-1">VS</div>
-                 <div className="text-right">
-                   <p className={`text-3xl font-black ${tierStatsData.teamB.color}`}>{tierStatsData.teamB.score}</p>
-                   <p className="text-[11px] font-bold text-slate-200">{(tierStatsData.teamB as { displayLabel: string }).displayLabel}</p>
-                 </div>
-               </div>
-               {hybridEdgeSparse && (
-                 <p className="text-[9px] text-amber-200/85 leading-snug">{t('gallery.hybridEdgeStatsFootnote')}</p>
-               )}
-             </div>
-           </div>
-         )}
-
-        <div className="flex border-b border-white/10 bg-[#0F172A]">
-            <button onClick={() => setActiveTab('review')} className={`flex-1 py-3 text-xs font-bold relative transition-colors ${activeTab === 'review' ? 'text-white' : 'text-slate-500'}`}>
-               {t('matchReport.tabMatchInsight')}
-                {activeTab === 'review' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-500 rounded-full"></div>}
-            </button>
-            <button onClick={() => setActiveTab('clips')} className={`flex-1 py-3 text-xs font-bold relative transition-colors ${activeTab === 'clips' ? 'text-white' : 'text-slate-500'}`}>
-               {t('matchReport.tabVideoReview')}
-                {activeTab === 'clips' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-orange-500 rounded-full"></div>}
-            </button>
+        <div className="absolute top-4 left-4 z-30">
+          <button onClick={popToHome} className="p-2 bg-black/40 rounded-full">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
         </div>
 
-        <div className="h-[156px] bg-black relative shrink-0">
-             <AssetThumbnail type="video" category={resultSport || 'soccer'} />
-             {!isSoccer && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-4xl font-bold drop-shadow-lg opacity-80">{currentTime}</div>}
-             {showJumpToast && (
-                 <div className="absolute top-[60%] left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 animate-in zoom-in-95 z-30">
-                     <RotateCcw className="w-3 h-3" /> {t('ui.jumpTo')} {currentTime}
-                 </div>
-             )}
-             {!isSoccer && <div className="absolute bottom-0 left-0 right-0 p-4 pb-4 z-20 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/80 to-transparent">
-                 <div className="flex justify-between items-end mb-2">
-                     <div className="flex flex-col items-center">
-                         <span className={`text-3xl font-black ${tierStatsData.teamA.color} drop-shadow-lg`}>{tierStatsData.teamA.score}</span>
-                         <span className="text-xs font-bold text-white/90">{t(tierStatsData.teamA.nameKey)}</span>
-                     </div>
-                     <div className="text-2xl font-black text-slate-500 pb-2">VS</div>
-                     <div className="flex flex-col items-center">
-                         <span className={`text-3xl font-black ${tierStatsData.teamB.color} drop-shadow-lg`}>{tierStatsData.teamB.score}</span>
-                         <span className="text-xs font-bold text-white/90">{t(tierStatsData.teamB.nameKey)}</span>
-                     </div>
-                 </div>
-             </div>}
-         </div>
-
-         {!isSoccer && <div className="px-4 py-3 bg-[#0F172A] border-b border-white/10">
-           <div className="flex items-start gap-3">
-             <div className="w-10 h-10 rounded-xl bg-indigo-500/25 border border-indigo-400/35 flex items-center justify-center shrink-0">
-               <FileText className="w-5 h-5 text-indigo-300" />
-             </div>
-             <div className="flex-1 min-w-0">
-               <div className="flex items-center gap-2 flex-wrap">
-                 <h2 className="text-sm font-black text-white tracking-tight">{t('matchReport.sessionTitle')}</h2>
-                 <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-100 border border-indigo-400/40">
-                   {t('matchReport.badgePro')}
-                 </span>
-               </div>
-               <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{t('matchReport.sessionDescPro')}</p>
-               <p className="text-[10px] text-slate-500 mt-2 font-medium">
-                 {t(tierStatsData.teamA.nameKey)} {tierStatsData.teamA.score} {t('matchReport.scoreLineSep')} {tierStatsData.teamB.score} {t(tierStatsData.teamB.nameKey)}
-                 <span className="text-slate-600 mx-1.5">·</span>
-                 {isSoccer ? t('matchReport.sportSoccer') : t('matchReport.sportBasketball')}
-               </p>
-             </div>
-           </div>
-         </div>}
-
-         <div className="flex-1 overflow-y-auto" data-correction-scroll>
-
-             <div className="px-4 py-4 space-y-4">
-
-                 
-
-                 {activeTab === 'clips' ? (
-
-                     // --- Clips Tab for Advanced View ---
-
-                     <div className="pb-24">
-
-                        {/* Pro 成片英雄区：全宽预览 + 与基础版区分的卖点（对齐「运动智能成片」规划） */}
-                         <div className="mb-4 rounded-2xl overflow-hidden border border-indigo-400/45 bg-gradient-to-b from-indigo-950/90 via-[#12131f] to-[#0b1020] shadow-[0_0_40px_-8px_rgba(99,102,241,0.45)]">
-                           <button
-                             type="button"
-                             onClick={() => {
-                               setMergedVideoUrl('mock://pro-highlight-reel-preview');
-                               setShareContext({ type: 'all' });
-                               pushView('merge_preview');
-                             }}
-                             className="relative w-full aspect-video max-h-[200px] bg-black block text-left group"
-                           >
-                            <AssetThumbnail type="video" category={resultSport || 'soccer'} />
-                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-black/75 via-black/35 to-black/20 group-active:from-black/80">
-                               <PlayCircle className="w-14 h-14 text-white drop-shadow-xl" />
-                               <span className="text-[10px] font-bold text-white/95 mt-2 tracking-wide">{featuredReelDuration}</span>
-                             </div>
-                             <span className="absolute top-2 left-2 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-indigo-600/90 text-white border border-white/20">
-                               {t('proReel.badgePro')}
-                             </span>
-                           </button>
-                           <div className="p-3.5 space-y-2.5">
-                             <div>
-                               <h3 className="text-base font-black text-white leading-tight mt-0.5">{t('proReel.heroTitle')}</h3>
-                               <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
-                                 {t('proReel.heroMeta', {
-                                   collection: t(featuredCollectionLabelKey),
-                                   count: displayClips.length,
-                                   dur: featuredReelDuration,
-                                 })}
-                               </p>
-                             </div>
-                             <div className="flex flex-wrap gap-1.5">
-                               {[
-                                 { Icon: LayoutTemplate, key: 'proReel.chipTemplates' as const },
-                                 { Icon: Users, key: 'proReel.chipPlayer' as const },
-                                 { Icon: BarChart3, key: 'proReel.chipData' as const },
-                               ].map(({ Icon, key }) => (
-                                 <span
-                                   key={key}
-                                   className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[9px] font-bold text-slate-200"
-                                 >
-                                   <Icon className="w-3 h-3 text-indigo-300 shrink-0" />
-                                   {t(key)}
-                                 </span>
-                               ))}
-                             </div>
-                             {!hybridEdgeSparse ? (
-                               <>
-                             <div className="flex flex-wrap gap-2 pt-0.5">
-                               <button
-                                 type="button"
-                                 onClick={() => setShowProComposeModal(true)}
-                                 className="flex-1 min-w-[140px] py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[11px] font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30"
-                               >
-                                 <LayoutTemplate className="w-4 h-4" />
-                                 {t('proReel.ctaTemplates')}
-                               </button>
-                               <button
-                                 type="button"
-                                 onClick={() => {
-                                   setMergedVideoUrl('mock://pro-highlight-reel-preview');
-                                   setShareContext({ type: 'all' });
-                                   pushView('merge_preview');
-                                 }}
-                                 className="flex-1 min-w-[120px] py-2.5 rounded-xl border border-white/20 bg-white/5 text-[11px] font-bold text-slate-100"
-                               >
-                                 {t('proReel.previewReel')}
-                               </button>
-                             </div>
-                             {/* Pro 成片增强：码率/包装/节拍说明 */}
-                             <div className="rounded-xl border border-amber-500/25 bg-gradient-to-br from-amber-950/25 to-transparent p-2.5 space-y-1.5">
-                               <div className="flex items-center gap-1.5">
-                                 <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                                 <span className="text-[10px] font-bold text-amber-100/95">{t('proReel.studioQualityTitle')}</span>
-                               </div>
-                               <p className="text-[9px] text-slate-400 leading-relaxed">{t('proReel.studioQualityBody')}</p>
-                               <div className="flex flex-wrap gap-1">
-                                 <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-white/10 text-amber-100/90 border border-amber-500/25">{t('proReel.badgeBitrate')}</span>
-                                 <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-white/10 text-violet-200/90 border border-violet-500/25">{t('proReel.badgeTitles')}</span>
-                                 <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-white/10 text-sky-200/90 border border-sky-500/25">{t('proReel.badgeBeat')}</span>
-                               </div>
-                             </div>
-                               </>
-                             ) : (
-                               <div className="rounded-xl border border-slate-600/60 bg-slate-900/40 p-3 space-y-1.5">
-                                 <p className="text-[10px] font-bold text-slate-300">{t('gallery.hybridComposeLockedTitle')}</p>
-                                 <p className="text-[9px] text-slate-500 leading-relaxed">{t('gallery.hybridComposeLocked')}</p>
-                               </div>
-                             )}
-                           </div>
-                         </div>
-
-                         {/* 快捷套用模板（含 Pro 专属与影院级档位） */}
-                         {!hybridEdgeSparse && (
-                         <div className="mb-4">
-                           <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
-                             <h4 className="text-xs font-bold text-white">{t('proReel.quickTemplatesTitle')}</h4>
-                             <button
-                               type="button"
-                               onClick={() => setShowProComposeModal(true)}
-                               className="text-[10px] font-bold text-indigo-300 shrink-0"
-                             >
-                               {t('proReel.viewAllTemplates')}
-                             </button>
-                           </div>
-                           <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-0.5 px-0.5">
-                             {COMPOSE_TEMPLATES.map((tm) => {
-                               const tierLabel =
-                                 tm.quality === 'standard'
-                                   ? t('proReel.tierStandard')
-                                   : tm.quality === 'pro_hd'
-                                     ? t('proReel.tierHd')
-                                     : t('proReel.tierCinema');
-                               const tierClass =
-                                 tm.quality === 'pro_cinema'
-                                   ? 'text-violet-300 border-violet-500/35 bg-violet-500/10'
-                                   : tm.quality === 'pro_hd'
-                                     ? 'text-amber-200 border-amber-500/30 bg-amber-500/10'
-                                     : 'text-slate-400 border-white/10 bg-white/5';
-                               return (
-                                 <button
-                                   key={tm.id}
-                                   type="button"
-                                   onClick={() => handleProTemplateCompose(tm.id, tm.labelKey, tm.proOnly)}
-                                   className="shrink-0 w-[132px] rounded-xl border border-white/10 bg-[#1E293B] p-2 text-left hover:border-indigo-400/40 active:scale-[0.98] transition-all"
-                                 >
-                                   <div className={`text-[7px] font-bold px-1.5 py-0.5 rounded border w-fit mb-1 ${tierClass}`}>{tierLabel}</div>
-                                   <div className="text-[10px] font-bold text-white line-clamp-2 leading-tight">{t(tm.labelKey)}</div>
-                                   {tm.proOnly && (
-                                     <span className="inline-block mt-1 text-[7px] font-black text-amber-300/90">{t('compose.badgeMemberTemplate')}</span>
-                                   )}
-                                 </button>
-                               );
-                             })}
-                           </div>
-                         </div>
-                         )}
-
-                         {/* Collections - Horizontal Scroll */}
-
-                         <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide pb-2">
-
-                             {HIGHLIGHT_COLLECTIONS.map(col => (
-
-                            <button key={col.id} onClick={() => { setSelectedCollection(col.id); setSelectedFilter('all'); }} className={`flex-none px-3 py-2 rounded-lg border flex flex-col items-start min-w-[80px] transition-all ${selectedCollection === col.id ? `bg-${col.theme}-500/20 border-${col.theme}-500` : 'bg-black/40 border-white/10'}`}>
-
-                                <span className={`text-xs font-bold ${selectedCollection === col.id ? 'text-white' : 'text-slate-300'}`}>{t(col.labelKey)}</span>
-
-                            </button>
-
-                             ))}
-
-                         </div>
-
-                         
-
-                         {/* Filter Pills */}
-
-                         <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide">
-
-                             {filters.map(f => (
-
-                                 <button key={f.id} onClick={() => setSelectedFilter(f.id as EventFilterType)} className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${selectedFilter === f.id ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-slate-400 border-slate-700'}`}>{t((f as any).labelKey)}</button>
-
-                             ))}
-
-                         </div>
-
-                         {/* Player Filter */}
-                         {availablePlayers.length > 0 && (
-                             <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide">
-                                 <button 
-                                     onClick={() => setSelectedPlayer('all')} 
-                                     className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${selectedPlayer === null || selectedPlayer === 'all' ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-slate-400 border-slate-700'}`}
-                                 >
-                                     {t('ui.allPlayers')}
-                                 </button>
-                                 {availablePlayers.map(player => (
-                                     <button 
-                                         key={player} 
-                                         onClick={() => setSelectedPlayer(player)} 
-                                         className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${selectedPlayer === player ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-slate-400 border-slate-700'}`}
-                                     >
-                                         {player}
-                                     </button>
-                                 ))}
-                             </div>
-                         )}
-
-                         {/* Selection Toggle - 移到列表上方，更接近操作对象 */}
-                         <div className="flex justify-end mb-3">
-                             <button onClick={(e) => { e.stopPropagation(); setIsSelectionMode(!isSelectionMode); }} className={`text-xs font-bold flex items-center gap-1 transition-colors ${isSelectionMode ? 'text-orange-400' : 'text-slate-500'}`}>
-                                 {isSelectionMode ? t('ui.cancelSelect') : t('ui.selectClips')}
-                             </button>
-                         </div>
-
-                         {/* Clip List */}
-
-                         <div className="space-y-3">
-
-                             {displayClips.length === 0 && <div className="text-center text-slate-500 text-xs py-8">{t('ui.noClipsInCategory')}</div>}
-
-                             {displayClips.map((clip) => { 
-
-                                 const isSelected = selectedClipIds.includes(clip.id); 
-
-                                 return (
-
-                                     <div key={clip.id} 
-
-                                         onClick={(e) => { 
-
-                                             e.stopPropagation(); 
-
-                                             if (isSelectionMode) { toggleClipSelection(clip.id); } 
-
-                                             else { handleClipClick(clip.time); } 
-
-                                         }} 
-
-                                         className={`bg-[#1E293B] rounded-xl overflow-hidden border flex h-20 group active:scale-[0.99] transition-transform cursor-pointer relative ${isSelectionMode && isSelected ? 'border-orange-500 bg-orange-500/10' : 'border-white/5'}`}
-
-                                     >
-
-                                         {isSelectionMode && (<div className="absolute top-2 left-2 z-30"><div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'bg-orange-500 border-orange-500' : 'border-white/50 bg-black/40'}`}>{isSelected && <Check className="w-3 h-3 text-white" />}</div></div>)}
-
-                                         <div className="w-28 h-full relative shrink-0 bg-black">
-
-                                            <AssetThumbnail type="video" category={resultSport || 'soccer'} />
-
-                                             {!isSelectionMode && <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><PlayCircle className="w-6 h-6 text-white/80" /></div>}
-
-                                             <div className="absolute bottom-1 right-1 bg-black/60 px-1 rounded text-[8px]">{editingClipId === clip.id ? `${editingDuration}s` : clip.duration}</div>
-
-                                         </div>
-
-                                         <div className="flex-1 p-2.5 flex flex-col justify-between relative">
-
-                                             <div>
-
-                                                 <div className="flex items-center justify-between mb-1.5">
-
-                                                     <h4 className="text-sm font-bold text-slate-200">{clip.labelKey ? t(clip.labelKey) : (clip as any).label}</h4>
-
-                                                     <div className="flex items-center gap-1.5">
-                                                         <span className="text-[9px] text-slate-400 font-mono flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" /> {clip.time}</span>
-                                                         <button
-                                                             onClick={(e) => { e.stopPropagation(); handleCorrectTeam(clip.id, clip.team === 'A' ? 'B' : 'A'); }}
-                                                             className={`text-[8px] px-1 rounded transition-opacity hover:opacity-80 ${clip.team === 'A' ? 'bg-blue-900 text-blue-200' : 'bg-red-900 text-red-200'}`}
-                                                             title={t('ui.correctTeamTitle')}
-                                                         >
-                                                             {clip.team === 'A' ? t('ui.teamA') : t('ui.teamB')}
-                                                         </button>
-                                                     </div>
-
-                                                 </div>
-
-                                             </div>
-
-                                             <div>
-                                                 {!isSelectionMode && editingClipId === clip.id ? (
-                                                     <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                                                         <button 
-                                                             onClick={() => setEditingDuration(Math.max(1, editingDuration - 1))}
-                                                             className="w-6 h-6 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-white transition-colors flex-shrink-0"
-                                                         >
-                                                             <Minus className="w-3 h-3" />
-                                                         </button>
-                                                         <span className="text-[10px] font-bold text-white font-mono min-w-[35px] text-center">{editingDuration}s</span>
-                                                         <button 
-                                                             onClick={() => setEditingDuration(Math.min(15, editingDuration + 1))}
-                                                             className="w-6 h-6 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-white transition-colors flex-shrink-0"
-                                                         >
-                                                             <Plus className="w-3 h-3" />
-                                                         </button>
-                                                         <button 
-                                                             onClick={handleCancelEdit}
-                                                             className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-[8px] font-bold text-slate-300 transition-colors whitespace-nowrap shrink-0"
-                                                         >
-                                                            {t('ui.cancel')}
-                                                         </button>
-                                                         <button 
-                                                             onClick={handleSaveDuration}
-                                                             className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-[8px] font-bold text-white transition-colors whitespace-nowrap shrink-0"
-                                                         >
-                                                            {t('ui.confirm')}
-                                                         </button>
-                                                     </div>
-                                                 ) : (
-                                                     !isSelectionMode && (
-                                                         <div className="flex items-center gap-1 flex-wrap">
-                                                             <button 
-                                                                 onClick={(e) => { 
-                                                                     e.stopPropagation(); 
-                                                                     handleEditDuration(clip.id, clip.duration); 
-                                                                 }}
-                                                                 className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-[8px] font-bold text-slate-300 flex items-center gap-0.5 transition-colors shrink-0"
-                                                                 title={t('ui.editDuration')}
-                                                             >
-                                                                 <Edit3 className="w-2.5 h-2.5" /> <span className="hidden sm:inline">{t('ui.editDuration')}</span>
-                                                             </button>
-                                                             <div className="relative shrink-0" data-correction-menu>
-                                                                 <button
-                                                                     ref={el => { typeTriggerRefs.current[clip.id] = el; }}
-                                                                     onClick={(e) => {
-                                                                         e.stopPropagation();
-                                                                         setOpenTypeMenuId(openTypeMenuId === clip.id ? null : clip.id);
-                                                                         setOpenPlayerMenuId(null);
-                                                                     }}
-                                                                     className="px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-0.5 bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors shrink-0"
-                                                                     title={t('ui.correctType')}
-                                                                 >
-                                                                     <Edit3 className="w-2.5 h-2.5" /> <span className="hidden sm:inline">{t('ui.typeLabel')}</span> <ChevronDown className={`w-2.5 h-2.5 transition-transform ${openTypeMenuId === clip.id ? 'rotate-180' : ''}`} />
-                                                                 </button>
-                                                             </div>
-                                                             <div className="relative shrink-0" data-correction-menu>
-                                                                 <button
-                                                                     ref={el => { playerTriggerRefs.current[clip.id] = el; }}
-                                                                     onClick={(e) => {
-                                                                         e.stopPropagation();
-                                                                         setOpenPlayerMenuId(openPlayerMenuId === clip.id ? null : clip.id);
-                                                                         setOpenTypeMenuId(null);
-                                                                     }}
-                                                                     className="px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-0.5 bg-blue-600 hover:bg-blue-500 text-white transition-colors shrink-0"
-                                                                     title={t('ui.markPlayer')}
-                                                                 >
-                                                                     {(eventClaims[clip.id] ?? clip.player) ? (
-                                                                         <><User className="w-2.5 h-2.5" /><span className="max-w-[40px] truncate">{eventClaims[clip.id] ?? clip.player}</span><ChevronDown className={`w-2.5 h-2.5 transition-transform ${openPlayerMenuId === clip.id ? 'rotate-180' : ''}`} /></>
-                                                                     ) : (
-                                                                         <><User className="w-2.5 h-2.5" /><span className="hidden sm:inline">{t('ui.unmarked')}</span><ChevronDown className={`w-2.5 h-2.5 transition-transform ${openPlayerMenuId === clip.id ? 'rotate-180' : ''}`} /></>
-                                                                     )}
-                                                                 </button>
-                                                             </div>
-                                                         </div>
-                                                     )
-                                                 )}
-                                             </div>
-
-                                        </div>
-
-                                    </div>
-
-                                ); 
-
-                            })}
-
-                        </div>
-
-                    </div>
-
-                ) : activeTab === 'review' ? (
-
-                     <div className="pb-28 space-y-3">
-                        <div className="rounded-2xl border border-white/10 bg-[#0F172A] overflow-hidden">
-                            <div className="px-3 pt-3 pb-2 border-b border-white/5">
-                                <h3 className="text-sm font-bold text-white">{t('ui.keyTimeline')}</h3>
-                                <div className="flex gap-1 overflow-x-auto scrollbar-hide mt-2 pb-0.5 -mx-0.5 px-0.5">
-                                    {eventTabs.map((f) => (
-                                        <button
-                                            key={f.id}
-                                            type="button"
-                                            onClick={() => setActiveEventTab(f.id as EventFilterType)}
-                                            className={`min-w-[1.75rem] h-7 px-2 rounded-md flex items-center justify-center text-[10px] font-bold transition-colors shrink-0 ${
-                                                activeEventTab === f.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-800/90 text-slate-400'
-                                            }`}
-                                        >
-                                            {t((f as any).labelKey)}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="p-3 space-y-2 max-h-[300px] overflow-y-auto">
-                                {filteredEvents.map((clip) => (
-                                    <button
-                                        key={clip.id}
-                                        type="button"
-                                        onClick={() => handleClipClick(clip.time)}
-                                        className="w-full text-left bg-[#1E293B] p-3 rounded-xl active:bg-blue-900/20"
-                                    >
-                                        <div className="text-[10px] text-slate-400">{clip.time}</div>
-                                        <div className="text-xs font-bold text-slate-200 mt-0.5 truncate">
-                                            {clip.labelKey ? t(clip.labelKey) : (clip as any).label}
-                                        </div>
-                                    </button>
-                                ))}
-                                {filteredEvents.length === 0 && <div className="text-center text-slate-600 text-xs py-4">{t('ui.noEventsInType')}</div>}
-                            </div>
-                        </div>
-
-                        {!isSoccer ? (
-                        <>
-                        <div className="rounded-2xl border border-white/10 bg-[#0F172A] p-3 space-y-2">
-                            <p className="text-[10px] font-bold text-slate-300">{t('matchReport.comparativeData')}</p>
-                            {comparativeRows.map((row: any) => {
-                              const aRaw = String(row.a).replace('%', '').split(' ')[0];
-                              const bRaw = String(row.b).replace('%', '').split(' ')[0];
-                              const aNum = Number(aRaw) || 0;
-                              const bNum = Number(bRaw) || 0;
-                              const total = Math.max(aNum + bNum, 1);
-                              return (
-                                <div key={row.rowKey}>
-                                  <div className="flex items-center justify-between text-[9px] text-slate-300">
-                                    <span>{row.a}</span>
-                                    <span>{t(`report.${row.rowKey}`)}</span>
-                                    <span>{row.b}</span>
-                                  </div>
-                                  <div className="h-1.5 mt-1 rounded-full bg-slate-800 overflow-hidden flex">
-                                    <span className="bg-blue-500" style={{ width: `${(aNum / total) * 100}%` }} />
-                                    <span className="bg-orange-400" style={{ width: `${(bNum / total) * 100}%` }} />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-
-                        <div className="rounded-2xl border border-violet-500/25 bg-[#0F172A] p-3 space-y-2">
-                            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                                <Target className="w-4 h-4 text-violet-300" />
-                                {t('proTrainReview.sectionTitle')}
-                            </h3>
-                            {proWeeklyTrainingByIssues.length === 0 ? (
-                                <p className="text-[10px] text-slate-500">{t('basicTrain.weeklyEmpty')}</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {proWeeklyTrainingByIssues.slice(0, 3).map((row) => (
-                                        <div key={row.issueKey} className="bg-slate-900/60 rounded-xl border border-white/10 p-2.5">
-                                            <div className="text-[10px] font-bold text-amber-200/95">{t(row.issueKey)}</div>
-                                            <p className="text-[10px] text-slate-300 mt-1">{t(row.hintKey)}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        </>
-                        ) : null}
-
-                    </div>
-
-               ) : null}
-
-             </div>
-
-         </div>
-
-         
-
-         {/* Bottom Action Bar for Clips Tab */}
-         {activeTab === 'clips' && isSelectionMode && (
-             <div className="absolute bottom-0 left-0 right-0 bg-[#1E293B] border-t border-white/10 p-4 pb-8 z-30 animate-in slide-in-from-bottom">
-                 <div className="flex justify-between items-center mb-3">
-                     <span className="text-xs text-slate-400">{t('ui.selectedCount', { count: selectedClipIds.length })}</span>
-                     <button onClick={() => setSelectedClipIds(selectedClipIds.length === displayClips.length ? [] : displayClips.map(c => c.id))} className="text-xs text-blue-400 font-bold">{selectedClipIds.length === displayClips.length ? t('ui.deselectAll') : t('ui.selectAll')}</button>
-                 </div>
-                 <div className="flex gap-3">
-                     <button onClick={handleMergeClips} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"><Layers className="w-4 h-4" /> {t('ui.mergeAndSave')}</button>
-                     <button onClick={handleShare} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"><Share2 className="w-4 h-4" /> {t('ui.exportShare')}</button>
-                 </div>
-             </div>
-         )}
-
-         {/* Default Footer for Clips Tab (When not selecting) */}
-         {activeTab === 'clips' && !isSelectionMode && (
-             <div className="p-4 bg-[#0F172A] border-t border-white/10 space-y-2">
-                 {selectedPlayer && selectedPlayer !== 'all' && (
-                    <button onClick={() => handleSharePlayerClips(selectedPlayer)} className="w-full bg-orange-500 hover:bg-orange-600 py-3 rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2">
-                        <Share2 className="w-4 h-4" /> {t('ui.shareHighlights')}
-                    </button>
-                 )}
-                 <button onClick={handleExportAll} className="w-full bg-blue-600 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
-                     <Share2 className="w-4 h-4" /> {t('ui.exportAllHighlights')}
-                 </button>
-             </div>
-         )}
-
-         {/* Footer for Review Tab */}
-         {activeTab === 'review' && (
-             <div className="p-4 bg-[#0F172A] border-t border-white/10"><button onClick={handleExportReport} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-colors"><Download className="w-4 h-4" /> {t('ui.exportReport')}</button></div>
-         )}
-
-        {isSoccer && showScoreEditModal && (
-            <div className="absolute inset-0 z-40 flex items-end">
-                <button
-                    type="button"
-                    className="absolute inset-0 bg-black/60"
-                    onClick={() => setShowScoreEditModal(false)}
-                    aria-label="close"
-                />
-                <div className="relative w-full rounded-t-3xl bg-[#111827] border-t border-white/10 p-4 space-y-3">
-                    <h3 className="text-sm font-bold text-white">{t('matchReport.editMatchPresentation')}</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                        <label className="space-y-1.5">
-                            <span className="text-[10px] text-slate-400">{t('matchReport.teamNameSideA')}</span>
-                            <input
-                                type="text"
-                                maxLength={24}
-                                value={editingNameA}
-                                onChange={(e) => setEditingNameA(e.target.value)}
-                                className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
-                            />
-                        </label>
-                        <label className="space-y-1.5">
-                            <span className="text-[10px] text-slate-400">{t('matchReport.teamNameSideB')}</span>
-                            <input
-                                type="text"
-                                maxLength={24}
-                                value={editingNameB}
-                                onChange={(e) => setEditingNameB(e.target.value)}
-                                className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
-                            />
-                        </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <label className="space-y-1.5">
-                            <span className="text-[10px] text-slate-400">{t('matchReport.scoreSideA')}</span>
-                            <input
-                                type="number"
-                                min={0}
-                                max={99}
-                                inputMode="numeric"
-                                value={editingScoreA}
-                                onChange={(e) => setEditingScoreA(e.target.value)}
-                                className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
-                            />
-                        </label>
-                        <label className="space-y-1.5">
-                            <span className="text-[10px] text-slate-400">{t('matchReport.scoreSideB')}</span>
-                            <input
-                                type="number"
-                                min={0}
-                                max={99}
-                                inputMode="numeric"
-                                value={editingScoreB}
-                                onChange={(e) => setEditingScoreB(e.target.value)}
-                                className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
-                            />
-                        </label>
-                    </div>
-                    <div className="flex gap-2 pt-1">
-                        <button
-                            type="button"
-                            onClick={() => setShowScoreEditModal(false)}
-                            className="flex-1 py-2.5 rounded-xl bg-slate-700 text-white text-sm font-bold"
-                        >
-                            {t('ui.cancel')}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleSaveSoccerScore}
-                            className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold"
-                        >
-                            {t('ui.save')}
-                        </button>
-                    </div>
-                </div>
+        {galleryHybridDemoView === 'edge_result' && (
+          <div className="relative z-20 px-4 pt-14 pb-2">
+            <div className="rounded-xl border border-emerald-500/45 bg-emerald-950/55 px-3 py-2.5 space-y-2">
+              <p className="text-[12px] font-bold text-white leading-snug">{t('gallery.hybridEdgeBannerTitle')}</p>
+              <p className="text-[10px] text-emerald-100/85 leading-relaxed">{t('gallery.hybridEdgeBannerSub')}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setGalleryHybridDemoView('cloud_result');
+                  setToastMessage(t('gallery.hybridCloudPreviewToast'));
+                  setTimeout(() => setToastMessage(null), 1800);
+                }}
+                className="w-full py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold"
+              >
+                {t('gallery.hybridUploadToCloudCta')}
+              </button>
             </div>
+          </div>
         )}
 
-         {/* Portal dropdowns for type / player correction (avoid clip card overflow clipping) */}
-         {openTypeMenuId != null && typeDropdownRect != null && (() => {
-             const clip = displayClips.find(c => c.id === openTypeMenuId);
-             if (!clip) return null;
-             const style: React.CSSProperties = {
-                 position: 'fixed',
-                 left: typeDropdownRect.left,
-                 minWidth: typeDropdownRect.minWidth,
-                 zIndex: 50,
-                 ...(typeDropdownRect.placement === 'below' ? { top: typeDropdownRect.top } : { bottom: typeDropdownRect.bottom }),
-             };
-             return createPortal(
-                 <div data-correction-menu className="bg-[#1E293B] border border-white/10 rounded-lg shadow-xl max-h-[220px] overflow-y-auto" style={style}>
-                     {eventTypeOptions.map((opt, i) => (
-                         <React.Fragment key={String(opt.id)}>
-                             {!isSoccer && i === 3 && <div className="border-t border-white/10 my-1" />}
-                             <button
-                                 onClick={(e) => { e.stopPropagation(); handleCorrectEventType(clip.id, opt); }}
-                                 className="w-full px-3 py-2 text-left text-[10px] text-slate-300 hover:bg-slate-700 hover:text-white transition-colors first:rounded-t-lg last:rounded-b-lg"
-                             >
-                                 {t(opt.labelKey)}
-                             </button>
-                         </React.Fragment>
-                     ))}
-                 </div>,
-                 document.body
-             );
-         })()}
-         {openPlayerMenuId != null && playerDropdownRect != null && (() => {
-             const clip = displayClips.find(c => c.id === openPlayerMenuId);
-             if (!clip) return null;
-             const style: React.CSSProperties = {
-                 position: 'fixed',
-                 left: playerDropdownRect.left,
-                 minWidth: playerDropdownRect.minWidth,
-                 zIndex: 50,
-                 ...(playerDropdownRect.placement === 'below' ? { top: playerDropdownRect.top } : { bottom: playerDropdownRect.bottom }),
-             };
-             return createPortal(
-                 <div data-correction-menu className="bg-[#1E293B] border border-white/10 rounded-lg shadow-xl max-h-[200px] overflow-y-auto" style={style}>
-                     {availablePlayers.length > 0 && (
-                         <>
-                             {availablePlayers.map(player => (
-                                 <button
-                                     key={player}
-                                     onClick={(e) => { e.stopPropagation(); handleQuickMarkPlayer(clip.id, player); }}
-                                     className="w-full px-3 py-2 text-left text-[10px] text-slate-300 hover:bg-slate-700 hover:text-white transition-colors first:rounded-t-lg"
-                                 >
-                                     {player}
-                                 </button>
-                             ))}
-                             <div className="border-t border-white/10" />
-                         </>
-                     )}
-                     <button
-                         onClick={(e) => {
-                             e.stopPropagation();
-                             setOpenPlayerMenuId(null);
-                             setPlayerDropdownRect(null);
-                             setSelectedEventForClaim(clip.id);
-                             setShowPlayerSelector(true);
-                         }}
-                         className="w-full px-3 py-2 text-left text-[10px] text-blue-400 hover:bg-slate-700 transition-colors rounded-b-lg"
-                     >
-                         {t('ui.custom')}
-                     </button>
-                 </div>,
-                 document.body
-             );
-         })()}
+        <div
+          className={`px-4 ${galleryHybridDemoView === 'edge_result' ? 'pt-0' : 'pt-14'} pb-2 bg-[#0F172A] border-b border-white/10 transition-all`}
+        >
+          <div className={`rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] transition-all ${isScoreCollapsed ? 'px-2.5 py-1.5' : 'p-3 space-y-3'}`}>
+            <div className="flex items-center justify-between gap-2">
+              {!isScoreCollapsed && <span className="text-[10px] font-bold text-emerald-200/90 tracking-wide">{t('matchReport.gameStatistics')}</span>}
+              <div className="flex items-center gap-2">
+                {!isScoreCollapsed && (
+                  <button type="button" onClick={() => setShowScoreEditModal(true)} className="text-[9px] font-bold px-2 py-1 rounded-full bg-white/10 border border-white/15 text-emerald-100 inline-flex items-center gap-1">
+                    <Edit3 className="w-3 h-3" />
+                    {t('matchReport.adjustMatchButton')}
+                  </button>
+                )}
+                <button type="button" onClick={() => setIsScoreCollapsed((prev) => !prev)} className="text-[9px] font-bold px-2 py-1 rounded-full bg-slate-800 border border-white/15 text-slate-100 whitespace-nowrap">
+                  {isScoreCollapsed ? t('ui.expandDetail') : t('ui.collapseDetail')}
+                </button>
+              </div>
+            </div>
+            <div className={`${isScoreCollapsed ? 'mt-0.5' : 'mt-2'} grid grid-cols-3 items-end`}>
+              <div className="text-left">
+                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamA.color}`}>{liveSoccerStats.teamA.score}</p>
+                {!isScoreCollapsed && <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}</p>}
+              </div>
+              <div className={`text-center text-slate-500 ${isScoreCollapsed ? 'text-[10px] pb-0' : 'text-xs pb-1'} font-black`}>VS</div>
+              <div className="text-right">
+                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamB.color}`}>{liveSoccerStats.teamB.score}</p>
+                {!isScoreCollapsed && <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}</p>}
+              </div>
+            </div>
+          </div>
+        </div>
 
-         {showProComposeModal && (
-            <div className="absolute inset-0 z-[60] flex flex-col justify-end bg-black/50">
-              <button type="button" className="flex-1 min-h-0 border-0 cursor-default bg-transparent" aria-label="close" onClick={() => setShowProComposeModal(false)} />
-              <div className="bg-[#0F172A] rounded-t-3xl border-t border-white/10 p-4 pb-8 max-h-[70%] overflow-y-auto">
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-sm font-bold text-white">{t('compose.proSheetTitle')}</h3>
-                  <button type="button" onClick={() => setShowProComposeModal(false)} className="p-1 text-slate-400">
-                    <X className="w-5 h-5" />
+        <div className="h-[176px] bg-black relative shrink-0 border-y border-white/10">
+          <AssetThumbnail type="video" category={resultSport || 'soccer'} />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+          <div className="absolute top-3 right-4 z-20">
+            <div className="rounded-full p-1 bg-slate-950/80 border border-white/20 flex gap-1 shadow-lg backdrop-blur">
+              <button type="button" onClick={() => setViewMode('review')} className={`px-3 py-1 rounded-full text-[10px] font-bold ${viewMode === 'review' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}>
+                {t('ui.eventReview')}
+              </button>
+              <button type="button" onClick={() => setViewMode('fullMatch')} className={`px-3 py-1 rounded-full text-[10px] font-bold ${viewMode === 'fullMatch' ? 'bg-emerald-600 text-white' : 'text-slate-300'}`}>
+                {t('ui.fullMatchView')}
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsPlaying((prev) => !prev)}
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
+          >
+            {isPlaying ? <Minimize2 className="w-7 h-7 text-white" /> : <Play className="w-7 h-7 text-white" />}
+          </button>
+          <div className="absolute left-4 right-4 bottom-3">
+            <div className="flex justify-between text-[10px] font-mono text-white/85 mb-1">
+              <span>{formatClock(currentTimeSec)}</span>
+              <span>{formatClock(durationSec)}</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={durationSec}
+              value={currentTimeSec}
+              onChange={(e) => setCurrentTimeSec(Number(e.target.value))}
+              className="w-full accent-blue-500"
+            />
+            {viewMode === 'fullMatch' && (
+              <p className="text-[9px] text-slate-300 mt-1">{t('ui.fullMatchNoSync')}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto" data-correction-scroll onScroll={handleTimelineScroll}>
+          <div className="px-4 py-3 space-y-3 pb-24">
+            <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div>
+                  <h3 className="text-sm font-bold text-white">{t('ui.matchFlowTitle')}</h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{t('ui.matchFlowSubtitle')}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={resolvedEvents.length === 0}
+                    onClick={() => setCarouselIndex((prev) => (resolvedEvents.length ? (prev - 1 + resolvedEvents.length) % resolvedEvents.length : 0))}
+                    className="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center disabled:opacity-40"
+                  >
+                    <ArrowLeft className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={resolvedEvents.length === 0}
+                    onClick={() => setCarouselIndex((prev) => (resolvedEvents.length ? (prev + 1) % resolvedEvents.length : 0))}
+                    className="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center disabled:opacity-40"
+                  >
+                    <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
-                <p className="text-[10px] text-slate-400 mb-3">{t('compose.proSheetDesc')}</p>
+              </div>
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-2">
+                {timelineFilters.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() => setActiveTimelineFilter(filter.id)}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
+                      activeTimelineFilter === filter.id
+                        ? 'bg-blue-600/95 text-white border-blue-500 shadow-sm shadow-blue-900/40'
+                        : 'bg-slate-800/80 text-slate-300 border-white/10 hover:bg-slate-700/80'
+                    }`}
+                  >
+                    {filter.id === 'all' ? (
+                      <Filter className="w-3.5 h-3.5" />
+                    ) : (
+                      scoreTypeIcon(filter.id)
+                    )}
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+              {activeKeyEvent ? (
+                <button
+                  type="button"
+                  onClick={() => handleSeekToEvent(activeKeyEvent)}
+                  className="w-full text-left rounded-lg border border-emerald-500/35 bg-emerald-900/15 px-2.5 py-1.5"
+                >
+                  <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 text-[10px]">
+                    <div className="flex items-center gap-1.5 min-w-0 text-emerald-100">
+                      {scoreTypeIcon(String(activeKeyEvent.scoreType))}
+                      <span className="font-bold truncate">{scoreTypeLabel(String(activeKeyEvent.scoreType))}</span>
+                    </div>
+                    <span className="font-mono text-slate-200">{activeKeyEvent.time}</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full font-bold ${
+                        activeKeyEvent.team === 'A'
+                          ? 'bg-blue-600/85 text-white'
+                          : 'bg-red-600/85 text-white'
+                      }`}
+                    >
+                      {activeKeyEvent.team === 'A' ? t('ui.teamA') : t('ui.teamB')}
+                    </span>
+                    <span className="text-slate-300">{carouselIndex + 1}/{filteredTimelineEvents.length}</span>
+                  </div>
+                </button>
+              ) : (
+                <p className="text-xs text-slate-500">{t('ui.noEventsInType')}</p>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
+              <div className="relative">
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mb-2 px-1">
+                  <span className="text-[10px] font-bold text-blue-300">{t('ui.teamA')}</span>
+                  <span className="text-[9px] text-slate-500">TIME</span>
+                  <span className="text-[10px] font-bold text-red-300 text-right">{t('ui.teamB')}</span>
+                </div>
+                <div className="absolute left-1/2 -translate-x-1/2 top-7 bottom-1 w-px bg-white/15" />
                 <div className="space-y-2">
-                  {COMPOSE_TEMPLATES.map((tm) => {
-                    const tierLabel =
-                      tm.quality === 'standard'
-                        ? t('proReel.tierStandard')
-                        : tm.quality === 'pro_hd'
-                          ? t('proReel.tierHd')
-                          : t('proReel.tierCinema');
+                  {filteredTimelineEvents.map((event) => {
+                    const isActive = activeEventId === event.id;
+                    const isEditing = editingEventId === event.id;
                     return (
-                      <button
-                        key={tm.id}
-                        type="button"
-                        onClick={() => handleProTemplateCompose(tm.id, tm.labelKey, tm.proOnly)}
-                        className="w-full text-left px-3 py-2.5 rounded-xl border border-white/10 bg-[#1E293B] hover:border-indigo-400/35 transition-colors"
+                      <div
+                        key={event.id}
+                        ref={(el) => {
+                          eventItemRefs.current[event.id] = el;
+                        }}
+                        className="relative"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-bold text-white">{t(tm.labelKey)}</span>
-                              {tm.proOnly && (
-                                <span className="text-[8px] font-black text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded">{t('compose.badgeMemberTemplate')}</span>
+                        {!isEditing ? (
+                          <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleSeekToEvent(event as any)}
+                              className={`min-h-[68px] text-left rounded-lg border p-2 transition-colors ${event.team === 'A' ? `${isActive && viewMode === 'review' ? 'border-blue-500 bg-blue-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
+                              disabled={event.team !== 'A'}
+                            >
+                              {event.team === 'A' && (
+                                <>
+                                  <div className="mt-1 flex items-center gap-2">
+                                    {scoreTypeIcon(String(event.scoreType))}
+                                    <span className="text-xs font-bold text-slate-100">{scoreTypeLabel(String(event.scoreType))}</span>
+                                  </div>
+                                  <div className="mt-2 flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        startEditEvent(event as any);
+                                      }}
+                                      className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1"
+                                    >
+                                      <Edit3 className="w-3 h-3" />
+                                      {t('ui.edit')}
+                                    </button>
+                                  </div>
+                                </>
                               )}
-                              <span className="text-[8px] font-bold text-slate-500 border border-white/10 px-1.5 py-0.5 rounded">{tierLabel}</span>
+                            </button>
+                            <div className="flex flex-col items-center justify-start pt-2.5 px-1">
+                              <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">{event.time}</span>
+                              <div className={`mt-1 w-3 h-3 rounded-full border-2 ${event.team === 'A' ? 'bg-blue-500 border-[#0F172A]' : 'bg-red-500 border-[#0F172A]'}`} />
                             </div>
-                            <p className="text-[9px] text-slate-400 mt-1 leading-relaxed">{t(tm.descKey)}</p>
+                            <button
+                              type="button"
+                              onClick={() => handleSeekToEvent(event as any)}
+                              className={`min-h-[68px] text-left rounded-lg border p-2 transition-colors ${event.team === 'B' ? `${isActive && viewMode === 'review' ? 'border-red-500 bg-red-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
+                              disabled={event.team !== 'B'}
+                            >
+                              {event.team === 'B' && (
+                                <>
+                                  <div className="mt-1 flex items-center gap-2">
+                                    {scoreTypeIcon(String(event.scoreType))}
+                                    <span className="text-xs font-bold text-slate-100">{scoreTypeLabel(String(event.scoreType))}</span>
+                                  </div>
+                                  <div className="mt-2 flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        startEditEvent(event as any);
+                                      }}
+                                      className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1"
+                                    >
+                                      <Edit3 className="w-3 h-3" />
+                                      {t('ui.edit')}
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </button>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
-                        </div>
-                      </button>
+                        ) : (
+                          <div className="rounded-lg border border-white/10 bg-[#1E293B]/80 p-2.5 space-y-2">
+                            <div className="text-[10px] font-bold text-slate-300">{event.team === 'A' ? t('ui.teamA') : t('ui.teamB')} · {event.time}</div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <label className="text-[10px] text-slate-400">
+                                {t('ui.typeLabel')}
+                                <select
+                                  className="mt-1 w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white"
+                                  value={eventDraft.scoreType}
+                                  onChange={(e) => setEventDraft((prev) => ({ ...prev, scoreType: e.target.value }))}
+                                >
+                                  <option value="goal">{t('ui.eventGoal')}</option>
+                                  <option value="corner">{t('ui.eventCornerKick')}</option>
+                                  <option value="setpiece">{t('ui.eventFreeKick')}</option>
+                                  <option value="penalty">{t('ui.eventPenaltyKicks')}</option>
+                                </select>
+                              </label>
+                              <label className="text-[10px] text-slate-400">
+                                {t('ui.clipTimeLabel')}
+                                <input
+                                  value={eventDraft.time}
+                                  onChange={(e) => setEventDraft((prev) => ({ ...prev, time: e.target.value }))}
+                                  className="mt-1 w-full rounded bg-slate-800 border border-white/10 px-2 py-1 text-xs text-white font-mono"
+                                />
+                              </label>
+                            </div>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => setEditingEventId(null)} className="flex-1 py-1.5 rounded bg-slate-700 text-xs font-bold">{t('ui.cancel')}</button>
+                              <button type="button" onClick={() => saveEventEdit(event.id)} className="flex-1 py-1.5 rounded bg-blue-600 text-xs font-bold">{t('ui.save')}</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
+                  {filteredTimelineEvents.length === 0 && <p className="text-xs text-slate-500 pl-2">{t('ui.noEventsInType')}</p>}
                 </div>
               </div>
             </div>
-         )}
+          </div>
+        </div>
 
+        <div className="p-4 bg-[#0F172A] border-t border-white/10">
+          <button onClick={shareMatchVideo} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
+            <Share2 className="w-4 h-4" /> {t('ui.shareMatchVideo')}
+          </button>
+        </div>
+
+        {showScoreEditModal && (
+          <div className="absolute inset-0 z-40 flex items-end">
+            <button type="button" className="absolute inset-0 bg-black/60" onClick={() => setShowScoreEditModal(false)} aria-label="close" />
+            <div className="relative w-full rounded-t-3xl bg-[#111827] border-t border-white/10 p-4 space-y-3">
+              <h3 className="text-sm font-bold text-white">{t('matchReport.editMatchPresentation')}</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="space-y-1.5">
+                  <span className="text-[10px] text-slate-400">{t('matchReport.teamNameSideA')}</span>
+                  <input type="text" maxLength={24} value={editingNameA} onChange={(e) => setEditingNameA(e.target.value)} className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500" />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-[10px] text-slate-400">{t('matchReport.teamNameSideB')}</span>
+                  <input type="text" maxLength={24} value={editingNameB} onChange={(e) => setEditingNameB(e.target.value)} className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500" />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="space-y-1.5">
+                  <span className="text-[10px] text-slate-400">{t('matchReport.scoreSideA')}</span>
+                  <input type="number" min={0} max={99} inputMode="numeric" value={editingScoreA} onChange={(e) => setEditingScoreA(e.target.value)} className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500" />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-[10px] text-slate-400">{t('matchReport.scoreSideB')}</span>
+                  <input type="number" min={0} max={99} inputMode="numeric" value={editingScoreB} onChange={(e) => setEditingScoreB(e.target.value)} className="w-full rounded-lg bg-slate-900 border border-white/10 px-3 py-2 text-white text-sm outline-none focus:border-blue-500" />
+                </label>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setShowScoreEditModal(false)} className="flex-1 py-2.5 rounded-xl bg-slate-700 text-white text-sm font-bold">{t('ui.cancel')}</button>
+                <button type="button" onClick={handleSaveSoccerScore} className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold">{t('ui.save')}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-
     );
-
   };
 
   // --- Merge Preview Screen Component ---
@@ -7532,7 +6453,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   const popToHome = () => {
     setGalleryHybridDemoView(null);
-    setViewStack(['home']);
+    setViewStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : ['home']));
   };
 
   const replaceView = (view: ViewState) => setViewStack(prev => [...prev.slice(0, -1), view]);
