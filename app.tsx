@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext, createContext, useRef } from 'r
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from './src/i18n';
+import soccerVideoBg from './sofascore.png';
 
 import { 
 
@@ -27,7 +28,7 @@ import {
 
   FileEdit, Hexagon, Disc, CircleDot,
 
-  AlertTriangle, WifiOff, Wifi, Signal, HardDrive, RefreshCw, Play, Zap, Minus, Plus,
+  AlertTriangle, WifiOff, Wifi, Signal, HardDrive, RefreshCw, Play, Pause, Zap, Minus, Plus,
 
   Activity, Map as MapIcon, Lock, Footprints, AreaChart, Flame,
 
@@ -127,7 +128,7 @@ type NetworkState = 'wifi' | '4g' | 'offline';
 type FalconState = 'connected' | 'disconnected';
 
 type ShareContext =
-  | { type: 'all' | 'selected' | 'report' }
+  | { type: 'all' | 'selected' | 'report'; selectedClipIds?: number[] }
   | { type: 'player_clips'; playerLabel?: string }
   | { type: 'player_dashboard'; playerLabel?: string }
   | { type: 'template_compose'; templateId: string; selectedClipIds: number[]; templateLabelKey: string }
@@ -220,6 +221,13 @@ const COMPOSE_TEMPLATES: ComposeTemplateDef[] = [
   { id: 'cinematic_spotlight', labelKey: 'compose.templateCinematic', proOnly: true, tag: 'spotlight', descKey: 'compose.descCinematic', quality: 'pro_cinema' },
   { id: 'signature_pack', labelKey: 'compose.templateSignaturePack', proOnly: true, tag: 'brand', descKey: 'compose.descSignaturePack', quality: 'pro_cinema' },
 ];
+
+function mapToolboxTemplateToComposeTemplate(toolboxTemplateId: string): string {
+  if (toolboxTemplateId === 'qt6') return 'recap';
+  if (toolboxTemplateId === 'qt5') return 'spotlight';
+  if (toolboxTemplateId === 'qt2' || toolboxTemplateId === 'qt4') return 'full_game';
+  return 'full_game';
+}
 
 function buildAssetItems(cloudTasks: CloudTask[]): AssetItem[] {
   const items: AssetItem[] = [];
@@ -638,11 +646,21 @@ const AssetThumbnail = ({ type, category }: { type: string, category: string }) 
 
   else if (isBaseball) bgClass = 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-600 via-blue-700 to-blue-900';
 
+  const useSoccerVideoImage = isSoccer && type === 'video';
+
   return (
 
     <div className={`w-full h-full relative overflow-hidden ${bgClass}`}>
 
-      <div className="absolute inset-0 opacity-40 mix-blend-overlay">
+      {useSoccerVideoImage && (
+        <img
+          src={soccerVideoBg}
+          alt="soccer video background"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+
+      <div className={`absolute inset-0 ${useSoccerVideoImage ? 'opacity-30' : 'opacity-40'} mix-blend-overlay`}>
 
         {isBasketball && <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"><defs><pattern id="floor" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0 0h10v1H0z" fill="black" opacity="0.1"/><path d="M5 0v10h1V0z" fill="black" opacity="0.05"/></pattern></defs><rect width="100%" height="100%" fill="url(#floor)" /><path d="M0 0 H100 V100 H0 Z" fill="none" stroke="white" strokeWidth="0.5" opacity="0.5"/><circle cx="50" cy="50" r="20" stroke="white" strokeWidth="1.5" fill="none" opacity="0.8"/><path d="M0 50 Q 50 100 100 50" stroke="white" strokeWidth="1.5" fill="none" opacity="0.8"/></svg>}
 
@@ -1465,6 +1483,7 @@ const ShareModal = () => {
   const { t, showShareModal, setShowShareModal, setProgressModal, setToastMessage, shareContext, isVip } = useAppContext();
   const [watermarkEnabled, setWatermarkEnabled] = useState(true);
   const showNoWatermarkOption = isVip && shareContext.type !== 'player_dashboard';
+  const selectedClipCount = shareContext.type === 'selected' ? shareContext.selectedClipIds?.length ?? 0 : 0;
 
   const handleShare = (type: 'album' | 'facebook' | 'youtube', watermark: boolean = true) => {
     setShowShareModal(false);
@@ -1516,6 +1535,11 @@ const ShareModal = () => {
             </button>
 
             <h3 className="text-xl font-black text-white mb-6 text-center">{t('ui.chooseShareMethod')}</h3>
+            {shareContext.type === 'selected' && (
+                <p className="text-xs text-slate-400 text-center -mt-4 mb-5">
+                    {t('ui.exportSelectedSummary', { count: selectedClipCount })}
+                </p>
+            )}
 
             {/* Member: no-watermark export */}
             {showNoWatermarkOption && (
@@ -3445,7 +3469,7 @@ const TaskSubmittedScreen = () => {
 
 const HighlightResultScreen = () => {
 
-    const { t, popToHome, replaceView, resultSport, setProgressModal, pushView, setShowShareModal, setShareType, setMergedVideoUrl, setSelectedEventForClaim, setShowPlayerSelector, eventClaims, setEventClaims, setToastMessage, isVip, setShareContext, highlightEntryIntent, setHighlightEntryIntent, setShowUpsellModal, liveSoccerStats } = useAppContext();
+    const { t, popToHome, replaceView, resultSport, setProgressModal, pushView, setShowShareModal, setShareType, setMergedVideoUrl, setSelectedEventForClaim, setShowPlayerSelector, eventClaims, setEventClaims, setToastMessage, isVip, setShareContext, highlightEntryIntent, setHighlightEntryIntent, setShowUpsellModal, liveSoccerStats, pendingTemplateComposeId, setPendingTemplateComposeId } = useAppContext();
 
     const [showComposeTemplateModal, setShowComposeTemplateModal] = useState(false);
 
@@ -3465,6 +3489,9 @@ const HighlightResultScreen = () => {
     const [selectedClipIds, setSelectedClipIds] = useState<number[]>([]);
 
     const [activeTab, setActiveTab] = useState<'clips' | 'stats'>('stats');
+    const [playbackMode, setPlaybackMode] = useState<'summary' | 'original'>('summary');
+    const [showExportTypeModal, setShowExportTypeModal] = useState(false);
+    const [showSelectedPreviewModal, setShowSelectedPreviewModal] = useState(false);
 
     
 
@@ -3503,7 +3530,17 @@ const HighlightResultScreen = () => {
         const intent = highlightEntryIntent;
         setHighlightEntryIntent('none');
         if (intent === 'template_compose') {
-            setShowComposeTemplateModal(true);
+            if (pendingTemplateComposeId) {
+                const targetedTemplate = COMPOSE_TEMPLATES.find((x) => x.id === pendingTemplateComposeId);
+                if (targetedTemplate) {
+                    handleApplyTemplate(targetedTemplate.id, targetedTemplate.labelKey, targetedTemplate.proOnly);
+                } else {
+                    setShowComposeTemplateModal(true);
+                }
+                setPendingTemplateComposeId(null);
+            } else {
+                setShowComposeTemplateModal(true);
+            }
         } else if (intent === 'merge_export') {
             setIsSelectionMode(true);
             setActiveTab('clips');
@@ -3514,7 +3551,7 @@ const HighlightResultScreen = () => {
             setToastMessage(t('toolbox.manualEditHint'));
             setTimeout(() => setToastMessage(null), 3500);
         }
-    }, [highlightEntryIntent, setHighlightEntryIntent, t, setToastMessage]);
+    }, [highlightEntryIntent, pendingTemplateComposeId, setHighlightEntryIntent, setPendingTemplateComposeId, t, setToastMessage]);
 
     // Extract unique players (labels) from eventClaims + clip.player for filter
     const availablePlayers = Array.from(new Set(
@@ -3622,7 +3659,16 @@ const HighlightResultScreen = () => {
             if (effective !== selectedPlayer) return false;
         }
 
-        if (selectedFilter !== 'all') { 
+        if (isSoccer) {
+            if (selectedFilter === 'all') return clip.type === 'soccer_event';
+            if (selectedFilter === 'goal') return clip.scoreType === 'goal';
+            if (selectedFilter === 'corner') return clip.scoreType === 'corner';
+            if (selectedFilter === 'setpiece') return clip.scoreType === 'setpiece';
+            if (selectedFilter === 'penalty') return clip.scoreType === 'penalty';
+            return false;
+        }
+
+        if (selectedFilter !== 'all') {
             // Basketball: filter by event type - only score events (得分=2分, 罚球=1分, 三分=3分)
             if (selectedFilter === 'score') {
                 return clip.type === 'score' && clip.scoreType === 2;
@@ -3634,7 +3680,7 @@ const HighlightResultScreen = () => {
                 return clip.type === 'score' && clip.scoreType === 3;
             }
             return false;
-        } 
+        }
 
         // For 'all' filter, show only score events (1分, 2分, 3分)
         return clip.type === 'score';
@@ -3665,10 +3711,15 @@ const HighlightResultScreen = () => {
     const featuredReelDuration =
         HIGHLIGHT_COLLECTIONS.find((c) => c.id === selectedCollection)?.duration ?? HIGHLIGHT_COLLECTIONS[0].duration;
 
-    const handleClipClick = (time: string) => { 
-        setCurrentTime(time); 
-        setShowJumpToast(true); 
-        setTimeout(() => setShowJumpToast(false), 2000); 
+    const handleClipClick = (time: string) => {
+        if (playbackMode === 'original') {
+            setToastMessage(t('ui.originalModeNoSync'));
+            setTimeout(() => setToastMessage(null), 2000);
+            return;
+        }
+        setCurrentTime(time);
+        setShowJumpToast(true);
+        setTimeout(() => setShowJumpToast(false), 2000);
     };
 
     const handleEditDuration = (clipId: number, currentDuration: string) => {
@@ -3808,8 +3859,34 @@ const HighlightResultScreen = () => {
     };
 
     const handleShare = () => {
+        if (selectedClipIds.length === 0) {
+            setToastMessage(t('ui.selectOneClipFirst'));
+            setTimeout(() => setToastMessage(null), 2000);
+            return;
+        }
+        setShowExportTypeModal(false);
+        setShareContext({ type: 'selected', selectedClipIds: [...selectedClipIds] });
         setShareType('selected');
         setShowShareModal(true);
+    };
+
+    const handleTemplateExport = () => {
+        if (selectedClipIds.length === 0) {
+            setToastMessage(t('ui.selectOneClipFirst'));
+            setTimeout(() => setToastMessage(null), 2000);
+            return;
+        }
+        setShowExportTypeModal(false);
+        setShowComposeTemplateModal(true);
+    };
+
+    const handlePreviewSelected = () => {
+        if (selectedClipIds.length === 0) {
+            setToastMessage(t('ui.selectOneClipFirst'));
+            setTimeout(() => setToastMessage(null), 2000);
+            return;
+        }
+        setShowSelectedPreviewModal(true);
     };
 
     const handleExportAll = () => {
@@ -3825,6 +3902,7 @@ const HighlightResultScreen = () => {
                 clearInterval(interval);
                 setTimeout(() => {
                     setProgressModal({ show: false, title: '', progress: 0 });
+                    setShareContext({ type: 'all' });
                     setShareType('all');
                     setShowShareModal(true);
                 }, 1000);
@@ -3852,7 +3930,20 @@ const HighlightResultScreen = () => {
         setTimeout(() => setToastMessage(null), 2000);
     };
 
-    const filters = [ { id: 'all', labelKey: 'filter.all' }, { id: 'score', labelKey: 'filter.score' }, { id: 1, labelKey: 'filter.ft' }, { id: 3, labelKey: 'filter.threePt' } ];
+    const filters = isSoccer
+        ? [
+            { id: 'all' as EventFilterType, labelKey: 'filter.all', icon: CircleDot },
+            { id: 'goal' as EventFilterType, labelKey: 'filter.goal', icon: Target },
+            { id: 'corner' as EventFilterType, labelKey: 'filter.corner', icon: RotateCcw },
+            { id: 'setpiece' as EventFilterType, labelKey: 'filter.setpiece', icon: Zap },
+            { id: 'penalty' as EventFilterType, labelKey: 'filter.penalty', icon: AlertTriangle },
+        ]
+        : [
+            { id: 'all' as EventFilterType, labelKey: 'filter.all', icon: CircleDot },
+            { id: 'score' as EventFilterType, labelKey: 'filter.score', icon: Target },
+            { id: 1 as EventFilterType, labelKey: 'filter.ft', icon: Minus },
+            { id: 3 as EventFilterType, labelKey: 'filter.threePt', icon: Plus },
+        ];
 
     const statsData = isSoccer ? liveSoccerStats : TEAM_MATCH_STATS;
     const comparativeRows = React.useMemo(
@@ -4086,6 +4177,62 @@ const HighlightResultScreen = () => {
                        </div>
                      </div>
 
+                     <div className="mb-3 rounded-xl border border-white/10 bg-black/20 p-2">
+                       <div className="flex gap-2">
+                         <button
+                           type="button"
+                           onClick={() => setPlaybackMode('summary')}
+                           className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${
+                             playbackMode === 'summary' ? 'bg-white text-slate-900' : 'text-slate-400'
+                           }`}
+                         >
+                           {t('ui.summaryPlayback')}
+                         </button>
+                         <button
+                           type="button"
+                           onClick={() => setPlaybackMode('original')}
+                           className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${
+                             playbackMode === 'original' ? 'bg-white text-slate-900' : 'text-slate-400'
+                           }`}
+                         >
+                           {t('ui.originalPlayback')}
+                         </button>
+                       </div>
+                       <p className="text-[10px] text-slate-500 mt-2 px-1">
+                         {playbackMode === 'summary' ? t('ui.summaryModeSyncHint') : t('ui.originalModeNoSync')}
+                       </p>
+                     </div>
+
+                     <div className="mb-3 rounded-xl border border-white/10 bg-[#111827] p-2.5">
+                       <div className="flex items-center justify-between mb-2">
+                         <span className="text-[10px] font-bold text-slate-300">{t('ui.eventTimeline')}</span>
+                         <span className="text-[9px] text-slate-500">{displayClips.length}</span>
+                       </div>
+                       <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                         {displayClips.slice(0, 12).map((clip) => (
+                           <button
+                             key={`timeline-${clip.id}`}
+                             type="button"
+                             onClick={() => handleClipClick(clip.time)}
+                             className={`shrink-0 w-20 rounded-lg border text-left overflow-hidden ${
+                               clip.team === 'A' ? 'border-blue-500/40' : 'border-red-500/40'
+                             }`}
+                           >
+                             <div className="h-10 bg-black relative">
+                               <AssetThumbnail type="video" category={resultSport || 'soccer'} />
+                               <span className={`absolute top-1 right-1 text-[8px] px-1 rounded ${clip.team === 'A' ? 'bg-blue-700 text-blue-100' : 'bg-red-700 text-red-100'}`}>
+                                 {clip.team}
+                               </span>
+                             </div>
+                             <div className="px-1.5 py-1 bg-slate-900/90">
+                               <div className="text-[9px] font-bold text-white truncate">{clip.time}</div>
+                               <div className="text-[8px] text-slate-400 truncate">{clip.labelKey ? t(clip.labelKey) : (clip as any).label}</div>
+                             </div>
+                           </button>
+                         ))}
+                       </div>
+                     </div>
+
                      {/* Collections - Horizontal Scroll */}
 
                      <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide pb-2">
@@ -4107,8 +4254,16 @@ const HighlightResultScreen = () => {
                     <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide">
 
                         {filters.map(f => (
-
-                            <button key={f.id} onClick={() => setSelectedFilter(f.id as EventFilterType)} className={`px-3 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${selectedFilter === f.id ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-slate-400 border-slate-700'}`}>{t((f as any).labelKey)}</button>
+                            <button
+                              key={f.id}
+                              onClick={() => setSelectedFilter(f.id as EventFilterType)}
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap flex items-center gap-1 ${
+                                selectedFilter === f.id ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-slate-400 border-slate-700'
+                              }`}
+                            >
+                              {React.createElement((f as any).icon, { className: 'w-3 h-3' })}
+                              {t((f as any).labelKey)}
+                            </button>
 
                         ))}
 
@@ -4363,9 +4518,9 @@ const HighlightResultScreen = () => {
 
                  <div className="flex gap-3">
 
-                     <button onClick={handleMergeClips} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"><Layers className="w-4 h-4" /> {t('ui.mergeClips')}</button>
+                     <button onClick={handlePreviewSelected} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"><PlayCircle className="w-4 h-4" /> {t('ui.previewSelected')}</button>
 
-                     <button onClick={handleShare} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20"><Share2 className="w-4 h-4" /> {t('ui.exportShare')}</button>
+                     <button onClick={() => setShowExportTypeModal(true)} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20"><Share2 className="w-4 h-4" /> {t('ui.exportShare')}</button>
 
                  </div>
 
@@ -4492,6 +4647,60 @@ const HighlightResultScreen = () => {
                 </div>
               </div>
             </div>
+         )}
+
+         {showExportTypeModal && (
+           <div className="absolute inset-0 z-[65] flex items-end bg-black/60">
+             <button type="button" className="flex-1 h-full border-0 bg-transparent" onClick={() => setShowExportTypeModal(false)} aria-label="close export type modal" />
+             <div className="absolute bottom-0 left-0 right-0 bg-[#0F172A] border-t border-white/10 rounded-t-3xl p-4 pb-8">
+               <div className="flex items-center justify-between mb-3">
+                 <h3 className="text-sm font-bold text-white">{t('ui.exportTypeTitle')}</h3>
+                 <button type="button" onClick={() => setShowExportTypeModal(false)} className="p-1 text-slate-400">
+                   <X className="w-5 h-5" />
+                 </button>
+               </div>
+               <p className="text-[10px] text-slate-400 mb-3">{t('ui.exportTypeDesc')}</p>
+               <div className="space-y-2">
+                 <button type="button" onClick={handleShare} className="w-full text-left px-3 py-3 rounded-xl border border-white/10 bg-[#1E293B]">
+                   <p className="text-xs font-bold text-white">{t('ui.exportPlain')}</p>
+                   <p className="text-[10px] text-slate-400 mt-1">{t('ui.exportPlainDesc')}</p>
+                 </button>
+                 <button type="button" onClick={handleTemplateExport} className="w-full text-left px-3 py-3 rounded-xl border border-orange-400/30 bg-orange-500/10">
+                   <p className="text-xs font-bold text-orange-100">{t('ui.exportWithTemplate')}</p>
+                   <p className="text-[10px] text-orange-200/70 mt-1">{t('ui.exportWithTemplateDesc')}</p>
+                 </button>
+               </div>
+             </div>
+           </div>
+         )}
+
+         {showSelectedPreviewModal && (
+           <div className="absolute inset-0 z-[64] bg-black/70 p-4 flex items-center justify-center">
+             <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0F172A] p-4">
+               <div className="flex items-center justify-between mb-3">
+                 <h3 className="text-sm font-bold text-white">{t('ui.previewSelectedTitle')}</h3>
+                 <button type="button" onClick={() => setShowSelectedPreviewModal(false)} className="p-1 text-slate-400">
+                   <X className="w-5 h-5" />
+                 </button>
+               </div>
+               <div className="space-y-2 max-h-56 overflow-y-auto">
+                 {displayClips.filter((clip) => selectedClipIds.includes(clip.id)).map((clip) => (
+                   <div key={`preview-${clip.id}`} className="flex items-center justify-between rounded-lg border border-white/10 bg-[#1E293B] px-3 py-2">
+                     <span className="text-[11px] text-white truncate">{clip.labelKey ? t(clip.labelKey) : (clip as any).label}</span>
+                     <span className="text-[10px] text-slate-400 shrink-0">{clip.time}</span>
+                   </div>
+                 ))}
+               </div>
+               <div className="mt-4 flex gap-2">
+                 <button type="button" onClick={() => setShowSelectedPreviewModal(false)} className="flex-1 py-2.5 rounded-lg bg-slate-700 text-white text-xs font-bold">
+                   {t('ui.cancel')}
+                 </button>
+                 <button type="button" onClick={() => { setShowSelectedPreviewModal(false); handleMergeClips(); }} className="flex-1 py-2.5 rounded-lg bg-orange-500 text-white text-xs font-bold">
+                   {t('ui.continueExport')}
+                 </button>
+               </div>
+             </div>
+           </div>
          )}
 
       </div>
@@ -4922,6 +5131,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const [eventCorrections, setEventCorrections] = useState<Record<number, { scoreType?: string; time?: string }>>({});
     const [carouselIndex, setCarouselIndex] = useState(0);
     const [activeTimelineFilter, setActiveTimelineFilter] = useState<'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'>('all');
+    const [selectedEventDetailId, setSelectedEventDetailId] = useState<number | null>(null);
+    const [selectedExportClipIds, setSelectedExportClipIds] = useState<number[]>([]);
 
     const eventItemRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const ignoreCollapseUntilRef = useRef(0);
@@ -5008,13 +5219,21 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     }, [showScoreEditModal, liveSoccerStats]);
 
     const handleSeekToEvent = (event: { id: number; time: string; scoreType: string }) => {
-      const sec = parseMatchClockToSeconds(String(event.time));
+      const rawSec = parseMatchClockToSeconds(String(event.time));
+      const sec = Math.max(0, rawSec - 4);
       setCurrentTimeSec(sec);
       if (viewMode === 'review') {
         setActiveEventId(event.id);
+        ignoreCollapseUntilRef.current = Date.now() + 450;
+        eventItemRefs.current[event.id]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
+      setSelectedEventDetailId(event.id);
       setToastMessage(t('ui.jumpToEvent', { event: scoreTypeLabel(String(event.scoreType)) }));
       setTimeout(() => setToastMessage(null), 1200);
+    };
+
+    const toggleEventExportSelection = (eventId: number) => {
+      setSelectedExportClipIds((prev) => (prev.includes(eventId) ? prev.filter((id) => id !== eventId) : [...prev, eventId]));
     };
 
     const formatClock = (sec: number) => {
@@ -5086,8 +5305,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     };
 
     const shareMatchVideo = () => {
-      setShareType('all');
-      setShareContext({ type: 'all' });
+      if (selectedExportClipIds.length > 0) {
+        setShareType('selected');
+        setShareContext({ type: 'selected', selectedClipIds: [...selectedExportClipIds] });
+      } else {
+        setShareType('all');
+        setShareContext({ type: 'all' });
+      }
       setShowShareModal(true);
     };
 
@@ -5194,21 +5418,41 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             onClick={() => setIsPlaying((prev) => !prev)}
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
           >
-            {isPlaying ? <Minimize2 className="w-7 h-7 text-white" /> : <Play className="w-7 h-7 text-white" />}
+            {isPlaying ? <Pause className="w-7 h-7 text-white" /> : <Play className="w-7 h-7 text-white" />}
           </button>
           <div className="absolute left-4 right-4 bottom-3">
             <div className="flex justify-between text-[10px] font-mono text-white/85 mb-1">
               <span>{formatClock(currentTimeSec)}</span>
               <span>{formatClock(durationSec)}</span>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={durationSec}
-              value={currentTimeSec}
-              onChange={(e) => setCurrentTimeSec(Number(e.target.value))}
-              className="w-full accent-blue-500"
-            />
+            <div className="relative">
+              <input
+                type="range"
+                min={0}
+                max={durationSec}
+                value={currentTimeSec}
+                onChange={(e) => setCurrentTimeSec(Number(e.target.value))}
+                className="w-full accent-blue-500"
+              />
+              <div className="absolute left-2 right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                {filteredTimelineEvents.map((event) => {
+                  const sec = parseMatchClockToSeconds(String(event.time));
+                  const ratio = durationSec > 0 ? sec / durationSec : 0;
+                  const left = `${Math.max(0, Math.min(100, ratio * 100))}%`;
+                  const isA = event.team === 'A';
+                  return (
+                    <button
+                      key={`dot-${event.id}`}
+                      type="button"
+                      onClick={() => handleSeekToEvent(event as any)}
+                      className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 top-1/2 w-2.5 h-2.5 rounded-full border ${isA ? 'bg-blue-500 border-blue-200' : 'bg-red-500 border-red-200'}`}
+                      style={{ left }}
+                      aria-label={`${scoreTypeLabel(String(event.scoreType))} ${event.time}`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
             {viewMode === 'fullMatch' && (
               <p className="text-[9px] text-slate-300 mt-1">{t('ui.fullMatchNoSync')}</p>
             )}
@@ -5266,7 +5510,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
               {activeKeyEvent ? (
                 <button
                   type="button"
-                  onClick={() => handleSeekToEvent(activeKeyEvent)}
+                  onClick={() => handleSeekToEvent(activeKeyEvent as any)}
                   className="w-full text-left rounded-lg border border-emerald-500/35 bg-emerald-900/15 px-2.5 py-1.5"
                 >
                   <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 text-[10px]">
@@ -5293,6 +5537,44 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             </div>
 
             <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
+              {selectedEventDetailId !== null && (() => {
+                const detail = resolvedEvents.find((ev) => ev.id === selectedEventDetailId);
+                if (!detail) return null;
+                const isSelectedForExport = selectedExportClipIds.includes(detail.id);
+                return (
+                  <div className="mb-3 rounded-lg border border-emerald-500/35 bg-emerald-950/25 px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-emerald-200/90">{t('ui.eventReview')}</p>
+                        <p className="text-xs font-bold text-white truncate">{detail.time} · {scoreTypeLabel(String(detail.scoreType))}</p>
+                      </div>
+                      <button type="button" onClick={() => setSelectedEventDetailId(null)} className="text-slate-400">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSeekToEvent(detail as any)}
+                        className="flex-1 py-1.5 rounded bg-slate-700 text-[10px] font-bold"
+                      >
+                        {t('ui.jumpToEvent', { event: scoreTypeLabel(String(detail.scoreType)) })}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          toggleEventExportSelection(detail.id);
+                          setToastMessage(isSelectedForExport ? t('ui.cleared') : t('ui.updated'));
+                          setTimeout(() => setToastMessage(null), 1200);
+                        }}
+                        className={`flex-1 py-1.5 rounded text-[10px] font-bold ${isSelectedForExport ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-100'}`}
+                      >
+                        {isSelectedForExport ? t('ui.deselectAll') : t('ui.selectExport')}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="relative">
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mb-2 px-1">
                   <span className="text-[10px] font-bold text-blue-300">{t('ui.teamA')}</span>
@@ -5419,7 +5701,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
         <div className="p-4 bg-[#0F172A] border-t border-white/10">
           <button onClick={shareMatchVideo} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
-            <Share2 className="w-4 h-4" /> {t('ui.shareMatchVideo')}
+            <Share2 className="w-4 h-4" /> {selectedExportClipIds.length > 0 ? `${t('ui.exportShare')} (${selectedExportClipIds.length})` : t('ui.shareMatchVideo')}
           </button>
         </div>
 
@@ -5674,7 +5956,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
         t, pushView, transferStep, transferProgress, handleEntryClick, setTargetAnalysisType, setAiMode, setIsTaskCompleted, networkState, falconState, setNetworkState, setFalconState, setToastMessage, setResultSport, setSelectionMode, setSportType,
 
-        isVip, cloudTasks, assetDocFilter, setAssetDocFilter, setHighlightEntryIntent,
+        isVip, cloudTasks, assetDocFilter, setAssetDocFilter, setHighlightEntryIntent, setPendingTemplateComposeId,
 
     } = useAppContext();
 
@@ -5699,6 +5981,17 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       setIsTaskCompleted(true);
       setResultSport('soccer');
       pushView('ai_result_highlight');
+    };
+
+    const applyTemplateFromHomeCard = (toolboxTemplateId: string, paid: boolean) => {
+      if (paid && !isVip) {
+        setToastMessage(t('compose.proOnlyTemplate'));
+        setTimeout(() => setToastMessage(null), 2500);
+        return;
+      }
+      const composeTemplateId = mapToolboxTemplateToComposeTemplate(toolboxTemplateId);
+      setPendingTemplateComposeId(composeTemplateId);
+      openHighlightToolbox('template_compose');
     };
 
     // Manual Toggle Handlers for Header
@@ -5951,8 +6244,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                       key={tm.id}
                       type="button"
                       onClick={() => {
-                        setToastMessage(t('toolbox.templateApplyHint'));
-                        setTimeout(() => setToastMessage(null), 2500);
+                        applyTemplateFromHomeCard(tm.id, tm.paid);
                       }}
                       className="bg-white rounded-2xl border border-slate-100 shadow-md shadow-slate-200/60 overflow-hidden text-left active:scale-[0.98] transition-transform"
                     >
@@ -6179,6 +6471,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
   const [highlightEntryIntent, setHighlightEntryIntent] = useState<
     'none' | 'template_compose' | 'merge_export' | 'manual_edit'
   >('none');
+  const [pendingTemplateComposeId, setPendingTemplateComposeId] = useState<string | null>(null);
 
   const [videoSourceTab, setVideoSourceTab] = useState<VideoSource>('all');
 
@@ -7240,6 +7533,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       resultSport, setResultSport,
 
       highlightEntryIntent, setHighlightEntryIntent,
+      pendingTemplateComposeId, setPendingTemplateComposeId,
 
       // New: Progress and Share Modal states
       progressModal, setProgressModal,
