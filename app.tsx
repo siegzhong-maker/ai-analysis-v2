@@ -5368,67 +5368,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     return (
       <div className="flex flex-col h-full bg-[#0F172A] text-white relative">
-        <div className="absolute top-4 left-4 z-30">
-          <button onClick={popToHome} className="p-2 bg-black/40 rounded-full">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-        </div>
-
-        {galleryHybridDemoView === 'edge_result' && (
-          <div className="relative z-20 px-4 pt-14 pb-2">
-            <div className="rounded-xl border border-emerald-500/45 bg-emerald-950/55 px-3 py-2.5 space-y-2">
-              <p className="text-[12px] font-bold text-white leading-snug">{t('gallery.hybridEdgeBannerTitle')}</p>
-              <p className="text-[10px] text-emerald-100/85 leading-relaxed">{t('gallery.hybridEdgeBannerSub')}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setGalleryHybridDemoView('cloud_result');
-                  setToastMessage(t('gallery.hybridCloudPreviewToast'));
-                  setTimeout(() => setToastMessage(null), 1800);
-                }}
-                className="w-full py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold"
-              >
-                {t('gallery.hybridUploadToCloudCta')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div
-          className={`px-4 ${galleryHybridDemoView === 'edge_result' ? 'pt-0' : 'pt-14'} pb-2 bg-[#0F172A] border-b border-white/10 transition-all`}
-        >
-          <div className={`rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] transition-all ${isScoreCollapsed ? 'px-2.5 py-1.5' : 'p-3 space-y-3'}`}>
-            <div className="flex items-center justify-between gap-2">
-              {!isScoreCollapsed && <span className="text-[10px] font-bold text-emerald-200/90 tracking-wide">{t('matchReport.gameStatistics')}</span>}
-              <div className="flex items-center gap-2">
-                {!isScoreCollapsed && (
-                  <button type="button" onClick={() => setShowScoreEditModal(true)} className="text-[9px] font-bold px-2 py-1 rounded-full bg-white/10 border border-white/15 text-emerald-100 inline-flex items-center gap-1">
-                    <Edit3 className="w-3 h-3" />
-                    {t('matchReport.adjustMatchButton')}
-                  </button>
-                )}
-                <button type="button" onClick={() => setIsScoreCollapsed((prev) => !prev)} className="text-[9px] font-bold px-2 py-1 rounded-full bg-slate-800 border border-white/15 text-slate-100 whitespace-nowrap">
-                  {isScoreCollapsed ? t('ui.expandDetail') : t('ui.collapseDetail')}
-                </button>
-              </div>
-            </div>
-            <div className={`${isScoreCollapsed ? 'mt-0.5' : 'mt-2'} grid grid-cols-3 items-end`}>
-              <div className="text-left">
-                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamA.color}`}>{liveSoccerStats.teamA.score}</p>
-                {!isScoreCollapsed && <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}</p>}
-              </div>
-              <div className={`text-center text-slate-500 ${isScoreCollapsed ? 'text-[10px] pb-0' : 'text-xs pb-1'} font-black`}>VS</div>
-              <div className="text-right">
-                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamB.color}`}>{liveSoccerStats.teamB.score}</p>
-                {!isScoreCollapsed && <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}</p>}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="min-h-[200px] h-[33vh] max-h-[40vh] bg-black relative shrink-0 border-y border-white/10">
+        <div className="min-h-[200px] h-[33vh] max-h-[40vh] bg-black relative shrink-0 border-b border-white/10">
           <AssetThumbnail type="video" category={resultSport || 'soccer'} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+          <div className="absolute top-4 left-4 z-30">
+            <button onClick={popToHome} className="p-2 bg-black/40 rounded-full">
+              <ArrowLeft className="w-5 h-5 text-white" />
+            </button>
+          </div>
           {seekToastMessage && (
             <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 animate-in zoom-in-95 z-40 pointer-events-none max-w-[min(100%,18rem)] text-center leading-snug">
               <RotateCcw className="w-3 h-3 shrink-0" />
@@ -5448,9 +5395,15 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           <button
             type="button"
             onClick={() => setIsPlaying((prev) => !prev)}
-            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
+            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-90 hover:bg-white/30"
           >
-            {isPlaying ? <Pause className="w-7 h-7 text-white" /> : <Play className="w-7 h-7 text-white" />}
+            <div className="relative flex items-center justify-center">
+              {isPlaying ? (
+                <Pause className="w-7 h-7 text-white animate-in zoom-in duration-200" />
+              ) : (
+                <Play className="w-7 h-7 text-white animate-in zoom-in duration-200 ml-1" />
+              )}
+            </div>
           </button>
           <div className="absolute left-4 right-4 bottom-3">
             <div className="flex justify-between text-[10px] font-mono text-white/85 mb-1">
@@ -5490,6 +5443,58 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             {viewMode === 'fullMatch' && (
               <p className="text-[9px] text-slate-300 mt-1">{t('ui.fullMatchNoSync')}</p>
             )}
+          </div>
+        </div>
+
+        {galleryHybridDemoView === 'edge_result' && (
+          <div className="relative z-20 px-4 pt-3 pb-2">
+            <div className="rounded-xl border border-emerald-500/45 bg-emerald-950/55 px-3 py-2.5 space-y-2">
+              <p className="text-[12px] font-bold text-white leading-snug">{t('gallery.hybridEdgeBannerTitle')}</p>
+              <p className="text-[10px] text-emerald-100/85 leading-relaxed">{t('gallery.hybridEdgeBannerSub')}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setGalleryHybridDemoView('cloud_result');
+                  setToastMessage(t('gallery.hybridCloudPreviewToast'));
+                  setTimeout(() => setToastMessage(null), 1800);
+                }}
+                className="w-full py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold"
+              >
+                {t('gallery.hybridUploadToCloudCta')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div
+          className={`px-4 pt-3 pb-2 bg-[#0F172A] border-b border-white/10 transition-all`}
+        >
+          <div className={`rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] transition-all ${isScoreCollapsed ? 'px-2.5 py-1.5' : 'p-3 space-y-3'}`}>
+            <div className="flex items-center justify-between gap-2">
+              {!isScoreCollapsed && <span className="text-[10px] font-bold text-emerald-200/90 tracking-wide">{t('matchReport.gameStatistics')}</span>}
+              <div className="flex items-center gap-2">
+                {!isScoreCollapsed && (
+                  <button type="button" onClick={() => setShowScoreEditModal(true)} className="text-[9px] font-bold px-2 py-1 rounded-full bg-white/10 border border-white/15 text-emerald-100 inline-flex items-center gap-1">
+                    <Edit3 className="w-3 h-3" />
+                    {t('matchReport.adjustMatchButton')}
+                  </button>
+                )}
+                <button type="button" onClick={() => setIsScoreCollapsed((prev) => !prev)} className="text-[9px] font-bold px-2 py-1 rounded-full bg-slate-800 border border-white/15 text-slate-100 whitespace-nowrap">
+                  {isScoreCollapsed ? t('ui.expandDetail') : t('ui.collapseDetail')}
+                </button>
+              </div>
+            </div>
+            <div className={`${isScoreCollapsed ? 'mt-0.5' : 'mt-2'} grid grid-cols-3 items-end`}>
+              <div className="text-left">
+                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamA.color}`}>{liveSoccerStats.teamA.score}</p>
+                {!isScoreCollapsed && <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}</p>}
+              </div>
+              <div className={`text-center text-slate-500 ${isScoreCollapsed ? 'text-[10px] pb-0' : 'text-xs pb-1'} font-black`}>VS</div>
+              <div className="text-right">
+                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamB.color}`}>{liveSoccerStats.teamB.score}</p>
+                {!isScoreCollapsed && <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}</p>}
+              </div>
+            </div>
           </div>
         </div>
 
