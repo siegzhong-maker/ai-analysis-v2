@@ -5512,43 +5512,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                 <button type="button" onClick={() => setViewMode('report')} className="flex-1 py-2 rounded-lg bg-white text-xs font-bold text-slate-900">Match Report</button>
               </div>
 
-              {/* Video Event Timeline */}
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-white">Video Event Timeline</h3>
-                  <Filter className="w-4 h-4 text-slate-400" />
-                </div>
-                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-                  <span className="text-[10px] text-slate-400 whitespace-nowrap">Filtered by :</span>
-                  {['Goals', 'Assists', 'Possession', 'Saves'].map(lbl => (
-                    <span key={lbl} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-white whitespace-nowrap">{lbl}</span>
-                  ))}
-                </div>
-                
-                {/* Timeline Chart Mock */}
-                <div className="relative h-20 mt-4">
-                  <div className="absolute top-1/2 left-0 right-0 h-px bg-slate-700 -translate-y-1/2" />
-                  <div className="absolute left-0 bottom-0 text-[9px] text-slate-500">0</div>
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-0 text-[9px] text-slate-500">Match Time (minutes)</div>
-                  <div className="absolute right-0 bottom-0 text-[9px] text-slate-500">120:01</div>
-                  
-                  {/* Mock dots */}
-                  {[15, 22, 35, 42, 45, 58, 62, 75, 80, 85].map(pos => (
-                    <div key={pos} className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-orange-500" style={{ left: `${pos}%` }} />
-                  ))}
-                  {[25, 48, 50, 88, 95].map(pos => (
-                    <div key={`red-${pos}`} className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-red-600" style={{ left: `${pos}%` }} />
-                  ))}
-                  <span className="absolute top-1/2 -translate-y-1/2 text-white text-[10px] font-bold" style={{ left: '26%' }}>C</span>
-                </div>
-
-                <div className="flex items-center justify-center gap-4 text-[10px] mt-2">
-                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-500" /> <span className="text-slate-300">Team 1</span></div>
-                  <span className="text-slate-500">VS</span>
-                  <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-600" /> <span className="text-slate-300">Team 2</span></div>
-                </div>
-              </div>
-
               {/* Comparative Data */}
               <div className="space-y-4 pt-4">
                 <h3 className="text-sm font-bold text-white">Comparative Data</h3>
