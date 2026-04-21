@@ -3079,40 +3079,17 @@ const GalleryScreen = () => {
                   >
                     <AssetThumbnail type="video" category="soccer" />
                     <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/94 via-[#12324A]/78 to-black/52" />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (card.isAnalyzed) {
-                          openAnalyzedResult(card.analysisType);
-                          return;
-                        }
-                        setTargetAnalysisType('highlight');
-                        setSelectionMode('single');
-                        setSportType('soccer');
-                        submitAiAnalysis([card.videoId], 'gallery_badge', 'single');
-                      }}
-                      className="absolute top-2 right-2 px-2 py-1 rounded-md text-[10px] font-black bg-emerald-500 text-white"
-                    >
-                      {card.isAnalyzed ? t('gallery.viewAnalysis') : 'AI'}
-                    </button>
-                    <div className="absolute inset-0 p-3 text-white flex flex-col">
-                      <div className="text-[10px] font-semibold text-white/85">{t('gallery.analysisReady')}</div>
-                      <div className="flex-1 flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex items-end gap-1.5">
-                          <span className="text-[12px] font-bold truncate max-w-[80px]">{nameA}</span>
+                    <div className="absolute inset-0 p-3 text-white flex flex-col justify-center">
+                      <div className="flex-1 flex items-center justify-between gap-4">
+                        <div className="min-w-0 flex flex-col items-start gap-0.5">
+                          <span className="text-[12px] font-bold truncate max-w-[100px]">{nameA}</span>
                           <span className="text-[30px] font-black leading-none">{scoreA}</span>
                         </div>
-                        <div className="text-center">
-                          <div className="text-[28px] font-black leading-none">:</div>
-                          <div className="text-[9px] font-bold text-white/70 mt-0.5">VS</div>
-                        </div>
-                        <div className="min-w-0 flex items-end gap-1.5 justify-end">
-                          <span className="text-[12px] font-bold truncate max-w-[80px]">{nameB}</span>
+                        <div className="min-w-0 flex flex-col items-end gap-0.5 text-right">
+                          <span className="text-[12px] font-bold truncate max-w-[100px]">{nameB}</span>
                           <span className="text-[30px] font-black leading-none">{scoreB}</span>
                         </div>
                       </div>
-                      <div className="h-3" />
                     </div>
                     <div className="absolute inset-0 pointer-events-none border border-white/16 rounded-xl" />
                   </button>
@@ -3137,10 +3114,7 @@ const GalleryScreen = () => {
                   <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25" />
                   {(() => {
                     const taskMeta = getVideoTaskMeta(video.id);
-                    return (
-                  <button
-                    type="button"
-                    onClick={(e) => {
+                    const badgeClick = (e: React.MouseEvent) => {
                       e.stopPropagation();
                       if (taskMeta.action === 'view') {
                         openAnalyzedResult((taskMeta.task?.type || 'highlight') as 'highlight' | 'analysis');
@@ -3151,21 +3125,29 @@ const GalleryScreen = () => {
                         return;
                       }
                       openAiDecision(video.id);
-                    }}
-                    className={`absolute top-2 right-2 px-2 py-1 rounded-md text-[10px] font-black ${taskMeta.className}`}
-                  >
-                    {taskMeta.label}
-                  </button>
+                    };
+                    if (taskMeta.action === 'view') {
+                      return (
+                        <button
+                          type="button"
+                          onClick={badgeClick}
+                          title={t('gallery.viewAnalysis')}
+                          aria-label={t('gallery.viewAnalysis')}
+                          className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm border border-white/40"
+                        />
+                      );
+                    }
+                    return (
+                      <button
+                        type="button"
+                        onClick={badgeClick}
+                        className={`absolute top-2 right-2 px-2 py-1 rounded-md text-[10px] font-black ${taskMeta.className}`}
+                      >
+                        {taskMeta.label}
+                      </button>
                     );
                   })()}
-                  <div className="absolute left-3 right-3 bottom-3 flex items-end justify-between text-white">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <Heart className="w-4 h-4 fill-white stroke-white" />
-                        <span className="text-[11px] font-semibold truncate max-w-[160px]">{t((video as any).labelKey)}</span>
-                      </div>
-                      <span className="text-[10px] text-white/75">{t('ui.aiEntryLabel')}</span>
-                    </div>
+                  <div className="absolute left-3 right-3 bottom-3 flex items-end justify-end text-white">
                     <span className="text-[11px] font-semibold">{video.duration}</span>
                   </div>
                 </button>
@@ -3215,8 +3197,7 @@ const GalleryScreen = () => {
                       className="relative rounded-lg overflow-hidden aspect-[16/10] text-left"
                     >
                       <AssetThumbnail type="video" category={video.category as 'basketball' | 'soccer'} />
-                      <div className="absolute left-2 right-2 bottom-1.5 flex items-end justify-between text-white">
-                        <span className="text-[9px] font-semibold truncate max-w-[65%]">{t((video as any).labelKey)}</span>
+                      <div className="absolute left-2 right-2 bottom-1.5 flex items-end justify-end text-white">
                         <span className="text-[9px] font-semibold">{video.duration}</span>
                       </div>
                     </button>
@@ -5129,13 +5110,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const [editingEventId, setEditingEventId] = useState<number | null>(null);
     const [eventDraft, setEventDraft] = useState<{ scoreType: string; time: string }>({ scoreType: 'goal', time: '00:00' });
     const [eventCorrections, setEventCorrections] = useState<Record<number, { scoreType?: string; time?: string }>>({});
-    const [carouselIndex, setCarouselIndex] = useState(0);
     const [activeTimelineFilter, setActiveTimelineFilter] = useState<'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'>('all');
-    const [selectedEventDetailId, setSelectedEventDetailId] = useState<number | null>(null);
     const [selectedExportClipIds, setSelectedExportClipIds] = useState<number[]>([]);
+    const [seekToastMessage, setSeekToastMessage] = useState<string | null>(null);
 
     const eventItemRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const ignoreCollapseUntilRef = useRef(0);
+    const seekToastHideRef = useRef<number | null>(null);
 
     const sourceClips = React.useMemo(
       () => AI_CLIPS_ADVANCED.filter((clip) => clip.sport === (resultSport || 'soccer')),
@@ -5169,10 +5150,22 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       [resolvedEvents]
     );
 
+    const reviewTimelineSpanSec = Math.max(45, maxEventTimeSec + 30);
+
     const selectedVideoDuration =
       viewMode === 'fullMatch'
         ? 95 * 60
-        : Math.min(20 * 60, Math.max(45, maxEventTimeSec + 30));
+        : Math.min(5 * 60, reviewTimelineSpanSec);
+
+    const matchClockToReviewPlayerSec = React.useCallback(
+      (matchSec: number) => {
+        const span = reviewTimelineSpanSec;
+        const dur = Math.min(5 * 60, span);
+        if (span <= 0 || dur <= 0) return 0;
+        return Math.min(dur, Math.max(0, (matchSec / span) * dur));
+      },
+      [reviewTimelineSpanSec]
+    );
 
     useEffect(() => {
       setDurationSec(selectedVideoDuration);
@@ -5197,9 +5190,28 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       if (viewMode !== 'review') return;
       let idx = -1;
       for (let i = 0; i < resolvedEvents.length; i += 1) {
-        if (parseMatchClockToSeconds(String(resolvedEvents[i].time)) <= currentTimeSec + 1) {
+        const matchSec = parseMatchClockToSeconds(String(resolvedEvents[i].time));
+        const playerSec = matchClockToReviewPlayerSec(matchSec);
+        if (playerSec <= currentTimeSec + 1) {
           idx = i;
         }
+      }
+      if (idx < 0) return;
+      const candidate = resolvedEvents[idx];
+      if (candidate?.id !== activeEventId) {
+        setActiveEventId(candidate.id);
+        ignoreCollapseUntilRef.current = Date.now() + 450;
+        eventItemRefs.current[candidate.id]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }, [currentTimeSec, viewMode, resolvedEvents, activeEventId, matchClockToReviewPlayerSec]);
+
+    useEffect(() => {
+      if (viewMode !== 'fullMatch') return;
+      let idx = -1;
+      const syncSlackSec = 8;
+      for (let i = 0; i < resolvedEvents.length; i += 1) {
+        const matchSec = parseMatchClockToSeconds(String(resolvedEvents[i].time));
+        if (matchSec <= currentTimeSec + syncSlackSec) idx = i;
       }
       if (idx < 0) return;
       const candidate = resolvedEvents[idx];
@@ -5219,21 +5231,21 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     }, [showScoreEditModal, liveSoccerStats]);
 
     const handleSeekToEvent = (event: { id: number; time: string; scoreType: string }) => {
-      const rawSec = parseMatchClockToSeconds(String(event.time));
-      const sec = Math.max(0, rawSec - 4);
+      const rawMatchSec = parseMatchClockToSeconds(String(event.time));
+      const sec =
+        viewMode === 'fullMatch'
+          ? Math.max(0, Math.min(Math.max(0, selectedVideoDuration - 1), rawMatchSec - 4))
+          : matchClockToReviewPlayerSec(Math.max(0, rawMatchSec - 4));
       setCurrentTimeSec(sec);
-      if (viewMode === 'review') {
-        setActiveEventId(event.id);
-        ignoreCollapseUntilRef.current = Date.now() + 450;
-        eventItemRefs.current[event.id]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-      setSelectedEventDetailId(event.id);
-      setToastMessage(t('ui.jumpToEvent', { event: scoreTypeLabel(String(event.scoreType)) }));
-      setTimeout(() => setToastMessage(null), 1200);
-    };
-
-    const toggleEventExportSelection = (eventId: number) => {
-      setSelectedExportClipIds((prev) => (prev.includes(eventId) ? prev.filter((id) => id !== eventId) : [...prev, eventId]));
+      setActiveEventId(event.id);
+      ignoreCollapseUntilRef.current = Date.now() + 450;
+      eventItemRefs.current[event.id]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      if (seekToastHideRef.current != null) window.clearTimeout(seekToastHideRef.current);
+      setSeekToastMessage(t('ui.jumpToEvent', { event: scoreTypeLabel(String(event.scoreType)) }));
+      seekToastHideRef.current = window.setTimeout(() => {
+        setSeekToastMessage(null);
+        seekToastHideRef.current = null;
+      }, 1200);
     };
 
     const formatClock = (sec: number) => {
@@ -5315,11 +5327,20 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       setShowShareModal(true);
     };
 
-    useEffect(() => {
-      setCarouselIndex(0);
-    }, [activeTimelineFilter]);
+    const activeKeyEvent = React.useMemo(() => {
+      if (filteredTimelineEvents.length === 0) return null;
+      if (activeEventId != null) {
+        const idx = filteredTimelineEvents.findIndex((e) => e.id === activeEventId);
+        if (idx >= 0) return filteredTimelineEvents[idx];
+      }
+      return filteredTimelineEvents[0];
+    }, [filteredTimelineEvents, activeEventId]);
 
-    const activeKeyEvent = filteredTimelineEvents.length > 0 ? filteredTimelineEvents[carouselIndex % filteredTimelineEvents.length] : null;
+    const activeKeyEventPosition = React.useMemo(() => {
+      if (!activeKeyEvent || filteredTimelineEvents.length === 0) return { index: 0, total: 0 };
+      const idx = filteredTimelineEvents.findIndex((e) => e.id === activeKeyEvent.id);
+      return { index: idx >= 0 ? idx + 1 : 1, total: filteredTimelineEvents.length };
+    }, [activeKeyEvent, filteredTimelineEvents]);
 
     const timelineFilters: Array<{ id: 'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'; label: string }> = [
       { id: 'all', label: t('filter.all') },
@@ -5400,9 +5421,15 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           </div>
         </div>
 
-        <div className="h-[176px] bg-black relative shrink-0 border-y border-white/10">
+        <div className="min-h-[200px] h-[33vh] max-h-[40vh] bg-black relative shrink-0 border-y border-white/10">
           <AssetThumbnail type="video" category={resultSport || 'soccer'} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+          {seekToastMessage && (
+            <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 animate-in zoom-in-95 z-40 pointer-events-none max-w-[min(100%,18rem)] text-center leading-snug">
+              <RotateCcw className="w-3 h-3 shrink-0" />
+              {seekToastMessage}
+            </div>
+          )}
           <div className="absolute top-3 right-4 z-20">
             <div className="rounded-full p-1 bg-slate-950/80 border border-white/20 flex gap-1 shadow-lg backdrop-blur">
               <button type="button" onClick={() => setViewMode('review')} className={`px-3 py-1 rounded-full text-[10px] font-bold ${viewMode === 'review' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}>
@@ -5416,7 +5443,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           <button
             type="button"
             onClick={() => setIsPlaying((prev) => !prev)}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
+            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
           >
             {isPlaying ? <Pause className="w-7 h-7 text-white" /> : <Play className="w-7 h-7 text-white" />}
           </button>
@@ -5434,24 +5461,26 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                 onChange={(e) => setCurrentTimeSec(Number(e.target.value))}
                 className="w-full accent-blue-500"
               />
-              <div className="absolute left-2 right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                {filteredTimelineEvents.map((event) => {
-                  const sec = parseMatchClockToSeconds(String(event.time));
-                  const ratio = durationSec > 0 ? sec / durationSec : 0;
-                  const left = `${Math.max(0, Math.min(100, ratio * 100))}%`;
-                  const isA = event.team === 'A';
-                  return (
-                    <button
-                      key={`dot-${event.id}`}
-                      type="button"
-                      onClick={() => handleSeekToEvent(event as any)}
-                      className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 top-1/2 w-2.5 h-2.5 rounded-full border ${isA ? 'bg-blue-500 border-blue-200' : 'bg-red-500 border-red-200'}`}
-                      style={{ left }}
-                      aria-label={`${scoreTypeLabel(String(event.scoreType))} ${event.time}`}
-                    />
-                  );
-                })}
-              </div>
+              {viewMode === 'fullMatch' && (
+                <div className="absolute left-2 right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                  {filteredTimelineEvents.map((event) => {
+                    const sec = parseMatchClockToSeconds(String(event.time));
+                    const ratio = durationSec > 0 ? sec / durationSec : 0;
+                    const left = `${Math.max(0, Math.min(100, ratio * 100))}%`;
+                    const isA = event.team === 'A';
+                    return (
+                      <button
+                        key={`dot-${event.id}`}
+                        type="button"
+                        onClick={() => handleSeekToEvent(event as any)}
+                        className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 top-1/2 w-2.5 h-2.5 rounded-full border ${isA ? 'bg-blue-500 border-blue-200' : 'bg-red-500 border-red-200'}`}
+                        style={{ left }}
+                        aria-label={`${scoreTypeLabel(String(event.scoreType))} ${event.time}`}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
             {viewMode === 'fullMatch' && (
               <p className="text-[9px] text-slate-300 mt-1">{t('ui.fullMatchNoSync')}</p>
@@ -5462,29 +5491,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         <div className="flex-1 overflow-y-auto" data-correction-scroll onScroll={handleTimelineScroll}>
           <div className="px-4 py-3 space-y-3 pb-24">
             <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div>
-                  <h3 className="text-sm font-bold text-white">{t('ui.matchFlowTitle')}</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{t('ui.matchFlowSubtitle')}</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    disabled={resolvedEvents.length === 0}
-                    onClick={() => setCarouselIndex((prev) => (resolvedEvents.length ? (prev - 1 + resolvedEvents.length) % resolvedEvents.length : 0))}
-                    className="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center disabled:opacity-40"
-                  >
-                    <ArrowLeft className="w-3 h-3" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={resolvedEvents.length === 0}
-                    onClick={() => setCarouselIndex((prev) => (resolvedEvents.length ? (prev + 1) % resolvedEvents.length : 0))}
-                    className="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center disabled:opacity-40"
-                  >
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
+              <div className="mb-2">
+                <h3 className="text-sm font-bold text-white">{t('ui.matchFlowTitle')}</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">{t('ui.matchFlowSubtitle')}</p>
               </div>
               <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-2">
                 {timelineFilters.map((filter) => (
@@ -5528,7 +5537,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                     >
                       {activeKeyEvent.team === 'A' ? t('ui.teamA') : t('ui.teamB')}
                     </span>
-                    <span className="text-slate-300">{carouselIndex + 1}/{filteredTimelineEvents.length}</span>
+                    <span className="text-slate-300">{activeKeyEventPosition.index}/{activeKeyEventPosition.total}</span>
                   </div>
                 </button>
               ) : (
@@ -5537,44 +5546,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             </div>
 
             <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
-              {selectedEventDetailId !== null && (() => {
-                const detail = resolvedEvents.find((ev) => ev.id === selectedEventDetailId);
-                if (!detail) return null;
-                const isSelectedForExport = selectedExportClipIds.includes(detail.id);
-                return (
-                  <div className="mb-3 rounded-lg border border-emerald-500/35 bg-emerald-950/25 px-3 py-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-[10px] text-emerald-200/90">{t('ui.eventReview')}</p>
-                        <p className="text-xs font-bold text-white truncate">{detail.time} · {scoreTypeLabel(String(detail.scoreType))}</p>
-                      </div>
-                      <button type="button" onClick={() => setSelectedEventDetailId(null)} className="text-slate-400">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        type="button"
-                        onClick={() => handleSeekToEvent(detail as any)}
-                        className="flex-1 py-1.5 rounded bg-slate-700 text-[10px] font-bold"
-                      >
-                        {t('ui.jumpToEvent', { event: scoreTypeLabel(String(detail.scoreType)) })}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          toggleEventExportSelection(detail.id);
-                          setToastMessage(isSelectedForExport ? t('ui.cleared') : t('ui.updated'));
-                          setTimeout(() => setToastMessage(null), 1200);
-                        }}
-                        className={`flex-1 py-1.5 rounded text-[10px] font-bold ${isSelectedForExport ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-100'}`}
-                      >
-                        {isSelectedForExport ? t('ui.deselectAll') : t('ui.selectExport')}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
               <div className="relative">
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mb-2 px-1">
                   <span className="text-[10px] font-bold text-blue-300">{t('ui.teamA')}</span>
@@ -5599,7 +5570,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             <button
                               type="button"
                               onClick={() => handleSeekToEvent(event as any)}
-                              className={`min-h-[68px] text-left rounded-lg border p-2 transition-colors ${event.team === 'A' ? `${isActive && viewMode === 'review' ? 'border-blue-500 bg-blue-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
+                              className={`min-h-[68px] text-left rounded-lg border p-2 transition-colors ${event.team === 'A' ? `${isActive ? 'border-blue-500 bg-blue-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
                               disabled={event.team !== 'A'}
                             >
                               {event.team === 'A' && (
@@ -5631,7 +5602,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             <button
                               type="button"
                               onClick={() => handleSeekToEvent(event as any)}
-                              className={`min-h-[68px] text-left rounded-lg border p-2 transition-colors ${event.team === 'B' ? `${isActive && viewMode === 'review' ? 'border-red-500 bg-red-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
+                              className={`min-h-[68px] text-left rounded-lg border p-2 transition-colors ${event.team === 'B' ? `${isActive ? 'border-red-500 bg-red-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
                               disabled={event.team !== 'B'}
                             >
                               {event.team === 'B' && (
