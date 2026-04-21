@@ -77,6 +77,15 @@ type EventFilterType = 'all' | 'score' | 'highlight' | 3 | 2 | 1 | 'goal' | 'cor
 type TransferStep = 'idle' | 'downloading' | 'uploading' | 'analyzing' | 'completed' | 'failed' | 'paused';
 
 type CloudTaskStatus = 'uploading' | 'queued' | 'analyzing' | 'completed' | 'failed' | 'paused';
+type CloudTaskFailureCode =
+  | 'analyze_failed'
+  | 'network_interrupted'
+  | 'device_disconnected'
+  | 'upload_interrupted'
+  | 'queue_timeout'
+  | 'storage_insufficient'
+  | 'unsupported_video';
+type CloudTaskFailureStage = 'preflight' | 'upload' | 'queue' | 'analyze';
 
 interface CloudTask {
   id: string;
@@ -86,12 +95,17 @@ interface CloudTask {
   status: CloudTaskStatus;
   progress: number;
   queuePosition?: number; // 排队位置
+  queuedAt?: number;
+  queueTimeoutAt?: number;
+  failureCode?: CloudTaskFailureCode;
+  failureStage?: CloudTaskFailureStage;
+  failureMessage?: string;
   createdAt: number;
 }
 
 type MediaPickerSessionState = {
-  sourceTab: VideoSource;
-  typeTab: 'all' | 'video' | 'image' | 'collect';
+  sourceTab: VideoSource | 'ai_analysis';
+  typeTab: 'all' | 'video';
   detailVideoId: number | null;
 };
 
@@ -419,8 +433,12 @@ const TOOLBOX_QUALITY_TEMPLATES: {
 ];
 
 const ALL_VIDEOS = [
+  { id: 401, type: 'video', source: 'falcon', dateKey: 'videos.monday', dateSuffix: '09:00', duration: '90:00', labelKey: 'videos.firstHalf', category: 'soccer' },
+  { id: 402, type: 'video', source: 'local', dateKey: 'videos.monday', dateSuffix: '14:00', duration: '12:40', labelKey: 'videos.firstHalf', category: 'soccer' },
+  { id: 403, type: 'video', source: 'local', dateKey: 'videos.monday', dateSuffix: '14:15', duration: '22:15', labelKey: 'videos.secondHalf', category: 'soccer' },
+  { id: 404, type: 'video', source: 'cloud', dateKey: 'videos.monday', dateSuffix: '16:00', duration: '45:00', labelKey: 'videos.firstHalf', category: 'soccer' },
 
-  { id: 202, type: 'video', source: 'cloud', dateKey: 'videos.monday', dateSuffix: '16:30', duration: '45:00', labelKey: 'videos.firstHalf', category: 'soccer' },
+  { id: 202, type: 'video', source: 'cloud', dateKey: 'videos.monday', dateSuffix: '16:30', duration: '165:00', labelKey: 'videos.firstHalf', category: 'soccer' },
   { id: 204, type: 'video', source: 'local', dateKey: 'videos.monday', dateSuffix: '18:05', duration: '22:15', labelKey: 'videos.secondHalf', category: 'soccer' },
   { id: 205, type: 'video', source: 'local', dateKey: 'videos.monday', dateSuffix: '19:15', duration: '12:40', labelKey: 'videos.extraHighlights', category: 'soccer' },
   { id: 103, type: 'video', source: 'falcon', dateKey: 'videos.sunday', dateSuffix: '15:20', duration: '15:20', labelKey: 'videos.halfCourt', device: 'Falcon Mini', battery: 100, synced: false, category: 'soccer' },
@@ -456,7 +474,35 @@ const GALLERY_ANALYSIS_SUCCESS_CARDS = [
     isAnalyzed: true,
     analysisType: 'analysis' as const,
   },
+  {
+    id: 'success-mon-local-1',
+    dateKey: 'videos.monday',
+    videoId: 402,
+    source: 'local' as const,
+    teamANameKey: 'A队',
+    teamBNameKey: 'B队',
+    teamAScore: 1,
+    teamBScore: 0,
+    statusKey: 'gallery.fulltime',
+    isAnalyzed: true,
+    analysisType: 'highlight' as const,
+  },
+  {
+    id: 'success-mon-cloud-1',
+    dateKey: 'videos.monday',
+    videoId: 404,
+    source: 'cloud' as const,
+    teamANameKey: 'A队',
+    teamBNameKey: 'B队',
+    teamAScore: 3,
+    teamBScore: 2,
+    statusKey: 'gallery.fulltime',
+    isAnalyzed: true,
+    analysisType: 'analysis' as const,
+  },
 ];
+
+const UNSUPPORTED_VIDEO_IDS = new Set<number>([202]);
 
 const MATCH_TIME_WINDOW_MINUTES = 4 * 60;
 
@@ -476,6 +522,7 @@ const inferSameMatchVideoIds = (baseVideoId: number): number[] => {
       if (video.type !== 'video') return false;
       if (video.category !== baseVideo.category) return false;
       if (video.dateKey !== baseVideo.dateKey) return false;
+      if (video.source !== baseVideo.source) return false;
       if (video.id === baseVideo.id) return true;
       const candidateMin = parseHourMinute(video.dateSuffix);
       if (baseMin == null || candidateMin == null) return true;
@@ -687,6 +734,7 @@ type TaskCenterCardTone = 'red' | 'orange' | 'emerald' | 'blue';
 function getTransferPipelinePresentation(args: {
   analysisPipeline: AnalysisPipeline;
   transferStep: TransferStep;
+  transferSource: 'falcon' | 'local' | 'cloud' | null;
   hybridPastEdge: boolean;
   hybridLocalOnlyThisRun: boolean;
   hybridCloudDeepThisRun: boolean;
@@ -696,6 +744,7 @@ function getTransferPipelinePresentation(args: {
   const {
     analysisPipeline,
     transferStep,
+    transferSource,
     hybridPastEdge,
     hybridLocalOnlyThisRun,
     hybridCloudDeepThisRun,
@@ -716,10 +765,12 @@ function getTransferPipelinePresentation(args: {
   /** 第四条 + 云端深析：loading 与第三条「直传云」同一套三节点（不经 App 四格） */
   const hybridCloudDeepAsDirectCloud =
     analysisPipeline === 'edge_cloud_hybrid' && hybridCloudDeepThisRun && !showEdgeChipLayout;
+  const sourceUsesDirectCloudUpload = transferSource === 'falcon';
+  const sourceUsesThreeNodeUpload = transferSource === 'falcon' || transferSource === 'local';
 
   const layout: TransferPipelineLayout = showEdgeChipLayout
     ? 'edge_chip'
-    : analysisPipeline === 'falcon_direct_cloud' || hybridCloudDeepAsDirectCloud
+    : sourceUsesThreeNodeUpload || hybridCloudDeepAsDirectCloud
       ? 'falcon_three'
       : 'falcon_four';
 
@@ -798,7 +849,7 @@ function getTransferPipelinePresentation(args: {
   } else if (transferStep === 'uploading') {
     modalTitleKey = 'ui.transferStageUploadTitle';
     statusHintKey =
-      analysisPipeline === 'falcon_direct_cloud' || hybridCloudDeepAsDirectCloud
+      sourceUsesDirectCloudUpload || hybridCloudDeepAsDirectCloud
         ? 'ui.directCloudUploadStatus'
         : 'ui.transferStageUploadHint';
     floatingIcon = 'upload';
@@ -929,6 +980,7 @@ const TransferOverlay = () => {
    const pipe = getTransferPipelinePresentation({
      analysisPipeline,
      transferStep,
+    transferSource: hybridSourceMedia,
      hybridPastEdge,
      hybridLocalOnlyThisRun,
      hybridCloudDeepThisRun,
@@ -1015,14 +1067,14 @@ const TransferOverlay = () => {
      showFalconDirectPipeline &&
      !isFailed &&
      !isPaused &&
-     ((analysisPipeline === 'falcon_direct_cloud' && transferStep === 'uploading') ||
-       (pipe.hybridCloudDeepAsDirectCloud && (transferStep === 'downloading' || transferStep === 'uploading')));
+    (((hybridSourceMedia === 'falcon' || hybridSourceMedia === 'local') && transferStep === 'uploading') ||
+      (pipe.hybridCloudDeepAsDirectCloud && (transferStep === 'downloading' || transferStep === 'uploading')));
 
    const directCloudNodeActive =
      showFalconDirectPipeline &&
      !isFailed &&
      !isPaused &&
-     ((analysisPipeline === 'falcon_direct_cloud' && (transferStep === 'uploading' || transferStep === 'analyzing')) ||
+    (((hybridSourceMedia === 'falcon' || hybridSourceMedia === 'local') && (transferStep === 'uploading' || transferStep === 'analyzing')) ||
        (pipe.hybridCloudDeepAsDirectCloud && (transferStep === 'uploading' || transferStep === 'analyzing')));
 
    return (
@@ -1054,9 +1106,9 @@ const TransferOverlay = () => {
 
                <div className={`flex flex-col items-center gap-2 ${directFalconActive ? 'opacity-100 scale-110' : 'opacity-60'}`}>
                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${directFalconActive ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}`}>
-                       <Film className="w-3 h-3" />
+                      {hybridSourceMedia === 'local' ? <PhoneIcon className="w-3 h-3" /> : <Film className="w-3 h-3" />}
                    </div>
-                   <span className="text-[8px] text-slate-400">Falcon</span>
+                   <span className="text-[8px] text-slate-400">{hybridSourceMedia === 'local' ? 'App' : 'Falcon'}</span>
                </div>
 
                <div className={`flex flex-col items-center gap-2 ${directCloudNodeActive ? 'opacity-100 scale-110' : 'opacity-60'}`}>
@@ -1091,11 +1143,15 @@ const TransferOverlay = () => {
 
                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${transferStep === 'downloading' ? (isPaused && falconState === 'disconnected' ? 'bg-yellow-500/20 border-yellow-500 text-yellow-500' : 'bg-blue-600 border-blue-400 text-white') : 'bg-slate-800 border-slate-600 text-slate-400'}`}>
 
-                       {falconState === 'disconnected' ? <AlertTriangle className="w-4 h-4" /> : <Film className="w-3 h-3" />}
+                      {hybridSourceMedia === 'local'
+                        ? <PhoneIcon className="w-3 h-3" />
+                        : falconState === 'disconnected'
+                          ? <AlertTriangle className="w-4 h-4" />
+                          : <Film className="w-3 h-3" />}
 
                    </div>
 
-                   <span className="text-[8px] text-slate-400">Falcon</span>
+                   <span className="text-[8px] text-slate-400">{hybridSourceMedia === 'local' ? 'App' : 'Falcon'}</span>
 
                </div>
 
@@ -1229,6 +1285,7 @@ const FloatingProgress = () => {
     isTransferMinimized,
     setIsTransferMinimized,
     analysisPipeline,
+    hybridSourceMedia,
     hybridPastEdge,
     hybridLocalOnlyThisRun,
     hybridCloudDeepThisRun,
@@ -1247,6 +1304,7 @@ const FloatingProgress = () => {
   const fp = getTransferPipelinePresentation({
     analysisPipeline,
     transferStep,
+    transferSource: hybridSourceMedia,
     hybridPastEdge,
     hybridLocalOnlyThisRun,
     hybridCloudDeepThisRun,
@@ -1363,9 +1421,9 @@ const StorageFullModal = () => {
 
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600"><HardDrive className="w-6 h-6" /></div>
 
-                <h3 className="text-lg font-bold text-slate-900 mb-2">{t('ui.storageTitle')}</h3>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">云端空间不足</h3>
 
-                <p className="text-sm text-slate-500 mb-6">{t('ui.storageDesc')}</p>
+                <p className="text-sm text-slate-500 mb-6">云端剩余空间不足 500MB，无法开始新任务。请清理云端空间后重试。</p>
 
                 <button onClick={() => { setShowStorageAlert(false); }} className="w-full py-2.5 bg-slate-900 text-white font-bold rounded-xl text-sm">{t('ui.gotIt')}</button>
 
@@ -2025,6 +2083,7 @@ const TaskCenterScreen = () => {
     maxConcurrentTasks,
     setToastMessage,
     analysisPipeline,
+    hybridSourceMedia,
     hybridPastEdge,
     hybridLocalOnlyThisRun,
     hybridCloudDeepThisRun,
@@ -2073,6 +2132,7 @@ const TaskCenterScreen = () => {
       ? getTransferPipelinePresentation({
           analysisPipeline,
           transferStep,
+          transferSource: hybridSourceMedia,
           hybridPastEdge,
           hybridLocalOnlyThisRun,
           hybridCloudDeepThisRun,
@@ -2568,11 +2628,6 @@ const MediaPickerScreen = () => {
   const detailVideo = detailVideoId != null ? ALL_VIDEOS.find((video) => video.id === detailVideoId) : null;
 
   const openAiDecision = (videoId: number, origin: 'gallery_badge' | 'video_detail') => {
-    const relatedIds = inferSameMatchVideoIds(videoId);
-    if (relatedIds.length > 1) {
-      setAiDecisionPayload({ videoId, relatedIds, origin });
-      return;
-    }
     submitAiAnalysis([videoId], origin, 'single');
   };
 
@@ -2754,9 +2809,13 @@ const MediaPickerScreen = () => {
               <button
                 type="button"
                 onClick={() => openAiDecision(detailVideo.id, 'video_detail')}
-                className="flex flex-col items-center gap-1 text-orange-400 text-xs"
+                className="flex flex-col items-center gap-1 text-xs text-orange-300"
+                aria-label={t('ui.aiEntryLabel')}
               >
-                <Sparkles className="w-5 h-5" />
+                <span className="w-10 h-10 rounded-xl border-2 border-rose-400 bg-black/35 flex flex-col items-center justify-center leading-none">
+                  <Sparkles className="w-3.5 h-3.5 text-orange-300" />
+                  <span className="text-[10px] font-black text-orange-300 mt-0.5">AI</span>
+                </span>
                 <span>{t('ui.aiEntryLabel')}</span>
               </button>
             </div>
@@ -2780,14 +2839,21 @@ const GalleryScreen = () => {
     setResultSport,
     setSelectionMode,
     setSportType,
+    setToastMessage,
     submitAiAnalysis,
     cloudTasks,
     analysisPipeline,
     setGalleryHybridDemoView,
     liveSoccerStats,
+    updateSoccerMatchPresentation,
   } = useAppContext();
-  const [sourceTab, setSourceTab] = useState<VideoSource>(() => mediaPickerSessionState.sourceTab);
-  const [typeTab, setTypeTab] = useState<'all' | 'video' | 'image' | 'collect'>(() => mediaPickerSessionState.typeTab);
+  const [hasSeenAIGuide, setHasSeenAIGuide] = useState(
+    typeof localStorage !== 'undefined' ? localStorage.getItem('hasSeenAIGuide') === 'true' : false
+  );
+  const [showAIGuideSheet, setShowAIGuideSheet] = useState(false);
+  const [sourceTab, setSourceTab] = useState<VideoSource | 'ai_analysis'>(() => mediaPickerSessionState.sourceTab);
+  const [typeTab, setTypeTab] = useState<'all' | 'video'>(() => (mediaPickerSessionState.typeTab as any) || 'all');
+  const [aiAnalysisFilter, setAiAnalysisFilter] = useState<'all' | 'in_progress' | 'failed' | 'completed'>('all');
   const [detailVideoId, setDetailVideoId] = useState<number | null>(() => mediaPickerSessionState.detailVideoId);
   const [detailFromAnalyzedCard, setDetailFromAnalyzedCard] = useState(false);
   const [detailAnalyzedType, setDetailAnalyzedType] = useState<'highlight' | 'analysis'>('analysis');
@@ -2805,36 +2871,6 @@ const GalleryScreen = () => {
     };
   }, [sourceTab, typeTab, detailVideoId]);
 
-  const soccerVideos = React.useMemo(() => {
-    const bySport = ALL_VIDEOS.filter((video) => video.category === 'soccer');
-    return bySport.filter((video) => {
-      if (sourceTab !== 'all' && video.source !== sourceTab) return false;
-      if (typeTab === 'video') return video.type === 'video';
-      if (typeTab === 'image') return false;
-      if (typeTab === 'collect') return false;
-      return true;
-    });
-  }, [sourceTab, typeTab]);
-  const groupedVideos = React.useMemo(() => {
-    const groups = new Map<string, typeof soccerVideos>();
-    soccerVideos.forEach((video) => {
-      const key = String((video as any).dateKey);
-      const existing = groups.get(key) || [];
-      existing.push(video);
-      groups.set(key, existing);
-    });
-    return Array.from(groups.entries()).map(([dateKey, videos]) => ({
-      dateKey,
-      videos: videos.sort((a, b) => (b.dateSuffix || '').localeCompare(a.dateSuffix || '')),
-    }));
-  }, [soccerVideos]);
-  const successCards = React.useMemo(() => {
-    if (!(typeTab === 'all' || typeTab === 'video')) return [];
-    return GALLERY_ANALYSIS_SUCCESS_CARDS.filter((card) => {
-      if (sourceTab !== 'all' && card.source !== sourceTab) return false;
-      return true;
-    });
-  }, [sourceTab, typeTab]);
   const latestTaskByVideoId = React.useMemo(() => {
     const sorted = [...(cloudTasks || [])].sort((a: CloudTask, b: CloudTask) => b.createdAt - a.createdAt);
     const map = new Map<number, CloudTask>();
@@ -2843,17 +2879,148 @@ const GalleryScreen = () => {
     });
     return map;
   }, [cloudTasks]);
-  const activeTaskCount = React.useMemo(
-    () => (cloudTasks || []).filter((task: CloudTask) => ['uploading', 'queued', 'analyzing'].includes(task.status)).length,
-    [cloudTasks]
-  );
 
-  const openAnalyzedResult = (analysisType: 'highlight' | 'analysis') => {
+  const getVideoTaskMeta = React.useCallback((videoId: number) => {
+    const task = latestTaskByVideoId.get(videoId);
+    if (!task) return { task: null as CloudTask | null, label: 'AI', className: 'bg-orange-500 text-white', action: 'start' as const };
+    if (task.status === 'completed') return { task, label: t('gallery.viewAnalysis'), className: 'bg-emerald-500 text-white', action: 'view' as const };
+    if (task.status === 'failed') {
+      if (task.failureCode === 'unsupported_video') {
+        return { task, label: '超时长不可分析', className: 'bg-slate-500 text-white', action: 'blocked' as const };
+      }
+      if (task.failureCode === 'queue_timeout') {
+        return { task, label: '重新排队', className: 'bg-rose-500 text-white', action: 'retry' as const };
+      }
+      if (task.failureCode === 'storage_insufficient') {
+        return { task, label: '清理云端后重试', className: 'bg-rose-500 text-white', action: 'retry' as const };
+      }
+      if (task.failureCode === 'analyze_failed') {
+        return { task, label: '分析失败，重试', className: 'bg-rose-500 text-white', action: 'retry' as const };
+      }
+      return { task, label: t('ui.retry'), className: 'bg-rose-500 text-white', action: 'retry' as const };
+    }
+    if (task.status === 'paused') {
+      if (task.failureCode === 'upload_interrupted' || task.failureCode === 'network_interrupted') {
+        return { task, label: '重试上传', className: 'bg-amber-500 text-white', action: 'retry' as const };
+      }
+      if (task.failureCode === 'device_disconnected') {
+        return { task, label: '连接设备', className: 'bg-amber-500 text-white', action: 'blocked' as const };
+      }
+      return { task, label: t('ui.paused'), className: 'bg-amber-500 text-white', action: 'progress' as const };
+    }
+    if (task.status === 'queued') {
+      const queueLabel = task.queuePosition && task.queuePosition > 0
+        ? `排队中（前方${task.queuePosition}个）`
+        : t('ui.cloudStatus_queued');
+      return { task, label: queueLabel, className: 'bg-slate-700 text-white', action: 'progress' as const };
+    }
+    return { task, label: `${t('ui.analyzing')} ${Math.round(task.progress)}%`, className: 'bg-blue-600 text-white', action: 'progress' as const };
+  }, [latestTaskByVideoId]);
+
+  const soccerVideos = React.useMemo(() => {
+    const bySport = ALL_VIDEOS.filter((video) => video.category === 'soccer');
+    const filtered = bySport.filter((video) => {
+      if (sourceTab === 'ai_analysis') {
+        const hasSuccessCard = GALLERY_ANALYSIS_SUCCESS_CARDS.some((card) => card.videoId === video.id);
+        const taskMeta = getVideoTaskMeta(video.id);
+        const includedInAiAnalysis =
+          hasSuccessCard || taskMeta.action === 'view' || taskMeta.action === 'progress' || taskMeta.action === 'retry' || taskMeta.action === 'blocked';
+        if (!includedInAiAnalysis) return false;
+        if (aiAnalysisFilter === 'in_progress') {
+          return taskMeta.action === 'progress' || (taskMeta.task?.status === 'paused');
+        }
+        if (aiAnalysisFilter === 'failed') {
+          return taskMeta.action === 'retry';
+        }
+        if (aiAnalysisFilter === 'completed') {
+          return hasSuccessCard || taskMeta.action === 'view';
+        }
+        return true;
+      }
+      if (sourceTab !== 'all' && video.source !== sourceTab) return false;
+      if (typeTab === 'video') return video.type === 'video';
+      return true;
+    });
+    if (sourceTab !== 'ai_analysis') return filtered;
+    const actionPriority: Record<'retry' | 'blocked' | 'progress' | 'view' | 'start', number> = {
+      retry: 0,
+      blocked: 1,
+      progress: 2,
+      view: 3,
+      start: 4,
+    };
+    return [...filtered].sort((a, b) => {
+      const aMeta = getVideoTaskMeta(a.id);
+      const bMeta = getVideoTaskMeta(b.id);
+      const aPriority = actionPriority[aMeta.action];
+      const bPriority = actionPriority[bMeta.action];
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      const aTaskCreatedAt = aMeta.task?.createdAt || 0;
+      const bTaskCreatedAt = bMeta.task?.createdAt || 0;
+      if (aTaskCreatedAt !== bTaskCreatedAt) return bTaskCreatedAt - aTaskCreatedAt;
+      return (b.dateSuffix || '').localeCompare(a.dateSuffix || '');
+    });
+  }, [sourceTab, typeTab, aiAnalysisFilter, getVideoTaskMeta]);
+  const groupedVideos = React.useMemo(() => {
+    const groups = new Map<string, typeof soccerVideos>();
+    soccerVideos.forEach((video) => {
+      const key = String((video as any).dateKey);
+      const existing = groups.get(key) || [];
+      existing.push(video);
+      groups.set(key, existing);
+    });
+    return Array.from(groups.entries())
+      .map(([dateKey, videos]) => ({
+        dateKey,
+        videos: [...videos].sort((a, b) => (b.dateSuffix || '').localeCompare(a.dateSuffix || '')),
+      }))
+      .sort((a, b) => {
+        const aTop = a.videos[0]?.dateSuffix || '';
+        const bTop = b.videos[0]?.dateSuffix || '';
+        return bTop.localeCompare(aTop);
+      });
+  }, [soccerVideos]);
+  const successCards = React.useMemo(() => {
+    if (!hasSeenAIGuide) return [];
+    if (sourceTab === 'ai_analysis') {
+      if (aiAnalysisFilter === 'in_progress' || aiAnalysisFilter === 'failed') return [];
+      return GALLERY_ANALYSIS_SUCCESS_CARDS;
+    }
+    if (!(typeTab === 'all' || typeTab === 'video')) return [];
+    return GALLERY_ANALYSIS_SUCCESS_CARDS.filter((card) => {
+      if (sourceTab !== 'all' && card.source !== sourceTab) return false;
+      return true;
+    });
+  }, [sourceTab, typeTab, aiAnalysisFilter, hasSeenAIGuide]);
+
+  const openAnalyzedResult = (analysisType: 'highlight' | 'analysis', videoId?: number) => {
     setTargetAnalysisType(analysisType);
     setAiMode('cloud');
     setIsTaskCompleted(true);
     setResultSport('soccer');
-    pushView(analysisType === 'highlight' ? 'ai_result_highlight' : 'ai_result_analysis');
+    
+    // Update match stats based on the video clicked
+    if (videoId) {
+      const card = GALLERY_ANALYSIS_SUCCESS_CARDS.find((c) => c.videoId === videoId);
+      if (card) {
+        updateSoccerMatchPresentation({
+          teamAScore: card.teamAScore,
+          teamBScore: card.teamBScore,
+          teamALabel: t(card.teamANameKey),
+          teamBLabel: t(card.teamBNameKey)
+        });
+      } else {
+        // Fallback for new tasks
+        updateSoccerMatchPresentation({
+          teamAScore: Math.floor(Math.random() * 4),
+          teamBScore: Math.floor(Math.random() * 4),
+          teamALabel: t('report.teamA'),
+          teamBLabel: t('report.teamB')
+        });
+      }
+    }
+    
+    pushView('ai_result_analysis');
   };
   const detailVideo = detailVideoId != null ? ALL_VIDEOS.find((video) => video.id === detailVideoId) : null;
 
@@ -2869,21 +3036,7 @@ const GalleryScreen = () => {
     submitAiAnalysis(videoIds, 'video_detail', mode);
   };
 
-  const getVideoTaskMeta = (videoId: number) => {
-    const task = latestTaskByVideoId.get(videoId);
-    if (!task) return { task: null as CloudTask | null, label: 'AI', className: 'bg-orange-500 text-white', action: 'start' as const };
-    if (task.status === 'completed') return { task, label: t('gallery.viewAnalysis'), className: 'bg-emerald-500 text-white', action: 'view' as const };
-    if (task.status === 'failed') return { task, label: t('ui.retry'), className: 'bg-rose-500 text-white', action: 'retry' as const };
-    if (task.status === 'paused') return { task, label: t('ui.paused'), className: 'bg-amber-500 text-white', action: 'progress' as const };
-    if (task.status === 'queued') return { task, label: t('ui.cloudStatus_queued'), className: 'bg-slate-700 text-white', action: 'progress' as const };
-    return { task, label: `${t('ui.analyzing')} ${Math.round(task.progress)}%`, className: 'bg-blue-600 text-white', action: 'progress' as const };
-  };
   const openAiDecision = (videoId: number) => {
-    const relatedIds = inferSameMatchVideoIds(videoId);
-    if (relatedIds.length > 1) {
-      setAiDecisionPayload({ videoId, relatedIds });
-      return;
-    }
     queueHybridOrSubmit([videoId], 'single');
   };
 
@@ -2913,30 +3066,32 @@ const GalleryScreen = () => {
             { id: 'falcon', label: 'Falcon' },
             { id: 'local', label: 'Local' },
             { id: 'cloud', label: 'Cloud' },
+            ...(hasSeenAIGuide ? [{ id: 'ai_analysis', label: 'AI分析' }] : []),
           ] as const).map((item) => (
             <button
               key={item.id}
               type="button"
-              onClick={() => setSourceTab(item.id)}
+              onClick={() => setSourceTab(item.id as any)}
               className={`text-[16px] font-semibold pb-1 border-b-2 ${sourceTab === item.id ? 'text-slate-800 border-orange-500' : 'text-slate-400 border-transparent'}`}
             >
               {item.label}
             </button>
           ))}
           <div className="ml-auto flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => pushView('task_center')}
-              className="relative w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center"
-              title={t('ui.historyTasksHint')}
-            >
-              <Clock className="w-4 h-4" />
-              {activeTaskCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-orange-500 text-white text-[9px] leading-[14px] text-center font-bold">
-                  {activeTaskCount}
-                </span>
-              )}
-            </button>
+            {hasSeenAIGuide && (
+              <button
+                type="button"
+                onClick={() => {
+                  setHasSeenAIGuide(false);
+                  if (typeof localStorage !== 'undefined') localStorage.removeItem('hasSeenAIGuide');
+                  if (sourceTab === 'ai_analysis') setSourceTab('falcon');
+                }}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center"
+                title="恢复初始状态"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => pushView('transfer_list')}
@@ -2947,23 +3102,51 @@ const GalleryScreen = () => {
             </button>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide items-center">
           {([
             { id: 'all', key: 'ui.mediaAll' },
             { id: 'video', key: 'ui.mediaVideo' },
-            { id: 'image', key: 'ui.mediaImage' },
-            { id: 'collect', key: 'ui.assetFilter_outputs' },
           ] as const).map((item) => (
             <button
               key={item.id}
               type="button"
-              onClick={() => setTypeTab(item.id)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${typeTab === item.id ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500'}`}
+              onClick={() => setTypeTab(item.id as any)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold shrink-0 ${typeTab === item.id ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500'}`}
             >
-              {t(item.key)}
+              {t(item.key as any)}
             </button>
           ))}
+          {!hasSeenAIGuide && (
+            <button
+              onClick={() => setShowAIGuideSheet(true)}
+              className="ml-auto px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white text-[12px] font-bold shadow-sm flex items-center gap-1 shrink-0 animate-pulse"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              ✨ 开启赛事解读
+            </button>
+          )}
         </div>
+        {sourceTab === 'ai_analysis' && (
+          <div className="flex gap-2 mt-2 overflow-x-auto scrollbar-hide items-center">
+            {([
+              { id: 'all', label: '全部' },
+              { id: 'in_progress', label: '进行中' },
+              { id: 'failed', label: '分析失败' },
+              { id: 'completed', label: '已完成' },
+            ] as const).map((item) => (
+              <button
+                key={`ai-filter-${item.id}`}
+                type="button"
+                onClick={() => setAiAnalysisFilter(item.id)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold shrink-0 ${
+                  aiAnalysisFilter === item.id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-5">
@@ -3064,7 +3247,7 @@ const GalleryScreen = () => {
                     type="button"
                     onClick={() => {
                       if (card.isAnalyzed) {
-                        openAnalyzedResult(card.analysisType);
+                        openAnalyzedResult(card.analysisType, card.videoId);
                         return;
                       }
                       setDetailVideoId(card.videoId);
@@ -3088,17 +3271,29 @@ const GalleryScreen = () => {
                       </div>
                     </div>
                     <div className="absolute inset-0 pointer-events-none border border-white/16 rounded-xl" />
+                    {card.isAnalyzed && (
+                      <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-black bg-orange-500 text-white shadow-sm border border-orange-400/50 flex items-center gap-0.5">
+                        <Sparkles className="w-2.5 h-2.5" />
+                        [AI]
+                      </div>
+                    )}
                   </button>
                   );
                 })}
-              {group.videos.map((video) => (
+              {group.videos
+                .filter((video) => !successCards.some((card) => card.videoId === video.id))
+                .map((video) => (
                 <button
                   key={video.id}
                   type="button"
                   onClick={() => {
                     const taskMeta = getVideoTaskMeta(video.id);
                     if (taskMeta.action === 'view' && taskMeta.task) {
-                      openAnalyzedResult((taskMeta.task.type || 'highlight') as 'highlight' | 'analysis');
+                      openAnalyzedResult((taskMeta.task.type || 'highlight') as 'highlight' | 'analysis', video.id);
+                      return;
+                    }
+                    if (sourceTab === 'ai_analysis' && taskMeta.action === 'retry') {
+                      openAiDecision(video.id);
                       return;
                     }
                     setDetailVideoId(video.id);
@@ -3108,16 +3303,21 @@ const GalleryScreen = () => {
                 >
                   <AssetThumbnail type="video" category={video.category as 'basketball' | 'soccer'} />
                   <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25" />
-                  {(() => {
+                  {hasSeenAIGuide && (() => {
                     const taskMeta = getVideoTaskMeta(video.id);
                     const badgeClick = (e: React.MouseEvent) => {
                       e.stopPropagation();
                       if (taskMeta.action === 'view') {
-                        openAnalyzedResult((taskMeta.task?.type || 'highlight') as 'highlight' | 'analysis');
+                        openAnalyzedResult((taskMeta.task?.type || 'highlight') as 'highlight' | 'analysis', video.id);
                         return;
                       }
                       if (taskMeta.action === 'progress') {
-                        pushView('task_center');
+                        setSourceTab('ai_analysis');
+                        return;
+                      }
+                      if (taskMeta.action === 'blocked') {
+                        setToastMessage(taskMeta.task?.failureMessage || '当前视频时长超过 150 分钟，暂不支持分析');
+                        setTimeout(() => setToastMessage(null), 2600);
                         return;
                       }
                       openAiDecision(video.id);
@@ -3129,8 +3329,11 @@ const GalleryScreen = () => {
                           onClick={badgeClick}
                           title={t('gallery.viewAnalysis')}
                           aria-label={t('gallery.viewAnalysis')}
-                          className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm border border-white/40"
-                        />
+                          className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-black bg-orange-500 text-white shadow-sm border border-orange-400/50 flex items-center gap-0.5"
+                        >
+                          <Sparkles className="w-2.5 h-2.5" />
+                          [AI]
+                        </button>
                       );
                     }
                     return (
@@ -3184,7 +3387,7 @@ const GalleryScreen = () => {
                       onClick={() => {
                         const taskMeta = getVideoTaskMeta(video.id);
                         if (taskMeta.action === 'view' && taskMeta.task) {
-                          openAnalyzedResult((taskMeta.task.type || 'highlight') as 'highlight' | 'analysis');
+                          openAnalyzedResult((taskMeta.task.type || 'highlight') as 'highlight' | 'analysis', video.id);
                           return;
                         }
                         setDetailVideoId(video.id);
@@ -3252,29 +3455,43 @@ const GalleryScreen = () => {
               <Download className="w-5 h-5" />
               <span>{t('ui.videoDownload')}</span>
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (detailFromAnalyzedCard) {
-                  openAnalyzedResult(detailAnalyzedType);
+            {hasSeenAIGuide && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (detailFromAnalyzedCard) {
+                    openAnalyzedResult(detailAnalyzedType, detailVideo.id);
+                    return;
+                  }
+                  const taskMeta = getVideoTaskMeta(detailVideo.id);
+                  if (taskMeta.action === 'view') {
+                    openAnalyzedResult((taskMeta.task?.type || 'highlight') as 'highlight' | 'analysis', detailVideo.id);
+                    return;
+                  }
+                  if (taskMeta.action === 'progress') {
+                    setSourceTab('ai_analysis');
+                    setDetailVideoId(null);
+                    return;
+                  }
+                if (taskMeta.action === 'blocked') {
+                  setToastMessage(taskMeta.task?.failureMessage || '当前视频时长超过 150 分钟，暂不支持分析');
+                  setTimeout(() => setToastMessage(null), 2600);
                   return;
                 }
-                const taskMeta = getVideoTaskMeta(detailVideo.id);
-                if (taskMeta.action === 'view') {
-                  openAnalyzedResult((taskMeta.task?.type || 'highlight') as 'highlight' | 'analysis');
-                  return;
-                }
-                if (taskMeta.action === 'progress') {
-                  pushView('task_center');
-                  return;
-                }
-                openAiDecision(detailVideo.id);
-              }}
-              className="flex flex-col items-center gap-1 text-orange-400 text-xs"
-            >
-              <Sparkles className="w-5 h-5" />
-              <span>{getVideoTaskMeta(detailVideo.id).label}</span>
-            </button>
+                  openAiDecision(detailVideo.id);
+                }}
+                className="flex flex-col items-center gap-1 text-xs text-orange-300"
+                aria-label={getVideoTaskMeta(detailVideo.id).label}
+              >
+                <span className="w-10 h-10 rounded-xl border-2 border-rose-400 bg-black/35 flex flex-col items-center justify-center leading-none">
+                  <Sparkles className="w-3.5 h-3.5 text-orange-300" />
+                  <span className="text-[10px] font-black text-orange-300 mt-0.5">AI</span>
+                </span>
+                {getVideoTaskMeta(detailVideo.id).label !== 'AI' && (
+                  <span>{getVideoTaskMeta(detailVideo.id).label}</span>
+                )}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -3355,6 +3572,61 @@ const GalleryScreen = () => {
             >
               {t('gallery.hybridTierCancel')}
             </button>
+          </div>
+        </div>
+      )}
+      
+      {/* AI Guide Bottom Sheet */}
+      {showAIGuideSheet && (
+        <div className="absolute inset-0 z-[100] flex items-end justify-center animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowAIGuideSheet(false)} />
+          <div className="relative bg-white w-full max-w-md rounded-t-3xl p-6 pb-10 shadow-2xl animate-in slide-in-from-bottom-full duration-300 max-h-[85vh] overflow-y-auto">
+            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6" />
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-4">
+                <Sparkles className="w-8 h-8 text-orange-500" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">解锁视频的AI价值</h2>
+              <p className="text-slate-500 text-sm leading-relaxed mb-6 px-4">
+                将普通视频升级为高价值数据资产。自动捕捉进球瞬间、生成赛事比分面板、记录球员跑动数据，一键开启智能化体验。
+              </p>
+              
+              <div className="w-full space-y-3 mb-8">
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-left">
+                  <div className="mt-0.5 shrink-0"><PlayCircle className="w-5 h-5 text-blue-500" /></div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">自动捕捉高光</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">精准识别进球、助攻、精彩扑救</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-left">
+                  <div className="mt-0.5 shrink-0"><Activity className="w-5 h-5 text-emerald-500" /></div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">全景赛事数据</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">两队比分面板、控球率、跑动热力图展示</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-left">
+                  <div className="mt-0.5 shrink-0"><LayoutTemplate className="w-5 h-5 text-purple-500" /></div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">专属AI数字资产</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">生成带有专属角标与数据的独立分析库</p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setHasSeenAIGuide(true);
+                  if (typeof localStorage !== 'undefined') localStorage.setItem('hasSeenAIGuide', 'true');
+                  setShowAIGuideSheet(false);
+                  setSourceTab('ai_analysis');
+                }}
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-[15px] shadow-lg shadow-orange-500/30 active:scale-[0.98] transition-transform"
+              >
+                立即开启AI体验
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -6484,7 +6756,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
   const [hybridPastEdge, setHybridPastEdge] = useState(false);
 
   /** 当前混合任务素材来源（用于重试时从下载或端侧分析重启） */
-  const [hybridSourceMedia, setHybridSourceMedia] = useState<'falcon' | 'local' | null>(null);
+  const [hybridSourceMedia, setHybridSourceMedia] = useState<'falcon' | 'local' | 'cloud' | null>(null);
 
   /** 相册第四条路线演示：从卡片进入赛果页时的预览类型 */
   const [galleryHybridDemoView, setGalleryHybridDemoView] = useState<null | 'edge_result' | 'cloud_result'>(null);
@@ -6684,7 +6956,125 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
   const [showPlayerSelector, setShowPlayerSelector] = useState(false);
 
   // Cloud task queue management
-  const [cloudTasks, setCloudTasks] = useState<CloudTask[]>([]);
+  const [cloudTasks, setCloudTasks] = useState<CloudTask[]>([
+    {
+      id: 'mock_task_busy_1',
+      videoId: 9101,
+      videoName: 'tasks.busyQueueA',
+      type: 'analysis',
+      status: 'analyzing',
+      progress: 62,
+      createdAt: Date.now() - 600000,
+    },
+    {
+      id: 'mock_task_busy_2',
+      videoId: 9102,
+      videoName: 'tasks.busyQueueB',
+      type: 'analysis',
+      status: 'analyzing',
+      progress: 48,
+      createdAt: Date.now() - 540000,
+    },
+    {
+      id: 'mock_task_busy_3',
+      videoId: 9103,
+      videoName: 'tasks.busyQueueC',
+      type: 'highlight',
+      status: 'analyzing',
+      progress: 71,
+      createdAt: Date.now() - 480000,
+    },
+    {
+      id: 'mock_task_busy_4',
+      videoId: 9104,
+      videoName: 'tasks.busyQueueD',
+      type: 'analysis',
+      status: 'analyzing',
+      progress: 53,
+      createdAt: Date.now() - 420000,
+    },
+    {
+      id: 'mock_task_busy_5',
+      videoId: 9105,
+      videoName: 'tasks.busyQueueE',
+      type: 'highlight',
+      status: 'analyzing',
+      progress: 67,
+      createdAt: Date.now() - 360000,
+    },
+    {
+      id: 'mock_task_queue_waiting',
+      videoId: 403,
+      videoName: 'videos.secondHalf',
+      type: 'analysis',
+      status: 'queued',
+      progress: 0,
+      queuePosition: 1,
+      queuedAt: Date.now() - 120000,
+      queueTimeoutAt: Date.now() + 600000,
+      createdAt: Date.now() - 300000,
+    },
+    {
+      id: 'mock_task_falcon_interrupted',
+      videoId: 401,
+      videoName: 'videos.firstHalf',
+      type: 'highlight',
+      status: 'paused',
+      progress: 42,
+      failureCode: 'device_disconnected',
+      failureStage: 'upload',
+      failureMessage: 'Falcon 连接中断，已暂停上传',
+      createdAt: Date.now() - 3600000,
+    },
+    {
+      id: 'mock_task_upload_interrupted',
+      videoId: 501,
+      videoName: 'videos.hybridDemoDetail',
+      type: 'highlight',
+      status: 'paused',
+      progress: 37,
+      failureCode: 'upload_interrupted',
+      failureStage: 'upload',
+      failureMessage: '网络波动导致上传中断，请重试上传',
+      createdAt: Date.now() - 3300000,
+    },
+    {
+      id: 'mock_task_local_storage_full',
+      videoId: 204,
+      videoName: 'videos.secondHalf',
+      type: 'highlight',
+      status: 'failed',
+      progress: 0,
+      failureCode: 'storage_insufficient',
+      failureStage: 'preflight',
+      failureMessage: '云端空间不足，无法开始上传',
+      createdAt: Date.now() - 3000000,
+    },
+    {
+      id: 'mock_task_cloud_unsupported',
+      videoId: 202,
+      videoName: 'videos.firstHalf',
+      type: 'analysis',
+      status: 'failed',
+      progress: 0,
+      failureCode: 'unsupported_video',
+      failureStage: 'preflight',
+      failureMessage: '当前视频时长超过 150 分钟，暂不支持分析，请裁剪后重试',
+      createdAt: Date.now() - 2400000,
+    },
+    {
+      id: 'mock_task_analyze_failed',
+      videoId: 205,
+      videoName: 'videos.extraHighlights',
+      type: 'analysis',
+      status: 'failed',
+      progress: 86,
+      failureCode: 'analyze_failed',
+      failureStage: 'analyze',
+      failureMessage: '云端分析失败，请重试',
+      createdAt: Date.now() - 1800000,
+    }
+  ]);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const maxConcurrentTasks = 5;
 
@@ -6698,6 +7088,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
   };
 
   const addCloudTask = (videoId: number, videoName: string, type: 'highlight' | 'analysis'): string => {
+    // If a failed task exists for this video, remove it before adding a new one
+    setCloudTasks(prev => prev.filter(t => !(t.videoId === videoId && t.status === 'failed')));
+
     const taskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const analyzingCount = getAnalyzingTasksCount();
     
@@ -6709,7 +7102,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       const queuedTasks = getQueuedTasks();
       queuePosition = queuedTasks.length + 1;
     }
-    
+
+    const createdAt = Date.now();
     const newTask: CloudTask = {
       id: taskId,
       videoId,
@@ -6718,18 +7112,52 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       status,
       progress: 0,
       queuePosition,
-      createdAt: Date.now(),
+      queuedAt: status === 'queued' ? createdAt : undefined,
+      queueTimeoutAt: status === 'queued' ? createdAt + 20000 : undefined,
+      createdAt,
     };
-    
+
     setCloudTasks(prev => [...prev, newTask]);
     setCurrentTaskId(taskId);
+    return taskId;
+  };
+
+  const addFailedCloudTask = (
+    videoId: number,
+    videoName: string,
+    type: 'highlight' | 'analysis',
+    failureCode: CloudTaskFailureCode,
+    failureStage: CloudTaskFailureStage,
+    failureMessage: string
+  ): string => {
+    const taskId = `task_failed_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const newTask: CloudTask = {
+      id: taskId,
+      videoId,
+      videoName,
+      type,
+      status: 'failed',
+      progress: 0,
+      failureCode,
+      failureStage,
+      failureMessage,
+      createdAt: Date.now(),
+    };
+    setCloudTasks(prev => [...prev.filter(t => t.videoId !== videoId), newTask]);
     return taskId;
   };
 
   const startTaskAnalysis = (taskId: string) => {
     setCloudTasks(prev => prev.map(task => {
       if (task.id === taskId) {
-        return { ...task, status: 'analyzing' as CloudTaskStatus, progress: 0, queuePosition: undefined };
+        return {
+          ...task,
+          status: 'analyzing' as CloudTaskStatus,
+          progress: 0,
+          queuePosition: undefined,
+          queuedAt: undefined,
+          queueTimeoutAt: undefined,
+        };
       }
       return task;
     }));
@@ -6907,120 +7335,119 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     });
 
     if (mainVideo.source === 'falcon') {
+      hybridLocalOnlyThisRunRef.current = false;
+      setHybridLocalOnlyThisRun(false);
+      setHybridCloudDeepThisRun(false);
+      setHybridPastEdge(false);
+      hybridPastEdgeRef.current = false;
+      hybridSkipEdgeAfterDownloadRef.current = false;
+      setHybridSourceMedia('falcon');
+      const taskId = addCloudTask(mainVideo.id, taskName, targetAnalysisType || 'highlight');
+      if (taskId) {
+        setCurrentTaskId(taskId);
+      }
       setPostRecordModalPayload({
-        cloudAlreadyQueued: false,
+        cloudAlreadyQueued: true,
         videoId: mainVideo.id,
         videoName: taskName,
         analysisType: targetAnalysisType || 'highlight',
         sport: String((mainVideo as any).category || 'soccer'),
       });
-      if (analysisPipeline === 'on_device') {
-        setTransferStep('analyzing');
-      } else if (analysisPipeline === 'falcon_direct_cloud') {
-        setTransferStep('uploading');
-      } else if (analysisPipeline === 'edge_cloud_hybrid') {
-        hybridSkipEdgeAfterDownloadRef.current = hybridTierChoice === 'cloud_deep';
-        const localOnly = hybridTierChoice === 'local_fast';
-        const cloudDeep = hybridTierChoice === 'cloud_deep';
-        hybridLocalOnlyThisRunRef.current = localOnly;
-        setHybridLocalOnlyThisRun(localOnly);
-        setHybridCloudDeepThisRun(cloudDeep);
-        setHybridPastEdge(false);
-        hybridPastEdgeRef.current = false;
-        setHybridSourceMedia('falcon');
-        setTransferStep('downloading');
+      const analyzingCount = getAnalyzingTasksCount();
+      const isQueued = analyzingCount >= maxConcurrentTasks;
+      if (networkState === '4g') {
+        setShowCellularAlert(true);
+      } else if (networkState === 'offline') {
+        setTransferStep('paused');
       } else {
-        setTransferStep('downloading');
+        setTransferStep('uploading');
+        setTransferProgress(0);
+        if (isQueued) {
+          setToastMessage('分析任务繁忙，等待排队分析');
+          setTimeout(() => setToastMessage(null), 8000);
+        } else if (merged) {
+          setToastMessage(t('ui.aiMergeTaskCreated', { count: selectedVideos.length }));
+          setTimeout(() => setToastMessage(null), 2800);
+        }
       }
+      return;
+    }
+
+    if (mainVideo.source === 'cloud') {
+      if (UNSUPPORTED_VIDEO_IDS.has(mainVideo.id)) {
+        setHybridSourceMedia('cloud');
+        addFailedCloudTask(
+          mainVideo.id,
+          taskName,
+          targetAnalysisType || 'highlight',
+          'unsupported_video',
+          'preflight',
+          '当前视频时长超过 150 分钟，暂不支持分析，请裁剪后重试'
+        );
+        setToastMessage('当前视频时长超过 150 分钟，暂不支持分析，请裁剪后重试');
+        setTimeout(() => setToastMessage(null), 2800);
+        return;
+      }
+      hybridLocalOnlyThisRunRef.current = false;
+      setHybridLocalOnlyThisRun(false);
+      setHybridCloudDeepThisRun(false);
+      setHybridPastEdge(false);
+      hybridPastEdgeRef.current = false;
+      hybridSkipEdgeAfterDownloadRef.current = false;
+      setHybridSourceMedia('cloud');
+      const taskId = addCloudTask(mainVideo.id, taskName, targetAnalysisType || 'highlight');
+      if (taskId) {
+        setCurrentTaskId(taskId);
+      }
+      setPostRecordModalPayload({
+        cloudAlreadyQueued: true,
+        videoId: mainVideo.id,
+        videoName: taskName,
+        analysisType: targetAnalysisType || 'highlight',
+        sport: String((mainVideo as any).category || 'soccer'),
+      });
+      const analyzingCount = getAnalyzingTasksCount();
+      const isQueued = analyzingCount >= maxConcurrentTasks;
+
+      setTransferStep('analyzing');
       setTransferProgress(0);
-      pushView('home');
+      if (isQueued) {
+        setToastMessage('分析任务繁忙，等待排队分析');
+        setTimeout(() => setToastMessage(null), 8000);
+      } else if (merged) {
+        setToastMessage(t('ui.aiMergeTaskCreated', { count: selectedVideos.length }));
+        setTimeout(() => setToastMessage(null), 2800);
+      }
       return;
     }
 
     if (mainVideo.source === 'local') {
-      if (analysisPipeline === 'on_device') {
-        setPostRecordModalPayload({
-          cloudAlreadyQueued: false,
-          videoId: mainVideo.id,
-          videoName: taskName,
-          analysisType: targetAnalysisType || 'highlight',
-          sport: String((mainVideo as any).category || 'soccer'),
-        });
-        setTransferStep('analyzing');
-        setTransferProgress(0);
-        pushView('home');
-        if (merged) {
-          setToastMessage(t('ui.aiMergeTaskCreated', { count: selectedVideos.length }));
-          setTimeout(() => setToastMessage(null), 2800);
-        }
-        return;
-      }
-
-      if (analysisPipeline === 'edge_cloud_hybrid') {
-        setPostRecordModalPayload({
-          cloudAlreadyQueued: false,
-          videoId: mainVideo.id,
-          videoName: taskName,
-          analysisType: targetAnalysisType || 'highlight',
-          sport: String((mainVideo as any).category || 'soccer'),
-        });
-        if (hybridTierChoice === 'cloud_deep') {
-          hybridLocalOnlyThisRunRef.current = false;
-          setHybridLocalOnlyThisRun(false);
-          setHybridCloudDeepThisRun(true);
-          hybridPastEdgeRef.current = true;
-          setHybridPastEdge(true);
-          setHybridSourceMedia('local');
-          addCloudTask(mainVideo.id, taskName, targetAnalysisType || 'highlight');
-          setPostRecordModalPayload({
-            cloudAlreadyQueued: true,
-            videoId: mainVideo.id,
-            videoName: taskName,
-            analysisType: targetAnalysisType || 'highlight',
-            sport: String((mainVideo as any).category || 'soccer'),
-          });
-          const analyzingCount = getAnalyzingTasksCount();
-          const isQueued = analyzingCount >= maxConcurrentTasks;
-          if (networkState === '4g') {
-            setShowCellularAlert(true);
-            pushView('home');
-          } else if (networkState === 'offline') {
-            setTransferStep('paused');
-            pushView('home');
-          } else {
-            setTransferStep('uploading');
-            setTransferProgress(0);
-            pushView('home');
-            if (isQueued) {
-              setToastMessage('分析任务繁忙，等待排队分析');
-              setTimeout(() => setToastMessage(null), 8000);
-            } else if (merged) {
-              setToastMessage(t('ui.aiMergeTaskCreated', { count: selectedVideos.length }));
-              setTimeout(() => setToastMessage(null), 2800);
-            }
-          }
-          return;
-        }
-        hybridLocalOnlyThisRunRef.current = true;
-        setHybridLocalOnlyThisRun(true);
-        setHybridCloudDeepThisRun(false);
-        setHybridPastEdge(false);
-        hybridPastEdgeRef.current = false;
+      if (storageState === 'full') {
         setHybridSourceMedia('local');
-        setTransferStep('analyzing');
-        setTransferProgress(0);
-        pushView('home');
-        if (merged) {
-          setToastMessage(t('ui.aiMergeTaskCreated', { count: selectedVideos.length }));
-          setTimeout(() => setToastMessage(null), 2800);
-        }
+        addFailedCloudTask(
+          mainVideo.id,
+          taskName,
+          targetAnalysisType || 'highlight',
+          'storage_insufficient',
+          'preflight',
+          '云端空间不足，请清理后重试上传'
+        );
+        setShowStorageAlert(true);
+        setToastMessage('云端空间不足，请清理后重试上传');
+        setTimeout(() => setToastMessage(null), 2800);
         return;
       }
-
       hybridLocalOnlyThisRunRef.current = false;
       setHybridLocalOnlyThisRun(false);
       setHybridCloudDeepThisRun(false);
-      addCloudTask(mainVideo.id, taskName, targetAnalysisType || 'highlight');
+      setHybridPastEdge(false);
+      hybridPastEdgeRef.current = false;
+      hybridSkipEdgeAfterDownloadRef.current = false;
+      setHybridSourceMedia('local');
+      const taskId = addCloudTask(mainVideo.id, taskName, targetAnalysisType || 'highlight');
+      if (taskId) {
+        setCurrentTaskId(taskId);
+      }
       setPostRecordModalPayload({
         cloudAlreadyQueued: true,
         videoId: mainVideo.id,
@@ -7033,14 +7460,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
       if (networkState === '4g') {
         setShowCellularAlert(true);
-        pushView('home');
       } else if (networkState === 'offline') {
         setTransferStep('paused');
-        pushView('home');
       } else {
         setTransferStep('uploading');
         setTransferProgress(0);
-        pushView('home');
         if (isQueued) {
           setToastMessage('分析任务繁忙，等待排队分析');
           setTimeout(() => setToastMessage(null), 8000);
@@ -7169,7 +7593,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
       else if (type === 'storage_full') {
 
-          setToastMessage('开始演练：存储空间不足...');
+          setToastMessage('开始演练：云端空间不足...');
 
           setTimeout(() => setToastMessage(null), 2500); // Auto hide
 
@@ -7312,6 +7736,21 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     if (transferStep === 'downloading' && falconState === 'disconnected') {
 
         setTransferStep('paused');
+        if (currentTaskId) {
+          setCloudTasks(prev =>
+            prev.map(task =>
+              task.id === currentTaskId
+                ? {
+                    ...task,
+                    status: 'paused',
+                    failureCode: 'device_disconnected',
+                    failureStage: 'upload',
+                    failureMessage: '设备断开连接，上传已暂停',
+                  }
+                : task
+            )
+          );
+        }
 
         return;
 
@@ -7320,6 +7759,21 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     if ((transferStep === 'uploading' || transferStep === 'analyzing') && networkState === 'offline') {
 
         setTransferStep('paused');
+        if (currentTaskId) {
+          setCloudTasks(prev =>
+            prev.map(task =>
+              task.id === currentTaskId
+                ? {
+                    ...task,
+                    status: 'paused',
+                    failureCode: 'upload_interrupted',
+                    failureStage: 'upload',
+                    failureMessage: '网络中断，任务已暂停',
+                  }
+                : task
+            )
+          );
+        }
 
         return;
 
@@ -7506,6 +7960,34 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     // Keep transfer-step transition tracking only; post-record cloud modal is removed.
     prevTransferStepRef.current = transferStep;
   }, [transferStep, postRecordModalPayload]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setCloudTasks(prev =>
+        prev.map(task => {
+          if (
+            task.status === 'queued' &&
+            task.queueTimeoutAt &&
+            now >= task.queueTimeoutAt
+          ) {
+            return {
+              ...task,
+              status: 'failed',
+              failureCode: 'queue_timeout',
+              failureStage: 'queue',
+              failureMessage: '云端排队超时，请重新排队',
+              queuePosition: undefined,
+              queuedAt: undefined,
+              queueTimeoutAt: undefined,
+            };
+          }
+          return task;
+        })
+      );
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (transferStep !== 'completed') return;
@@ -7703,7 +8185,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                       onClick={() => {
                           setIsTaskCompleted(true);
                           setResultSport(analysisCompleteToast.resultSport);
-                          pushView(analysisCompleteToast.targetAnalysisType === 'highlight' ? 'ai_result_highlight' : 'ai_result_analysis');
+                          pushView('ai_result_analysis');
                           setAnalysisCompleteToast(null);
                       }}
                       className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex-shrink-0"
