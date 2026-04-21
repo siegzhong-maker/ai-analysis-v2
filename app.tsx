@@ -1759,6 +1759,9 @@ const ScenarioWizard = () => {
 
 };
 
+/** 设为 true 时恢复左侧「技术路线」调试面板；默认 false 仅隐藏展示，不删逻辑 */
+const SHOW_TECH_ROUTE_TOGGLE_UI = false;
+
 const TechRouteToggle = () => {
   const { t, analysisPipeline, setAnalysisPipeline, transferStep } = useAppContext();
   const busy =
@@ -1779,6 +1782,8 @@ const TechRouteToggle = () => {
         : analysisPipeline === 'falcon_direct_cloud'
           ? t('ui.techRouteFalconDirectCloudHint')
           : t('ui.techRouteEdgeCloudHybridHint');
+
+  if (!SHOW_TECH_ROUTE_TOGGLE_UI) return null;
 
   return (
     <div className="w-full max-w-[240px] shrink-0 flex flex-col gap-2">
