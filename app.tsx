@@ -28,7 +28,7 @@ import {
 
   FileEdit, Hexagon, Disc, CircleDot,
 
-  AlertTriangle, WifiOff, Wifi, Signal, HardDrive, RefreshCw, Play, Pause, Zap, Minus, Plus,
+  AlertTriangle, WifiOff, Signal, HardDrive, RefreshCw, Play, Pause, Zap, Minus, Plus,
 
   Activity, Map as MapIcon, Lock, Footprints, AreaChart, Flame,
 
@@ -479,8 +479,8 @@ const GALLERY_ANALYSIS_SUCCESS_CARDS = [
     dateKey: 'videos.monday',
     videoId: 402,
     source: 'local' as const,
-    teamANameKey: 'A队',
-    teamBNameKey: 'B队',
+    teamANameKey: 'ui.teamA',
+    teamBNameKey: 'ui.teamB',
     teamAScore: 1,
     teamBScore: 0,
     statusKey: 'gallery.fulltime',
@@ -492,8 +492,8 @@ const GALLERY_ANALYSIS_SUCCESS_CARDS = [
     dateKey: 'videos.monday',
     videoId: 404,
     source: 'cloud' as const,
-    teamANameKey: 'A队',
-    teamBNameKey: 'B队',
+    teamANameKey: 'ui.teamA',
+    teamBNameKey: 'ui.teamB',
     teamAScore: 3,
     teamBScore: 2,
     statusKey: 'gallery.fulltime',
@@ -3068,7 +3068,7 @@ const GalleryScreen = () => {
             { id: 'falcon', label: 'Falcon' },
             { id: 'local', label: 'Local' },
             { id: 'cloud', label: 'Cloud' },
-            ...(hasSeenAIGuide ? [{ id: 'ai_analysis', label: 'AI分析' }] : []),
+            ...(hasSeenAIGuide ? [{ id: 'ai_analysis', label: t('ui.aiEntryLabel') }] : []),
           ] as const).map((item) => (
             <button
               key={item.id}
@@ -3124,17 +3124,17 @@ const GalleryScreen = () => {
               className="ml-auto px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white text-[12px] font-bold shadow-sm flex items-center gap-1 shrink-0 animate-pulse"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              ✨ 开启赛事解读
+              {t('gallery.openAiInsight')}
             </button>
           )}
         </div>
         {sourceTab === 'ai_analysis' && (
           <div className="flex gap-2 mt-2 overflow-x-auto scrollbar-hide items-center">
             {([
-              { id: 'all', label: '全部' },
-              { id: 'in_progress', label: '进行中' },
-              { id: 'failed', label: '分析失败' },
-              { id: 'completed', label: '已完成' },
+              { id: 'all', label: t('ui.assetFilter_all') },
+              { id: 'in_progress', label: t('ui.assetFilter_processing') },
+              { id: 'failed', label: t('gallery.analysisFailed') },
+              { id: 'completed', label: t('gallery.analysisCompleted') },
             ] as const).map((item) => (
               <button
                 key={`ai-filter-${item.id}`}
@@ -3588,31 +3588,31 @@ const GalleryScreen = () => {
               <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-4">
                 <Sparkles className="w-8 h-8 text-orange-500" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">解锁视频的AI价值</h2>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">{t('gallery.aiGuideTitle')}</h2>
               <p className="text-slate-500 text-sm leading-relaxed mb-6 px-4">
-                FollowAI 分析落地页聚焦三大能力：赛事回顾、全场回看、赛事报告，帮助你快速看懂整场比赛并沉淀关键结论。
+                {t('gallery.aiGuideDesc')}
               </p>
               
               <div className="w-full space-y-3 mb-8">
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-left">
                   <div className="mt-0.5 shrink-0"><PlayCircle className="w-5 h-5 text-blue-500" /></div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">赛事回顾</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">自动提炼关键节点与高光片段，快速回顾比赛进程</p>
+                    <h4 className="text-sm font-bold text-slate-900">{t('gallery.aiGuideFeatureReviewTitle')}</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">{t('gallery.aiGuideFeatureReviewDesc')}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-left">
                   <div className="mt-0.5 shrink-0"><Activity className="w-5 h-5 text-emerald-500" /></div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">全场回看</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">按时间轴查看完整比赛内容，关键瞬间可一键定位</p>
+                    <h4 className="text-sm font-bold text-slate-900">{t('gallery.aiGuideFeatureReplayTitle')}</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">{t('gallery.aiGuideFeatureReplayDesc')}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-left">
                   <div className="mt-0.5 shrink-0"><LayoutTemplate className="w-5 h-5 text-purple-500" /></div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">赛事报告</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">生成结构化分析报告，沉淀比分、数据与战术结论</p>
+                    <h4 className="text-sm font-bold text-slate-900">{t('gallery.aiGuideFeatureReportTitle')}</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">{t('gallery.aiGuideFeatureReportDesc')}</p>
                   </div>
                 </div>
               </div>
@@ -3626,7 +3626,7 @@ const GalleryScreen = () => {
                 }}
                 className="w-full py-4 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-[15px] shadow-lg shadow-orange-500/30 active:scale-[0.98] transition-transform"
               >
-                立即开启AI体验
+                {t('gallery.aiGuideCta')}
               </button>
             </div>
           </div>
@@ -6310,32 +6310,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       openHighlightToolbox('template_compose');
     };
 
-    // Manual Toggle Handlers for Header
-
-    const toggleNetwork = () => {
-
-        const nextState = networkState === 'wifi' ? 'offline' : 'wifi';
-
-        setNetworkState(nextState);
-
-        setToastMessage(nextState === 'offline' ? '已模拟断网' : '网络已恢复');
-
-        setTimeout(() => setToastMessage(null), 2000);
-
-    };
-
-    const toggleFalcon = () => {
-
-        const nextState = falconState === 'connected' ? 'disconnected' : 'connected';
-
-        setFalconState(nextState);
-
-        setToastMessage(nextState === 'disconnected' ? '已模拟设备断开' : '设备已连接');
-
-        setTimeout(() => setToastMessage(null), 2000);
-
-    };
-
     return (
 
     <div className="flex flex-col h-full bg-[#F5F5F5] relative">
@@ -6361,49 +6335,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
              {i18n.language === 'zh' ? 'EN' : '中'}
            </button>
 
-           {/* Interactive Status Icons */}
-
-           <div className="flex items-center gap-2 mr-1">
-
-               <button onClick={toggleNetwork} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${networkState === 'offline' ? 'bg-red-100 text-red-500' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-
-                   {networkState === 'offline' ? <WifiOff className="w-4 h-4" /> : <Wifi className="w-4 h-4" />}
-
-               </button>
-
-               <button onClick={toggleFalcon} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${falconState === 'disconnected' ? 'bg-red-100 text-red-500' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-
-                   {falconState === 'disconnected' ? <div className="w-3 h-3 rounded-sm border-2 border-current relative"><div className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-red-500 rounded-full border border-white"></div></div> : <div className="w-3 h-3 rounded-sm border-2 border-current"></div>}
-
-               </button>
-
-           </div>
-
           <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => pushView('task_center')}
-              className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors relative"
-              title={t('ui.historyTasksHint')}
-            >
-              {transferStep !== 'idle' && transferStep !== 'completed' ? (
-                <div className="absolute inset-0">
-                  <svg className="w-full h-full -rotate-90 p-0.5" viewBox="0 0 36 36">
-                    <path className="text-slate-200" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
-                    <path
-                      className={`${transferStep === 'failed' ? 'text-red-500' : transferStep === 'paused' ? 'text-yellow-500' : 'text-blue-500'} transition-all duration-300`}
-                      strokeDasharray={`${transferProgress}, 100`}
-                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                    />
-                  </svg>
-                </div>
-              ) : (
-                <Clock className="w-5 h-5" />
-              )}
-            </button>
             <button
               type="button"
               onClick={() => pushView('transfer_list')}
@@ -6468,25 +6400,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              handleEntryClick('analysis');
-              setResultSport('soccer');
-            }}
-            className="w-full rounded-2xl bg-[#2f2f32] text-white px-3.5 py-3 flex items-center justify-between"
-          >
-            <span className="flex items-center gap-2.5">
-              <span className="w-10 h-10 rounded-xl bg-black/40 border border-white/20 flex items-center justify-center">
-                <span className="text-lg font-black">AI</span>
-              </span>
-              <span className="text-left">
-                <span className="block text-[12px] font-bold">AI Analysis</span>
-                <span className="block text-[10px] text-white/70">Quickly detect game highlights</span>
-              </span>
-            </span>
-            <ChevronRight className="w-5 h-5 text-white/75" />
-          </button>
         </section>
 
         <section className="min-h-[240px]">
