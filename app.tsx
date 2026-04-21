@@ -14,7 +14,7 @@ import {
 
   Filter, Cloud, CheckCircle2,
 
-  Check, Edit3, Share2,
+  Check, Edit3, Share2, ListChecks,
 
   Target, Crown, FileText, 
 
@@ -5118,6 +5118,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const [activeTimelineFilter, setActiveTimelineFilter] = useState<'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'>('all');
     const [selectedExportClipIds, setSelectedExportClipIds] = useState<number[]>([]);
     const [seekToastMessage, setSeekToastMessage] = useState<string | null>(null);
+    const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
 
     const eventItemRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const ignoreCollapseUntilRef = useRef(0);
@@ -5589,7 +5590,20 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                     {scoreTypeIcon(String(event.scoreType))}
                                     <span className="text-xs font-bold text-slate-100">{scoreTypeLabel(String(event.scoreType))}</span>
                                   </div>
-                                  <div className="mt-2 flex justify-end">
+                                  <div className="mt-2 flex justify-between items-center">
+                                    {isMultiSelectMode ? (
+                                      <div
+                                        className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedExportClipIds.includes(event.id) ? 'bg-blue-500 border-blue-500' : 'border-slate-500 bg-slate-800/50'}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedExportClipIds(prev => prev.includes(event.id) ? prev.filter(id => id !== event.id) : [...prev, event.id]);
+                                        }}
+                                      >
+                                        {selectedExportClipIds.includes(event.id) && <Check className="w-3.5 h-3.5 text-white" />}
+                                      </div>
+                                    ) : (
+                                      <div /> // Spacer
+                                    )}
                                     <button
                                       type="button"
                                       onClick={(e) => {
@@ -5621,7 +5635,20 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                     {scoreTypeIcon(String(event.scoreType))}
                                     <span className="text-xs font-bold text-slate-100">{scoreTypeLabel(String(event.scoreType))}</span>
                                   </div>
-                                  <div className="mt-2 flex justify-end">
+                                  <div className="mt-2 flex justify-between items-center">
+                                    {isMultiSelectMode ? (
+                                      <div
+                                        className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedExportClipIds.includes(event.id) ? 'bg-blue-500 border-blue-500' : 'border-slate-500 bg-slate-800/50'}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedExportClipIds(prev => prev.includes(event.id) ? prev.filter(id => id !== event.id) : [...prev, event.id]);
+                                        }}
+                                      >
+                                        {selectedExportClipIds.includes(event.id) && <Check className="w-3.5 h-3.5 text-white" />}
+                                      </div>
+                                    ) : (
+                                      <div /> // Spacer
+                                    )}
                                     <button
                                       type="button"
                                       onClick={(e) => {
@@ -5680,10 +5707,41 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           </div>
         </div>
 
-        <div className="p-4 bg-[#0F172A] border-t border-white/10">
-          <button onClick={shareMatchVideo} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
-            <Share2 className="w-4 h-4" /> {selectedExportClipIds.length > 0 ? `${t('ui.exportShare')} (${selectedExportClipIds.length})` : t('ui.shareMatchVideo')}
-          </button>
+        <div className="p-4 bg-[#0F172A] border-t border-white/10 relative">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className={`w-12 h-12 shrink-0 rounded-full border flex items-center justify-center transition-colors shadow-lg ${isMultiSelectMode ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-white/10 text-slate-400 hover:bg-slate-800'}`}
+              onClick={() => {
+                if (isMultiSelectMode) {
+                  setIsMultiSelectMode(false);
+                  setSelectedExportClipIds([]);
+                } else {
+                  setIsMultiSelectMode(true);
+                  setToastMessage(t('ui.multiSelectHint') || 'Select clips to export');
+                  setTimeout(() => setToastMessage(null), 1500);
+                }
+              }}
+            >
+              {isMultiSelectMode ? <Check className="w-5 h-5" /> : <ListChecks className="w-5 h-5" />}
+            </button>
+            <button
+              type="button"
+              className="w-12 h-12 shrink-0 rounded-full bg-emerald-600 border border-emerald-500/50 flex items-center justify-center text-white hover:bg-emerald-500 transition-colors shadow-lg"
+              onClick={() => {
+                // Open a modal to add a new event
+                setEventDraft({ scoreType: 'goal', time: formatClock(currentTimeSec) });
+                setEditingEventId(-1); // Use -1 or a special ID to indicate "new event"
+                setToastMessage(t('ui.addEventPlaceholder') || 'Add new event');
+                setTimeout(() => setToastMessage(null), 1500);
+              }}
+            >
+              <Plus className="w-6 h-6" />
+            </button>
+            <button onClick={shareMatchVideo} className="flex-1 bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
+              <Share2 className="w-4 h-4" /> {selectedExportClipIds.length > 0 ? `${t('ui.exportShare')} (${selectedExportClipIds.length})` : t('ui.shareMatchVideo')}
+            </button>
+          </div>
         </div>
 
         {showScoreEditModal && (

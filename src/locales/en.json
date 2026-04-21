@@ -294,6 +294,8 @@
     "eventPenaltyKicks": "Penalty kicks",
     "matchFlowTitle": "Match flow",
     "matchFlowSubtitle": "Start with the key moments",
+    "multiSelectHint": "Tap clips to select for export",
+    "addEventPlaceholder": "Add new event (demo)",
     "shareMatchVideo": "Share match video",
     "advancedAnalysis": "Full-game stats",
     "jumpTo": "Jump to",
