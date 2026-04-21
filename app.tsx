@@ -5506,12 +5506,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                 </p>
               </div>
 
-              {/* Tabs under video (Highlights / Match Report) */}
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setViewMode('review')} className="flex-1 py-2 rounded-lg bg-[#1E293B] text-xs font-bold text-white">Highlights</button>
-                <button type="button" onClick={() => setViewMode('report')} className="flex-1 py-2 rounded-lg bg-white text-xs font-bold text-slate-900">Match Report</button>
-              </div>
-
               {/* Comparative Data */}
               <div className="space-y-4 pt-4">
                 <h3 className="text-sm font-bold text-white">Comparative Data</h3>
