@@ -1810,6 +1810,8 @@ const ScenarioWizard = () => {
 
 /** 设为 true 时恢复左侧「技术路线」调试面板；默认 false 仅隐藏展示，不删逻辑 */
 const SHOW_TECH_ROUTE_TOGGLE_UI = false;
+/** 设为 true 时显示左下角「演练异常流程」入口；默认 false 关闭该入口 */
+const SHOW_SCENARIO_WIZARD_UI = false;
 
 const TechRouteToggle = () => {
   const { t, analysisPipeline, setAnalysisPipeline, transferStep } = useAppContext();
@@ -3588,29 +3590,29 @@ const GalleryScreen = () => {
               </div>
               <h2 className="text-2xl font-bold text-slate-900 mb-2">解锁视频的AI价值</h2>
               <p className="text-slate-500 text-sm leading-relaxed mb-6 px-4">
-                将普通视频升级为高价值数据资产。自动捕捉进球瞬间、生成赛事比分面板、记录球员跑动数据，一键开启智能化体验。
+                FollowAI 分析落地页聚焦三大能力：赛事回顾、全场回看、赛事报告，帮助你快速看懂整场比赛并沉淀关键结论。
               </p>
               
               <div className="w-full space-y-3 mb-8">
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-left">
                   <div className="mt-0.5 shrink-0"><PlayCircle className="w-5 h-5 text-blue-500" /></div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">自动捕捉高光</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">精准识别进球、助攻、精彩扑救</p>
+                    <h4 className="text-sm font-bold text-slate-900">赛事回顾</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">自动提炼关键节点与高光片段，快速回顾比赛进程</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-left">
                   <div className="mt-0.5 shrink-0"><Activity className="w-5 h-5 text-emerald-500" /></div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">全景赛事数据</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">两队比分面板、控球率、跑动热力图展示</p>
+                    <h4 className="text-sm font-bold text-slate-900">全场回看</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">按时间轴查看完整比赛内容，关键瞬间可一键定位</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-left">
                   <div className="mt-0.5 shrink-0"><LayoutTemplate className="w-5 h-5 text-purple-500" /></div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900">专属AI数字资产</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">生成带有专属角标与数据的独立分析库</p>
+                    <h4 className="text-sm font-bold text-slate-900">赛事报告</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">生成结构化分析报告，沉淀比分、数据与战术结论</p>
                   </div>
                 </div>
               </div>
@@ -8135,7 +8137,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
           <FloatingProgress />
 
-          <ScenarioWizard />
+          {SHOW_SCENARIO_WIZARD_UI && <ScenarioWizard />}
 
           
 
