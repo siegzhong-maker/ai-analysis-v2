@@ -2830,6 +2830,311 @@ const MediaPickerScreen = () => {
 
 };
 
+const GALLERY_CARD_SWIPE_REVEAL_PX = 72;
+
+type GalleryListVideoItem = {
+  id: number;
+  category: 'basketball' | 'soccer';
+  duration: string;
+};
+
+type GalleryCardTaskMeta = {
+  task: CloudTask | null;
+  label: string;
+  className: string;
+  action: 'start' | 'view' | 'progress' | 'retry' | 'blocked';
+};
+
+type GalleryVideoCardProps = {
+  video: GalleryListVideoItem;
+  hasSeenAIGuide: boolean;
+  sourceTab: VideoSource | 'ai_analysis';
+  getVideoTaskMeta: (videoId: number) => GalleryCardTaskMeta;
+  openAnalyzedResult: (analysisType: 'highlight' | 'analysis', videoId?: number) => void;
+  openAiDecision: (videoId: number) => void;
+  setSourceTab: React.Dispatch<React.SetStateAction<VideoSource | 'ai_analysis'>>;
+  setToastMessage: (msg: string | null) => void;
+  setDetailVideoId: React.Dispatch<React.SetStateAction<number | null>>;
+  setDetailFromAnalyzedCard: React.Dispatch<React.SetStateAction<boolean>>;
+  t: (key: string, options?: Record<string, unknown>) => string;
+};
+
+function GalleryVideoCard({
+  video,
+  hasSeenAIGuide,
+  sourceTab,
+  getVideoTaskMeta,
+  openAnalyzedResult,
+  openAiDecision,
+  setSourceTab,
+  setToastMessage,
+  setDetailVideoId,
+  setDetailFromAnalyzedCard,
+  t,
+}: GalleryVideoCardProps) {
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isSwipeDragging, setIsSwipeDragging] = useState(false);
+  const swipeTouchRef = useRef<{ startX: number; startY: number; startOffset: number } | null>(null);
+  const swipeOffsetRef = useRef(0);
+  swipeOffsetRef.current = swipeOffset;
+
+  const taskMeta = getVideoTaskMeta(video.id);
+  const isQueueWaiting =
+    taskMeta.action === 'progress' && taskMeta.task != null && taskMeta.task.status === 'queued';
+  const isConnectDeviceBlocked =
+    taskMeta.action === 'blocked' && taskMeta.task?.failureCode === 'device_disconnected';
+  const isStorageInsufficientRetry =
+    taskMeta.action === 'retry' && taskMeta.task?.failureCode === 'storage_insufficient';
+  const isDurationBlocked =
+    taskMeta.action === 'blocked' && taskMeta.task?.failureCode === 'unsupported_video';
+
+  const runAiPrimaryAction = () => {
+    if (taskMeta.action === 'view') {
+      openAnalyzedResult((taskMeta.task?.type || 'highlight') as 'highlight' | 'analysis', video.id);
+      return;
+    }
+    if (taskMeta.action === 'progress') {
+      if (isQueueWaiting) return;
+      setSourceTab('ai_analysis');
+      return;
+    }
+    if (taskMeta.action === 'blocked') {
+      if (isDurationBlocked) return;
+      if (isConnectDeviceBlocked) {
+        setToastMessage(t('gallery.toastConnectDevice'));
+        setTimeout(() => setToastMessage(null), 2800);
+        return;
+      }
+      setToastMessage(taskMeta.task?.failureMessage || '当前视频时长超过 150 分钟，暂不支持分析');
+      setTimeout(() => setToastMessage(null), 2600);
+      return;
+    }
+    if (isStorageInsufficientRetry) {
+      setToastMessage(t('gallery.toastCloudStorageInsufficient'));
+      setTimeout(() => setToastMessage(null), 2800);
+      return;
+    }
+    openAiDecision(video.id);
+  };
+
+  const openMainDetail = () => {
+    if (taskMeta.action === 'view' && taskMeta.task) {
+      openAnalyzedResult((taskMeta.task.type || 'highlight') as 'highlight' | 'analysis', video.id);
+      return;
+    }
+    /** 分析失败/清理云端/重试上传等：仅底栏按钮触发重新分析，点缩略区进详情 */
+    setDetailVideoId(video.id);
+    setDetailFromAnalyzedCard(false);
+  };
+
+  const onMainActivate = () => {
+    if (swipeOffset !== 0) {
+      setSwipeOffset(0);
+      return;
+    }
+    openMainDetail();
+  };
+
+  const footerCtaLabel =
+    taskMeta.action === 'start'
+      ? t('gallery.cardCtaStartReport')
+      : taskMeta.action === 'view'
+        ? t('gallery.viewAnalysis')
+        : isConnectDeviceBlocked || isStorageInsufficientRetry
+          ? t('ui.aiEntryLabel')
+          : taskMeta.label;
+
+  const onAiControlClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isQueueWaiting || isDurationBlocked) return;
+    runAiPrimaryAction();
+    setSwipeOffset(0);
+  };
+
+  const footerButtonClass = isQueueWaiting || isDurationBlocked
+    ? 'bg-slate-500/55 text-slate-200 border-slate-400/25 cursor-not-allowed'
+    : taskMeta.action === 'view'
+      ? 'bg-emerald-600 text-white border-emerald-400/40'
+      : taskMeta.action === 'progress'
+        ? 'bg-blue-600 text-white border-blue-400/40'
+        : taskMeta.action === 'blocked'
+          ? isConnectDeviceBlocked
+            ? 'bg-orange-500 text-white border-orange-400/50'
+            : 'bg-slate-600 text-white border-slate-400/40'
+          : taskMeta.action === 'retry'
+            ? isStorageInsufficientRetry
+              ? 'bg-orange-500 text-white border-orange-400/50'
+              : 'bg-rose-600 text-white border-rose-400/40'
+            : 'bg-orange-500 text-white border-orange-400/50';
+
+  /** 异常态（重试/不可分析）仅依赖底栏 CTA，不再叠右上角角标；排队中仅展示只读条，不拦截点进详情 */
+  const showCompactTopBadge = hasSeenAIGuide && taskMeta.action === 'progress' && !isQueueWaiting;
+
+  const swipeThumbHandlers = hasSeenAIGuide
+    ? {
+        onTouchStart: (e: React.TouchEvent) => {
+          const touch = e.touches[0];
+          swipeTouchRef.current = {
+            startX: touch.clientX,
+            startY: touch.clientY,
+            startOffset: swipeOffsetRef.current,
+          };
+          setIsSwipeDragging(true);
+        },
+        onTouchMove: (e: React.TouchEvent) => {
+          const ref = swipeTouchRef.current;
+          if (!ref) return;
+          const touch = e.touches[0];
+          const dx = touch.clientX - ref.startX;
+          const dy = touch.clientY - ref.startY;
+          if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 14) return;
+          if (Math.abs(dx) > 8) e.preventDefault();
+          const next = Math.min(
+            0,
+            Math.max(-GALLERY_CARD_SWIPE_REVEAL_PX, ref.startOffset + dx),
+          );
+          setSwipeOffset(next);
+        },
+        onTouchEnd: () => {
+          swipeTouchRef.current = null;
+          setIsSwipeDragging(false);
+          setSwipeOffset((o) =>
+            o < -GALLERY_CARD_SWIPE_REVEAL_PX / 2 ? -GALLERY_CARD_SWIPE_REVEAL_PX : 0,
+          );
+        },
+      }
+    : {};
+
+  if (!hasSeenAIGuide) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          const meta = getVideoTaskMeta(video.id);
+          if (meta.action === 'view' && meta.task) {
+            openAnalyzedResult((meta.task.type || 'highlight') as 'highlight' | 'analysis', video.id);
+            return;
+          }
+          setDetailVideoId(video.id);
+          setDetailFromAnalyzedCard(false);
+        }}
+        className="relative w-full rounded-xl overflow-hidden aspect-[16/8.5] text-left"
+      >
+        <AssetThumbnail type="video" category={video.category} />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25" />
+        <div className="absolute left-3 right-3 bottom-3 flex items-end justify-end text-white">
+          <span className="text-[11px] font-semibold">{video.duration}</span>
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative w-full rounded-xl overflow-hidden aspect-[16/8.5] shadow-sm ring-1 ring-black/10">
+      <div className="absolute inset-0 z-0 flex justify-end pointer-events-none" aria-hidden>
+        <div
+          className={`w-[72px] h-full flex flex-col items-center justify-center px-1 gap-1 border-l border-white/15 pointer-events-auto ${
+            isQueueWaiting || isDurationBlocked
+              ? 'bg-gradient-to-b from-slate-600 to-slate-700 border-slate-500/40'
+              : 'bg-gradient-to-b from-orange-500 to-orange-600'
+          }`}
+        >
+          <button
+            type="button"
+            disabled={isQueueWaiting || isDurationBlocked}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isQueueWaiting || isDurationBlocked) return;
+              runAiPrimaryAction();
+              setSwipeOffset(0);
+            }}
+            className={`flex flex-col items-center justify-center gap-0.5 p-1 rounded-lg ${
+              isQueueWaiting || isDurationBlocked
+                ? 'text-slate-300 cursor-not-allowed'
+                : 'text-white active:bg-white/10'
+            }`}
+            aria-label={
+              isQueueWaiting
+                ? `${footerCtaLabel} — ${t('gallery.cardCtaQueuedDisabled')}`
+                : isDurationBlocked
+                  ? `${footerCtaLabel} — ${t('gallery.cardCtaNotAnalyzable')}`
+                  : footerCtaLabel
+            }
+          >
+            <Sparkles className="w-5 h-5" />
+            <span className="text-[9px] font-black leading-tight text-center">AI</span>
+          </button>
+          <span className="text-[7px] font-semibold text-white/85 text-center leading-tight px-0.5">
+            {t('gallery.cardCtaSwipeHint')}
+          </span>
+        </div>
+      </div>
+
+      <div
+        className={`relative z-10 h-full flex flex-col rounded-xl overflow-hidden bg-slate-900 ${
+          !isSwipeDragging ? 'transition-transform duration-200 ease-out' : ''
+        }`}
+        style={{ transform: `translateX(${swipeOffset}px)` }}
+      >
+        <div
+          className="relative flex-1 min-h-0 w-full cursor-pointer"
+          role="button"
+          tabIndex={0}
+          onClick={() => onMainActivate()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onMainActivate();
+            }
+          }}
+          {...swipeThumbHandlers}
+        >
+          <AssetThumbnail type="video" category={video.category} />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25" />
+          {hasSeenAIGuide && isQueueWaiting && (
+            <span
+              className="absolute top-2 right-2 max-w-[min(100%,calc(100%-5rem))] px-2 py-1 rounded-md text-[10px] font-black bg-slate-600/95 text-slate-100 border border-slate-500/50 pointer-events-none line-clamp-2 text-left shadow-sm"
+              aria-hidden
+            >
+              {taskMeta.label}
+            </span>
+          )}
+          {showCompactTopBadge && (
+            <button
+              type="button"
+              onClick={onAiControlClick}
+              className={`absolute top-2 right-2 max-w-[min(100%,calc(100%-5rem))] px-2 py-1 rounded-md text-[10px] font-black ${taskMeta.className}`}
+              aria-label={taskMeta.label}
+            >
+              <span className="line-clamp-2 text-left">{taskMeta.label}</span>
+            </button>
+          )}
+        </div>
+
+        <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 min-h-[42px] bg-gradient-to-t from-black/92 via-black/78 to-black/40 border-t border-white/12">
+          <span className="text-[11px] font-semibold text-white tabular-nums">{video.duration}</span>
+          <button
+            type="button"
+            disabled={isQueueWaiting || isDurationBlocked}
+            onClick={onAiControlClick}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black border shadow-sm max-w-[min(100%,14rem)] disabled:opacity-90 ${footerButtonClass}`}
+            aria-label={
+              isQueueWaiting
+                ? `${footerCtaLabel} — ${t('gallery.cardCtaQueuedDisabled')}`
+                : isDurationBlocked
+                  ? `${footerCtaLabel} — ${t('gallery.cardCtaNotAnalyzable')}`
+                  : footerCtaLabel
+            }
+          >
+            <Sparkles className="w-3.5 h-3.5 shrink-0 opacity-95" />
+            <span className="truncate text-left">{footerCtaLabel}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const GalleryScreen = () => {
   const {
     t,
@@ -3244,115 +3549,95 @@ const GalleryScreen = () => {
                     ? (liveSoccerStats.teamB as { displayLabel: string }).displayLabel
                     : t(card.teamBNameKey);
                   return (
-                  <button
+                  <div
                     key={card.id}
-                    type="button"
-                    onClick={() => {
-                      if (card.isAnalyzed) {
-                        openAnalyzedResult(card.analysisType, card.videoId);
-                        return;
-                      }
-                      setDetailVideoId(card.videoId);
-                      setDetailFromAnalyzedCard(true);
-                      setDetailAnalyzedType(card.analysisType);
-                    }}
-                    className="relative w-full rounded-xl overflow-hidden border border-emerald-200 bg-white text-left shadow-sm aspect-[16/8.5]"
+                    className="relative w-full rounded-xl overflow-hidden border border-emerald-200 bg-white text-left shadow-sm aspect-[16/8.5] flex flex-col"
                   >
-                    <AssetThumbnail type="video" category="soccer" />
-                    <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/94 via-[#12324A]/78 to-black/52" />
-                    <div className="absolute inset-0 p-3 text-white flex flex-col justify-center">
-                      <div className="flex-1 flex items-center justify-between gap-4">
-                        <div className="min-w-0 flex flex-col items-start gap-0.5">
-                          <span className="text-[12px] font-bold truncate max-w-[100px]">{nameA}</span>
-                          <span className="text-[30px] font-black leading-none">{scoreA}</span>
-                        </div>
-                        <div className="min-w-0 flex flex-col items-end gap-0.5 text-right">
-                          <span className="text-[12px] font-bold truncate max-w-[100px]">{nameB}</span>
-                          <span className="text-[30px] font-black leading-none">{scoreB}</span>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        if (card.isAnalyzed) {
+                          openAnalyzedResult(card.analysisType, card.videoId);
+                          return;
+                        }
+                        setDetailVideoId(card.videoId);
+                        setDetailFromAnalyzedCard(true);
+                        setDetailAnalyzedType(card.analysisType);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          if (card.isAnalyzed) {
+                            openAnalyzedResult(card.analysisType, card.videoId);
+                            return;
+                          }
+                          setDetailVideoId(card.videoId);
+                          setDetailFromAnalyzedCard(true);
+                          setDetailAnalyzedType(card.analysisType);
+                        }
+                      }}
+                      className="relative flex-1 min-h-0 w-full cursor-pointer text-left"
+                    >
+                      <AssetThumbnail type="video" category="soccer" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/94 via-[#12324A]/78 to-black/52" />
+                      <div className="absolute inset-0 p-3 text-white flex flex-col justify-center">
+                        <div className="flex-1 flex items-center justify-between gap-4">
+                          <div className="min-w-0 flex flex-col items-start gap-0.5">
+                            <span className="text-[12px] font-bold truncate max-w-[100px]">{nameA}</span>
+                            <span className="text-[30px] font-black leading-none">{scoreA}</span>
+                          </div>
+                          <div className="min-w-0 flex flex-col items-end gap-0.5 text-right">
+                            <span className="text-[12px] font-bold truncate max-w-[100px]">{nameB}</span>
+                            <span className="text-[30px] font-black leading-none">{scoreB}</span>
+                          </div>
                         </div>
                       </div>
+                      <div className="absolute inset-0 pointer-events-none border border-white/16 rounded-t-xl" />
+                      {card.isAnalyzed && !hasSeenAIGuide && (
+                        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-black bg-orange-500 text-white shadow-sm border border-orange-400/50 flex items-center gap-0.5 pointer-events-none">
+                          <Sparkles className="w-2.5 h-2.5" />
+                          [AI]
+                        </div>
+                      )}
                     </div>
-                    <div className="absolute inset-0 pointer-events-none border border-white/16 rounded-xl" />
-                    {card.isAnalyzed && (
-                      <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-black bg-orange-500 text-white shadow-sm border border-orange-400/50 flex items-center gap-0.5">
-                        <Sparkles className="w-2.5 h-2.5" />
-                        [AI]
+                    {hasSeenAIGuide && card.isAnalyzed && (
+                      <div className="shrink-0 flex items-center justify-end gap-2 px-3 py-2 bg-gradient-to-t from-emerald-950/95 via-emerald-900/90 to-emerald-800/85 border-t border-emerald-600/30">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAnalyzedResult(card.analysisType, card.videoId);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black border border-emerald-400/50 bg-emerald-600 text-white shadow-sm"
+                          aria-label={t('gallery.cardCtaViewReport')}
+                        >
+                          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                          <span>{t('gallery.cardCtaViewReport')}</span>
+                        </button>
                       </div>
                     )}
-                  </button>
+                  </div>
                   );
                 })}
               {group.videos
                 .filter((video) => !successCards.some((card) => card.videoId === video.id))
                 .map((video) => (
-                <button
-                  key={video.id}
-                  type="button"
-                  onClick={() => {
-                    const taskMeta = getVideoTaskMeta(video.id);
-                    if (taskMeta.action === 'view' && taskMeta.task) {
-                      openAnalyzedResult((taskMeta.task.type || 'highlight') as 'highlight' | 'analysis', video.id);
-                      return;
-                    }
-                    if (sourceTab === 'ai_analysis' && taskMeta.action === 'retry') {
-                      openAiDecision(video.id);
-                      return;
-                    }
-                    setDetailVideoId(video.id);
-                    setDetailFromAnalyzedCard(false);
-                  }}
-                  className="relative w-full rounded-xl overflow-hidden aspect-[16/8.5] text-left"
-                >
-                  <AssetThumbnail type="video" category={video.category as 'basketball' | 'soccer'} />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25" />
-                  {hasSeenAIGuide && (() => {
-                    const taskMeta = getVideoTaskMeta(video.id);
-                    const badgeClick = (e: React.MouseEvent) => {
-                      e.stopPropagation();
-                      if (taskMeta.action === 'view') {
-                        openAnalyzedResult((taskMeta.task?.type || 'highlight') as 'highlight' | 'analysis', video.id);
-                        return;
-                      }
-                      if (taskMeta.action === 'progress') {
-                        setSourceTab('ai_analysis');
-                        return;
-                      }
-                      if (taskMeta.action === 'blocked') {
-                        setToastMessage(taskMeta.task?.failureMessage || '当前视频时长超过 150 分钟，暂不支持分析');
-                        setTimeout(() => setToastMessage(null), 2600);
-                        return;
-                      }
-                      openAiDecision(video.id);
-                    };
-                    if (taskMeta.action === 'view') {
-                      return (
-                        <button
-                          type="button"
-                          onClick={badgeClick}
-                          title={t('gallery.viewAnalysis')}
-                          aria-label={t('gallery.viewAnalysis')}
-                          className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-black bg-orange-500 text-white shadow-sm border border-orange-400/50 flex items-center gap-0.5"
-                        >
-                          <Sparkles className="w-2.5 h-2.5" />
-                          [AI]
-                        </button>
-                      );
-                    }
-                    return (
-                      <button
-                        type="button"
-                        onClick={badgeClick}
-                        className={`absolute top-2 right-2 px-2 py-1 rounded-md text-[10px] font-black ${taskMeta.className}`}
-                      >
-                        {taskMeta.label}
-                      </button>
-                    );
-                  })()}
-                  <div className="absolute left-3 right-3 bottom-3 flex items-end justify-end text-white">
-                    <span className="text-[11px] font-semibold">{video.duration}</span>
-                  </div>
-                </button>
-              ))}
+                  <GalleryVideoCard
+                    key={video.id}
+                    video={video}
+                    hasSeenAIGuide={hasSeenAIGuide}
+                    sourceTab={sourceTab}
+                    getVideoTaskMeta={getVideoTaskMeta}
+                    openAnalyzedResult={openAnalyzedResult}
+                    openAiDecision={openAiDecision}
+                    setSourceTab={setSourceTab}
+                    setToastMessage={setToastMessage}
+                    setDetailVideoId={setDetailVideoId}
+                    setDetailFromAnalyzedCard={setDetailFromAnalyzedCard}
+                    t={t}
+                  />
+                ))}
             </div>
             {showLocalAggregate && (
               <div className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-left shadow-sm space-y-2.5">
@@ -3457,43 +3742,107 @@ const GalleryScreen = () => {
               <Download className="w-5 h-5" />
               <span>{t('ui.videoDownload')}</span>
             </button>
-            {hasSeenAIGuide && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (detailFromAnalyzedCard) {
-                    openAnalyzedResult(detailAnalyzedType, detailVideo.id);
-                    return;
-                  }
-                  const taskMeta = getVideoTaskMeta(detailVideo.id);
-                  if (taskMeta.action === 'view') {
-                    openAnalyzedResult((taskMeta.task?.type || 'highlight') as 'highlight' | 'analysis', detailVideo.id);
-                    return;
-                  }
-                  if (taskMeta.action === 'progress') {
-                    setSourceTab('ai_analysis');
-                    setDetailVideoId(null);
-                    return;
-                  }
-                if (taskMeta.action === 'blocked') {
-                  setToastMessage(taskMeta.task?.failureMessage || '当前视频时长超过 150 分钟，暂不支持分析');
-                  setTimeout(() => setToastMessage(null), 2600);
-                  return;
-                }
-                  openAiDecision(detailVideo.id);
-                }}
-                className="flex flex-col items-center gap-1 text-xs text-orange-300"
-                aria-label={getVideoTaskMeta(detailVideo.id).label}
-              >
-                <span className="w-10 h-10 rounded-xl border-2 border-rose-400 bg-black/35 flex flex-col items-center justify-center leading-none">
-                  <Sparkles className="w-3.5 h-3.5 text-orange-300" />
-                  <span className="text-[10px] font-black text-orange-300 mt-0.5">AI</span>
-                </span>
-                {getVideoTaskMeta(detailVideo.id).label !== 'AI' && (
-                  <span>{getVideoTaskMeta(detailVideo.id).label}</span>
-                )}
-              </button>
-            )}
+            {hasSeenAIGuide &&
+              (() => {
+                const detailAiMeta = getVideoTaskMeta(detailVideo.id);
+                const detailAiQueued =
+                  detailAiMeta.action === 'progress' &&
+                  detailAiMeta.task != null &&
+                  detailAiMeta.task.status === 'queued';
+                const detailAiStorageInsufficient =
+                  detailAiMeta.action === 'retry' &&
+                  detailAiMeta.task?.failureCode === 'storage_insufficient';
+                const detailAiDurationBlocked =
+                  detailAiMeta.action === 'blocked' &&
+                  detailAiMeta.task?.failureCode === 'unsupported_video';
+                const detailAiConnectDevice =
+                  detailAiMeta.action === 'blocked' &&
+                  detailAiMeta.task?.failureCode === 'device_disconnected';
+                const detailAiBottomLabel = detailAiStorageInsufficient
+                  ? t('ui.aiEntryLabel')
+                  : detailAiConnectDevice
+                    ? t('ui.aiEntryLabel')
+                    : detailAiMeta.label !== 'AI'
+                      ? detailAiMeta.label
+                      : null;
+                const detailAiForceDisabled = detailAiQueued || detailAiDurationBlocked;
+                /** 连接设备：与默认「AI分析」同级的橙色主视觉，仅用 toast 区分未连接流程 */
+                const detailAiMainTextClass = detailAiForceDisabled ? 'text-slate-500' : 'text-orange-300';
+                const detailAiIconBoxClass = detailAiForceDisabled
+                  ? 'border-slate-600 bg-black/25'
+                  : 'border-rose-400 bg-black/35';
+                const detailAiIconInnerClass = detailAiForceDisabled ? 'text-slate-400' : 'text-orange-300';
+                return (
+                  <button
+                    type="button"
+                    disabled={detailAiForceDisabled}
+                    onClick={() => {
+                      if (detailFromAnalyzedCard) {
+                        openAnalyzedResult(detailAnalyzedType, detailVideo.id);
+                        return;
+                      }
+                      const taskMeta = getVideoTaskMeta(detailVideo.id);
+                      if (taskMeta.action === 'progress' && taskMeta.task?.status === 'queued') {
+                        return;
+                      }
+                      if (taskMeta.action === 'view') {
+                        openAnalyzedResult((taskMeta.task?.type || 'highlight') as 'highlight' | 'analysis', detailVideo.id);
+                        return;
+                      }
+                      if (taskMeta.action === 'progress') {
+                        setSourceTab('ai_analysis');
+                        setDetailVideoId(null);
+                        return;
+                      }
+                      if (taskMeta.action === 'blocked') {
+                        if (taskMeta.task?.failureCode === 'unsupported_video') {
+                          return;
+                        }
+                        if (taskMeta.task?.failureCode === 'device_disconnected') {
+                          setToastMessage(t('gallery.toastConnectDevice'));
+                          setTimeout(() => setToastMessage(null), 2800);
+                          return;
+                        }
+                        setToastMessage(taskMeta.task?.failureMessage || '当前视频时长超过 150 分钟，暂不支持分析');
+                        setTimeout(() => setToastMessage(null), 2600);
+                        return;
+                      }
+                      if (taskMeta.action === 'retry' && taskMeta.task?.failureCode === 'storage_insufficient') {
+                        setToastMessage(t('gallery.toastCloudStorageInsufficient'));
+                        setTimeout(() => setToastMessage(null), 2800);
+                        return;
+                      }
+                      openAiDecision(detailVideo.id);
+                    }}
+                    className={`flex flex-col items-center gap-1 text-xs disabled:cursor-not-allowed ${detailAiMainTextClass}`}
+                    aria-label={
+                      detailAiQueued
+                        ? `${detailAiMeta.label} — ${t('gallery.cardCtaQueuedDisabled')}`
+                        : detailAiDurationBlocked
+                          ? `${detailAiMeta.label} — ${t('gallery.cardCtaNotAnalyzable')}`
+                          : detailAiStorageInsufficient || detailAiConnectDevice
+                            ? t('ui.aiEntryLabel')
+                            : detailAiMeta.label
+                    }
+                  >
+                    <span
+                      className={`w-10 h-10 rounded-xl border-2 flex flex-col items-center justify-center leading-none ${detailAiIconBoxClass}`}
+                    >
+                      <Sparkles className={`w-3.5 h-3.5 ${detailAiIconInnerClass}`} />
+                      <span className={`text-[10px] font-black mt-0.5 ${detailAiIconInnerClass}`}>
+                        AI
+                      </span>
+                    </span>
+                    {detailAiBottomLabel != null && (
+                      <span
+                        className={detailAiForceDisabled ? 'text-slate-500' : 'text-orange-300'}
+                      >
+                        {detailAiBottomLabel}
+                      </span>
+                    )}
+                  </button>
+                );
+              })()}
           </div>
         </div>
       )}
