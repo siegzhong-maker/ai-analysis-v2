@@ -506,6 +506,28 @@ const GALLERY_ANALYSIS_SUCCESS_CARDS = [
   },
 ];
 
+/** 相册赛果与落地页、completeTask 共用，保证同 videoId 列表展示与点入 AI 赛果页一致 */
+function getSoccerMatchPresentationForGalleryVideoId(
+  videoId: number,
+  translate: (key: string) => string
+): { teamAScore: number; teamBScore: number; teamALabel: string; teamBLabel: string } {
+  const card = GALLERY_ANALYSIS_SUCCESS_CARDS.find((c) => c.videoId === videoId);
+  if (card) {
+    return {
+      teamAScore: card.teamAScore,
+      teamBScore: card.teamBScore,
+      teamALabel: translate(card.teamANameKey),
+      teamBLabel: translate(card.teamBNameKey),
+    };
+  }
+  return {
+    teamAScore: videoId % 5,
+    teamBScore: (videoId * 2) % 5,
+    teamALabel: translate('ui.teamA'),
+    teamBLabel: translate('ui.teamB'),
+  };
+}
+
 const UNSUPPORTED_VIDEO_IDS = new Set<number>([202]);
 
 /** 各来源正常流程演示片 ID — 在 Falcon / Local / Cloud / 全部 下列表最顶展示，且不参与按日分组排序 */
@@ -3215,7 +3237,6 @@ function GalleryVideoCard({
   setDetailFromAnalyzedCard,
   t,
 }: GalleryVideoCardProps) {
-  const { liveSoccerStats } = useAppContext();
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwipeDragging, setIsSwipeDragging] = useState(false);
   const swipeTouchRef = useRef<{ startX: number; startY: number; startOffset: number } | null>(null);
@@ -3353,6 +3374,9 @@ function GalleryVideoCard({
     : {};
 
   const showSoccerResultOverlay = taskMeta.action === 'view' && video.category === 'soccer';
+  const gallerySoccerPres = showSoccerResultOverlay
+    ? getSoccerMatchPresentationForGalleryVideoId(video.id, t)
+    : null;
 
   if (!hasSeenAIGuide) {
     return (
@@ -3377,23 +3401,23 @@ function GalleryVideoCard({
               : 'bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25'
           }`}
         />
-        {showSoccerResultOverlay && (
+        {gallerySoccerPres && (
           <div className="absolute inset-0 flex items-center justify-center text-white px-6 sm:px-10 pointer-events-none">
             <div className="flex items-center justify-center gap-8 sm:gap-12 max-w-[min(100%,18rem)] w-full">
               <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
                 <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">
-                  {(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}
+                  {gallerySoccerPres.teamALabel}
                 </span>
                 <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
-                  {liveSoccerStats.teamA.score}
+                  {gallerySoccerPres.teamAScore}
                 </span>
               </div>
               <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
                 <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">
-                  {(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}
+                  {gallerySoccerPres.teamBLabel}
                 </span>
                 <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
-                  {liveSoccerStats.teamB.score}
+                  {gallerySoccerPres.teamBScore}
                 </span>
               </div>
             </div>
@@ -3478,23 +3502,23 @@ function GalleryVideoCard({
                 : 'bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25'
             }`}
           />
-          {showSoccerResultOverlay && (
+          {gallerySoccerPres && (
             <div className="absolute inset-0 flex items-center justify-center text-white px-6 sm:px-10 pointer-events-none">
               <div className="flex items-center justify-center gap-8 sm:gap-12 max-w-[min(100%,18rem)] w-full">
                 <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
                   <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">
-                    {(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}
+                    {gallerySoccerPres.teamALabel}
                   </span>
                   <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
-                    {liveSoccerStats.teamA.score}
+                    {gallerySoccerPres.teamAScore}
                   </span>
                 </div>
                 <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
                   <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">
-                    {(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}
+                    {gallerySoccerPres.teamBLabel}
                   </span>
                   <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
-                    {liveSoccerStats.teamB.score}
+                    {gallerySoccerPres.teamBScore}
                   </span>
                 </div>
               </div>
@@ -3691,24 +3715,10 @@ const GalleryScreen = () => {
     setIsTaskCompleted(true);
     setResultSport('soccer');
     
-    // Update match stats based on the video clicked
     if (videoId) {
-      const card = GALLERY_ANALYSIS_SUCCESS_CARDS.find((c) => c.videoId === videoId);
-      if (card) {
-        updateSoccerMatchPresentation({
-          teamAScore: card.teamAScore,
-          teamBScore: card.teamBScore,
-          teamALabel: t(card.teamANameKey),
-          teamBLabel: t(card.teamBNameKey)
-        });
-      } else {
-        // Fallback for new tasks
-        updateSoccerMatchPresentation({
-          teamAScore: Math.floor(Math.random() * 4),
-          teamBScore: Math.floor(Math.random() * 4),
-          teamALabel: t('ui.teamA'),
-          teamBLabel: t('ui.teamB')
-        });
+      const v = ALL_VIDEOS.find((x) => x.id === videoId);
+      if (v?.category === 'soccer') {
+        updateSoccerMatchPresentation(getSoccerMatchPresentationForGalleryVideoId(videoId, t));
       }
     }
     
@@ -3946,14 +3956,13 @@ const GalleryScreen = () => {
                 .map((card) => {
                   const cardVideo = ALL_VIDEOS.find((video) => video.id === card.videoId);
                   const isSoccerCard = cardVideo?.category === 'soccer';
-                  const scoreA = isSoccerCard ? liveSoccerStats.teamA.score : card.teamAScore;
-                  const scoreB = isSoccerCard ? liveSoccerStats.teamB.score : card.teamBScore;
-                  const nameA = isSoccerCard
-                    ? (liveSoccerStats.teamA as { displayLabel: string }).displayLabel
-                    : t(card.teamANameKey);
-                  const nameB = isSoccerCard
-                    ? (liveSoccerStats.teamB as { displayLabel: string }).displayLabel
-                    : t(card.teamBNameKey);
+                  const pres = isSoccerCard
+                    ? getSoccerMatchPresentationForGalleryVideoId(card.videoId, t)
+                    : null;
+                  const scoreA = pres ? pres.teamAScore : card.teamAScore;
+                  const scoreB = pres ? pres.teamBScore : card.teamBScore;
+                  const nameA = pres ? pres.teamALabel : t(card.teamANameKey);
+                  const nameB = pres ? pres.teamBLabel : t(card.teamBNameKey);
                   return (
                   <div
                     key={card.id}
@@ -8010,24 +8019,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         const videoRow = ALL_VIDEOS.find((v) => v.id === finishing.videoId);
         if (videoRow?.category === 'soccer') {
           queueMicrotask(() => {
-            const card = GALLERY_ANALYSIS_SUCCESS_CARDS.find((c) => c.videoId === finishing.videoId);
-            if (card) {
-              updateSoccerMatchPresentation({
-                teamAScore: card.teamAScore,
-                teamBScore: card.teamBScore,
-                teamALabel: i18n.t(card.teamANameKey),
-                teamBLabel: i18n.t(card.teamBNameKey),
-              });
-            } else {
-              const a = finishing.videoId % 5;
-              const b = (finishing.videoId * 2) % 5;
-              updateSoccerMatchPresentation({
-                teamAScore: a,
-                teamBScore: b,
-                teamALabel: i18n.t('ui.teamA'),
-                teamBLabel: i18n.t('ui.teamB'),
-              });
-            }
+            updateSoccerMatchPresentation(
+              getSoccerMatchPresentationForGalleryVideoId(finishing.videoId, (k) => i18n.t(k))
+            );
           });
         }
       }
