@@ -3637,8 +3637,8 @@ const GalleryScreen = () => {
         updateSoccerMatchPresentation({
           teamAScore: Math.floor(Math.random() * 4),
           teamBScore: Math.floor(Math.random() * 4),
-          teamALabel: t('report.teamA'),
-          teamBLabel: t('report.teamB')
+          teamALabel: t('ui.teamA'),
+          teamBLabel: t('ui.teamB')
         });
       }
     }
