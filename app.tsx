@@ -36,7 +36,7 @@ import {
 
   MessageSquare, Save, User, Users, ChevronDown, Heart, Trash2,
 
-  ArrowDownUp,
+  ArrowDownUp, Info,
 
 } from 'lucide-react';
 
@@ -433,6 +433,10 @@ const TOOLBOX_QUALITY_TEMPLATES: {
 ];
 
 const ALL_VIDEOS = [
+  /** 各来源「正常流程」演示：Falcon/本地 走上传后分析；云端素材已在云端，直出云分析（见 submitAiAnalysis 云分支） */
+  { id: 601, type: 'video', source: 'falcon', dateKey: 'videos.monday', dateSuffix: '08:00', duration: '45:00', labelKey: 'videos.demoNormalFlowFalcon', category: 'soccer', device: 'Falcon' },
+  { id: 602, type: 'video', source: 'local', dateKey: 'videos.monday', dateSuffix: '08:05', duration: '45:00', labelKey: 'videos.demoNormalFlowLocal', category: 'soccer' },
+  { id: 603, type: 'video', source: 'cloud', dateKey: 'videos.monday', dateSuffix: '08:10', duration: '45:00', labelKey: 'videos.demoNormalFlowCloud', category: 'soccer' },
   { id: 401, type: 'video', source: 'falcon', dateKey: 'videos.monday', dateSuffix: '09:00', duration: '90:00', labelKey: 'videos.firstHalf', category: 'soccer' },
   { id: 402, type: 'video', source: 'local', dateKey: 'videos.monday', dateSuffix: '14:00', duration: '12:40', labelKey: 'videos.firstHalf', category: 'soccer' },
   { id: 403, type: 'video', source: 'local', dateKey: 'videos.monday', dateSuffix: '14:15', duration: '22:15', labelKey: 'videos.secondHalf', category: 'soccer' },
@@ -503,6 +507,28 @@ const GALLERY_ANALYSIS_SUCCESS_CARDS = [
 ];
 
 const UNSUPPORTED_VIDEO_IDS = new Set<number>([202]);
+
+/** 各来源正常流程演示片 ID — 在 Falcon / Local / Cloud / 全部 下列表最顶展示，且不参与按日分组排序 */
+const GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER: { falcon: number; local: number; cloud: number } = {
+  falcon: 601,
+  local: 602,
+  cloud: 603,
+};
+
+const getGalleryPinnedDemoIds = (tab: VideoSource | 'ai_analysis'): number[] => {
+  if (tab === 'ai_analysis') return [];
+  if (tab === 'all') {
+    return [
+      GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.falcon,
+      GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.local,
+      GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.cloud,
+    ];
+  }
+  if (tab === 'falcon') return [GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.falcon];
+  if (tab === 'local') return [GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.local];
+  if (tab === 'cloud') return [GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.cloud];
+  return [];
+};
 
 const MATCH_TIME_WINDOW_MINUTES = 4 * 60;
 
@@ -723,7 +749,7 @@ const AssetThumbnail = ({ type, category }: { type: string, category: string }) 
 };
 
 /** 传输弹层 / 最小化条 / 任务中心卡片：各技术路线共用的一套展示规则（纯函数）。混合路线四段式仍为 25/50/75/100；选「云端深析」时与第三条 falcon_direct_cloud 共用三节点与 50/50/100 进度语义。 */
-type TransferPipelineLayout = 'edge_chip' | 'falcon_three' | 'falcon_four';
+type TransferPipelineLayout = 'edge_chip' | 'falcon_three' | 'falcon_four' | 'cloud_two';
 
 type FloatingMinimizedIcon = 'alert' | 'paused' | 'cpu' | 'download' | 'upload' | 'sparkles';
 
@@ -734,6 +760,7 @@ type TaskCenterCardTone = 'red' | 'orange' | 'emerald' | 'blue';
 function getTransferPipelinePresentation(args: {
   analysisPipeline: AnalysisPipeline;
   transferStep: TransferStep;
+  transferProgress: number;
   transferSource: 'falcon' | 'local' | 'cloud' | null;
   hybridPastEdge: boolean;
   hybridLocalOnlyThisRun: boolean;
@@ -744,6 +771,7 @@ function getTransferPipelinePresentation(args: {
   const {
     analysisPipeline,
     transferStep,
+    transferProgress,
     transferSource,
     hybridPastEdge,
     hybridLocalOnlyThisRun,
@@ -768,11 +796,17 @@ function getTransferPipelinePresentation(args: {
   const sourceUsesDirectCloudUpload = transferSource === 'falcon';
   const sourceUsesThreeNodeUpload = transferSource === 'falcon' || transferSource === 'local';
 
+  /** 云端侧素材直出：不经 Falcon/App，只展示 云端 → AI */
+  const isCloudDirectLayout =
+    transferSource === 'cloud' && !showEdgeChipLayout && !hybridCloudDeepAsDirectCloud;
+
   const layout: TransferPipelineLayout = showEdgeChipLayout
     ? 'edge_chip'
-    : sourceUsesThreeNodeUpload || hybridCloudDeepAsDirectCloud
-      ? 'falcon_three'
-      : 'falcon_four';
+    : isCloudDirectLayout
+      ? 'cloud_two'
+      : sourceUsesThreeNodeUpload || hybridCloudDeepAsDirectCloud
+        ? 'falcon_three'
+        : 'falcon_four';
 
   const thirdColumnIsEdge =
     analysisPipeline === 'on_device' ||
@@ -781,8 +815,15 @@ function getTransferPipelinePresentation(args: {
   const directCloudStyleProgress =
     transferStep === 'uploading' ? '50%' : transferStep === 'analyzing' ? '100%' : '50%';
 
-  const progressLineWidth =
-    hybridCloudDeepAsDirectCloud
+  const progressLineWidth = isCloudDirectLayout
+    ? isFailed || isPaused
+      ? '100%'
+      : isAnalyzing
+        ? transferProgress < 50
+          ? '50%'
+          : '100%'
+        : '0%'
+    : hybridCloudDeepAsDirectCloud
       ? directCloudStyleProgress
       : analysisPipeline === 'edge_cloud_hybrid'
         ? transferStep === 'downloading'
@@ -980,7 +1021,8 @@ const TransferOverlay = () => {
    const pipe = getTransferPipelinePresentation({
      analysisPipeline,
      transferStep,
-    transferSource: hybridSourceMedia,
+     transferProgress,
+     transferSource: hybridSourceMedia,
      hybridPastEdge,
      hybridLocalOnlyThisRun,
      hybridCloudDeepThisRun,
@@ -1126,8 +1168,60 @@ const TransferOverlay = () => {
                </div>
 
             </div>
+            ) : pipe.layout === 'cloud_two' ? (
+            <div className="flex items-center justify-between px-6 mb-8 relative w-full max-w-[220px] mx-auto">
+               <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-slate-700 -z-10" />
+               <div
+                 className={`absolute left-0 h-0.5 transition-all duration-1000 -z-10 ${
+                   isFailed ? 'bg-red-500' : isPaused ? 'bg-yellow-500' : 'bg-blue-500'
+                 }`}
+                 style={{ width: pipe.progressLineWidth }}
+               />
+               <div
+                 className={`flex flex-col items-center gap-2 ${
+                   isFailed
+                     ? 'opacity-100 scale-110'
+                     : isPaused
+                       ? 'opacity-100'
+                       : isAnalyzing && transferProgress < 50
+                         ? 'opacity-100 scale-110'
+                         : isAnalyzing && transferProgress >= 50
+                           ? 'opacity-60'
+                           : 'opacity-60'
+                 }`}
+               >
+                 <div
+                   className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
+                     isFailed
+                       ? 'bg-red-500 border-red-400 text-white'
+                       : isAnalyzing && transferProgress < 50
+                         ? 'bg-orange-500 border-orange-400 text-white animate-pulse'
+                         : 'bg-slate-800 border-slate-600 text-slate-400'
+                   }`}
+                 >
+                   {isFailed ? <X className="w-4 h-4" /> : <Cloud className="w-3 h-3" />}
+                 </div>
+                 <span className="text-[8px] text-slate-400">{t('ui.pipelineCloudNode')}</span>
+               </div>
+               <div
+                 className={`flex flex-col items-center gap-2 ${
+                   isFailed ? 'opacity-40' : isAnalyzing && transferProgress >= 50 ? 'opacity-100 scale-110' : 'opacity-40'
+                 }`}
+               >
+                 <div
+                   className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${
+                     isAnalyzing && transferProgress >= 50 && !isFailed
+                       ? 'bg-purple-600 border-purple-400 text-white'
+                       : 'bg-slate-800 border-slate-600 text-slate-400'
+                   }`}
+                 >
+                   <Sparkles className="w-3 h-3" />
+                 </div>
+                 <span className="text-[8px] text-slate-400">AI</span>
+               </div>
+            </div>
             ) : (
-            /* Icons row */
+            /* Icons row — Falcon / App / 云端 / AI */
 
             <div className="flex items-center justify-between px-2 mb-8 relative">
 
@@ -1304,6 +1398,7 @@ const FloatingProgress = () => {
   const fp = getTransferPipelinePresentation({
     analysisPipeline,
     transferStep,
+    transferProgress,
     transferSource: hybridSourceMedia,
     hybridPastEdge,
     hybridLocalOnlyThisRun,
@@ -1883,6 +1978,52 @@ const TechRouteToggle = () => {
   );
 };
 
+const GalleryFlowModeToggle = () => {
+  const { t, galleryListFlowMode, setGalleryListFlowMode } = useAppContext();
+  const isFull = galleryListFlowMode === 'full';
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={isFull}
+      title={t('gallery.flowModeHint')}
+      aria-label={
+        isFull
+          ? `${t('gallery.flowFull')}。${t('gallery.flowModeHint')}`
+          : `${t('gallery.flowNormal')}。${t('gallery.flowModeHint')}`
+      }
+      onClick={() => setGalleryListFlowMode(isFull ? 'normal' : 'full')}
+      className={[
+        'relative h-8 w-32 shrink-0 overflow-hidden rounded-full p-0',
+        'transition-[background-color] duration-200 ease-out',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#34C759]/60',
+        isFull ? 'bg-[#34C759]' : 'bg-[#E9E9EA]',
+      ].join(' ')}
+    >
+      <span
+        className={[
+          'pointer-events-none absolute top-[2px] left-[2px] z-20 h-[26px] w-[26px] rounded-full bg-white',
+          'shadow-[0_2px_4px_rgba(0,0,0,0.12),0_1px_0_rgba(0,0,0,0.04)]',
+          'transition-transform duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-transform',
+          isFull ? 'translate-x-24' : 'translate-x-0',
+        ].join(' ')}
+      />
+      <span
+        className={[
+          'pointer-events-none absolute inset-0 z-10 flex items-center',
+          'text-[13px] font-medium leading-none tracking-[-0.01em] antialiased',
+          'pl-2.5 pr-2.5',
+          isFull
+            ? 'justify-start text-white/95'
+            : 'justify-end text-slate-900',
+        ].join(' ')}
+      >
+        {isFull ? t('gallery.flowFull') : t('gallery.flowNormal')}
+      </span>
+    </button>
+  );
+};
+
 // --- Player Selector Modal Component ---
 const PlayerSelectorModal = () => {
   const {
@@ -2134,6 +2275,7 @@ const TaskCenterScreen = () => {
       ? getTransferPipelinePresentation({
           analysisPipeline,
           transferStep,
+          transferProgress,
           transferSource: hybridSourceMedia,
           hybridPastEdge,
           hybridLocalOnlyThisRun,
@@ -2594,7 +2736,7 @@ const TaskCenterScreen = () => {
 
 const MediaPickerScreen = () => {
 
-  const { t, popView, targetAnalysisType, setSportType, handleSelect, handleNext, selectedMedia, sportType, submitAiAnalysis } = useAppContext();
+  const { t, popView, targetAnalysisType, setSportType, handleSelect, handleNext, selectedMedia, sportType, submitAiAnalysis, cloudTasks } = useAppContext();
   const [aiDecisionPayload, setAiDecisionPayload] = useState<{ videoId: number; relatedIds: number[]; origin: 'gallery_badge' | 'video_detail' } | null>(null);
   const [detailVideoId, setDetailVideoId] = useState<number | null>(null);
 
@@ -2628,6 +2770,12 @@ const MediaPickerScreen = () => {
     }));
   }, [filteredBySport]);
   const detailVideo = detailVideoId != null ? ALL_VIDEOS.find((video) => video.id === detailVideoId) : null;
+
+  const mediaPickerTaskMap = React.useMemo(() => buildLatestTaskByVideoId(cloudTasks), [cloudTasks]);
+  const getVideoTaskMeta = React.useCallback(
+    (videoId: number) => computeVideoTaskMeta(mediaPickerTaskMap, videoId, t),
+    [mediaPickerTaskMap, t]
+  );
 
   const openAiDecision = (videoId: number, origin: 'gallery_badge' | 'video_detail') => {
     submitAiAnalysis([videoId], origin, 'single');
@@ -2725,14 +2873,41 @@ const MediaPickerScreen = () => {
                 );
               })}
               {group.videos.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => submitAiAnalysis(group.videos.map((video) => video.id), 'gallery_aggregate', 'merge')}
-                  className="w-full rounded-xl border border-orange-400/40 bg-orange-500/15 px-3 py-2 text-left"
-                >
-                  <p className="text-xs font-bold text-orange-300">{t('ui.aiAggregateCardTitle', { count: group.videos.length })}</p>
-                  <p className="text-[10px] text-orange-100/80 mt-1">{t('ui.aiAggregateCardDesc')}</p>
-                </button>
+                <div className="w-full rounded-xl border border-orange-400/40 bg-orange-500/15 px-3 py-2.5 text-left space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-orange-300">
+                        {t('ui.aiAggregateCardTitle', { count: group.videos.length })}
+                      </p>
+                      <p className="text-[10px] text-orange-100/80 mt-0.5">{t('ui.aiAggregateCardDesc')}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        submitAiAnalysis(
+                          group.videos.map((video) => video.id),
+                          'gallery_aggregate',
+                          'merge'
+                        )
+                      }
+                      className="px-2 py-1 rounded-full bg-orange-500 text-white text-[10px] font-bold shrink-0"
+                    >
+                      {t('ui.aiAnalyzeMergeRecommended', { count: group.videos.length })}
+                    </button>
+                  </div>
+                  <AggregateClipStrip
+                    videos={group.videos}
+                    getVideoTaskMeta={getVideoTaskMeta}
+                    variant="dark"
+                    t={t}
+                    onActivate={(video) => {
+                      setDetailVideoId(video.id);
+                    }}
+                    onOpenDetail={(video) => {
+                      setDetailVideoId(video.id);
+                    }}
+                  />
+                </div>
               )}
             </section>
           ))}
@@ -2845,6 +3020,174 @@ type GalleryCardTaskMeta = {
   action: 'start' | 'view' | 'progress' | 'retry' | 'blocked';
 };
 
+function buildLatestTaskByVideoId(cloudTasks: CloudTask[] | undefined): Map<number, CloudTask> {
+  const sorted = [...(cloudTasks || [])].sort((a, b) => b.createdAt - a.createdAt);
+  const map = new Map<number, CloudTask>();
+  for (const task of sorted) {
+    if (!map.has(task.videoId)) map.set(task.videoId, task);
+  }
+  return map;
+}
+
+function computeVideoTaskMeta(
+  latestTaskByVideoId: Map<number, CloudTask>,
+  videoId: number,
+  t: (key: string, options?: Record<string, unknown>) => string
+): GalleryCardTaskMeta {
+  const listVideo = ALL_VIDEOS.find((v) => v.id === videoId);
+  const isCloudListVideo = listVideo != null && listVideo.type === 'video' && listVideo.source === 'cloud';
+  const task = latestTaskByVideoId.get(videoId);
+  if (!task) return { task: null, label: t('gallery.taskCtaAi'), className: 'bg-orange-500 text-white', action: 'start' };
+  if (task.status === 'completed') return { task, label: t('gallery.viewAnalysis'), className: 'bg-emerald-500 text-white', action: 'view' };
+  if (task.status === 'failed') {
+    if (task.failureCode === 'unsupported_video') {
+      return { task, label: t('gallery.taskNotAnalyzableDuration'), className: 'bg-slate-500 text-white', action: 'blocked' };
+    }
+    if (task.failureCode === 'queue_timeout') {
+      return { task, label: t('gallery.taskRequeue'), className: 'bg-rose-500 text-white', action: 'retry' };
+    }
+    if (task.failureCode === 'storage_insufficient') {
+      return { task, label: t('gallery.taskRetryAfterCloudCleanup'), className: 'bg-rose-500 text-white', action: 'retry' };
+    }
+    if (task.failureCode === 'analyze_failed') {
+      return { task, label: t('gallery.taskAnalyzeFailedRetry'), className: 'bg-rose-500 text-white', action: 'retry' };
+    }
+    return { task, label: t('ui.retry'), className: 'bg-rose-500 text-white', action: 'retry' };
+  }
+  if (task.status === 'paused') {
+    if (task.failureCode === 'upload_interrupted' || task.failureCode === 'network_interrupted') {
+      return { task, label: t('gallery.taskRetryUpload'), className: 'bg-amber-500 text-white', action: 'retry' };
+    }
+    if (task.failureCode === 'device_disconnected') {
+      return { task, label: t('gallery.taskConnectDevice'), className: 'bg-amber-500 text-white', action: 'blocked' };
+    }
+    return { task, label: t('ui.paused'), className: 'bg-amber-500 text-white', action: 'progress' };
+  }
+  if (task.status === 'queued') {
+    const queueLabel =
+      task.queuePosition && task.queuePosition > 0
+        ? t('gallery.taskQueuedAhead', { count: task.queuePosition })
+        : t('ui.cloudStatus_queued');
+    return { task, label: queueLabel, className: 'bg-slate-700 text-white', action: 'progress' };
+  }
+  if (task.status === 'uploading') {
+    if (isCloudListVideo) {
+      return { task, label: t('ui.analyzing'), className: 'bg-blue-600 text-white', action: 'progress' };
+    }
+    return {
+      task,
+      label: t('ui.cloudStatus_uploading'),
+      className: 'bg-slate-800/90 text-white',
+      action: 'progress',
+    };
+  }
+  if (task.status === 'analyzing') {
+    if (isCloudListVideo) {
+      return { task, label: t('ui.analyzing'), className: 'bg-blue-600 text-white', action: 'progress' };
+    }
+    return {
+      task,
+      label: t('ui.analyzing'),
+      className: 'bg-blue-600 text-white',
+      action: 'progress',
+    };
+  }
+  return {
+    task,
+    label: t('ui.analyzing'),
+    className: 'bg-blue-600 text-white',
+    action: 'progress',
+  };
+}
+
+function isAbnormalGalleryCard(meta: GalleryCardTaskMeta): boolean {
+  /** 正常流程列表仍应展示进行中的云任务；仅隐藏重试/阻断等边界态（全流程下完整展示） */
+  return meta.action === 'retry' || meta.action === 'blocked';
+}
+
+type AggregateStripItem = { id: number; category: string; duration: string };
+
+function AggregateClipStrip({
+  videos,
+  getVideoTaskMeta,
+  onActivate,
+  onOpenDetail,
+  t,
+  variant,
+}: {
+  videos: AggregateStripItem[];
+  getVideoTaskMeta: (videoId: number) => GalleryCardTaskMeta;
+  onActivate: (video: AggregateStripItem) => void;
+  onOpenDetail: (video: AggregateStripItem) => void;
+  t: (key: string, options?: Record<string, unknown>) => string;
+  variant: 'light' | 'dark';
+}) {
+  const isLight = variant === 'light';
+  return (
+    <div className="space-y-1">
+      <div role="list" className="flex gap-2 overflow-x-auto scrollbar-hide -mx-0.5 px-0.5 py-0.5">
+        {videos.map((video, idx) => {
+          const meta = getVideoTaskMeta(video.id);
+          const showBadge = meta.action !== 'start';
+          return (
+            <div
+              key={video.id}
+              role="listitem"
+              className={`relative shrink-0 w-[min(42vw,9.5rem)] rounded-lg overflow-hidden aspect-[16/10] ${
+                isLight ? 'ring-1 ring-slate-200 shadow-sm' : 'ring-1 ring-white/12'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => onActivate(video)}
+                className="absolute inset-0 w-full h-full"
+                aria-label={t('ui.aggregateClipAria', {
+                  index: idx + 1,
+                  total: videos.length,
+                  duration: video.duration,
+                })}
+              >
+                <AssetThumbnail type="video" category={video.category} />
+                <div
+                  className={`absolute inset-0 pointer-events-none ${
+                    isLight ? 'bg-gradient-to-t from-black/45 to-black/5' : 'bg-gradient-to-t from-black/55 to-black/5'
+                  }`}
+                />
+                <div className="absolute right-1.5 bottom-1 text-[9px] font-semibold text-white tabular-nums drop-shadow">
+                  {video.duration}
+                </div>
+                {showBadge && (
+                  <span
+                    className={`absolute top-1 left-1 right-7 max-w-[calc(100%-1.75rem)] px-1 py-0.5 rounded text-[8px] font-bold leading-tight text-left line-clamp-2 ${meta.className}`}
+                  >
+                    {meta.label}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenDetail(video);
+                }}
+                className={`absolute top-1 right-1 w-6 h-6 rounded-md flex items-center justify-center z-[1] ${
+                  isLight ? 'bg-white/95 text-slate-700 shadow' : 'bg-black/60 text-white border border-white/20'
+                }`}
+                aria-label={t('ui.aggregateClipDetail')}
+              >
+                <Info className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {videos.length > 1 && (
+        <p className={`text-[9px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>{t('ui.aggregateScrollHint')}</p>
+      )}
+    </div>
+  );
+}
+
 type GalleryVideoCardProps = {
   video: GalleryListVideoItem;
   hasSeenAIGuide: boolean;
@@ -2905,7 +3248,7 @@ function GalleryVideoCard({
         setTimeout(() => setToastMessage(null), 2800);
         return;
       }
-      setToastMessage(taskMeta.task?.failureMessage || '当前视频时长超过 150 分钟，暂不支持分析');
+      setToastMessage(taskMeta.task?.failureMessage || t('gallery.errVideoTooLong'));
       setTimeout(() => setToastMessage(null), 2600);
       return;
     }
@@ -2937,7 +3280,7 @@ function GalleryVideoCard({
 
   const footerCtaLabel =
     taskMeta.action === 'start'
-      ? t('gallery.cardCtaStartReport')
+      ? t('ui.aiEntryLabel')
       : taskMeta.action === 'view'
         ? t('gallery.viewAnalysis')
         : isConnectDeviceBlocked || isStorageInsufficientRetry
@@ -2951,12 +3294,18 @@ function GalleryVideoCard({
     setSwipeOffset(0);
   };
 
+  const isCloudListVideo = ALL_VIDEOS.find((v) => v.id === video.id && v.type === 'video')?.source === 'cloud';
+  const progressUploading =
+    taskMeta.action === 'progress' && taskMeta.task?.status === 'uploading' && !isCloudListVideo;
+
   const footerButtonClass = isQueueWaiting || isDurationBlocked
     ? 'bg-slate-500/55 text-slate-200 border-slate-400/25 cursor-not-allowed'
     : taskMeta.action === 'view'
       ? 'bg-emerald-600 text-white border-emerald-400/40'
       : taskMeta.action === 'progress'
-        ? 'bg-blue-600 text-white border-blue-400/40'
+        ? progressUploading
+          ? 'bg-slate-900/80 text-white border border-white/15'
+          : 'bg-blue-600 text-white border-blue-400/40'
         : taskMeta.action === 'blocked'
           ? isConnectDeviceBlocked
             ? 'bg-orange-500 text-white border-orange-400/50'
@@ -2966,9 +3315,6 @@ function GalleryVideoCard({
               ? 'bg-orange-500 text-white border-orange-400/50'
               : 'bg-rose-600 text-white border-rose-400/40'
             : 'bg-orange-500 text-white border-orange-400/50';
-
-  /** 异常态（重试/不可分析）仅依赖底栏 CTA，不再叠右上角角标；排队中仅展示只读条，不拦截点进详情 */
-  const showCompactTopBadge = hasSeenAIGuide && taskMeta.action === 'progress' && !isQueueWaiting;
 
   const swipeThumbHandlers = hasSeenAIGuide
     ? {
@@ -3062,7 +3408,7 @@ function GalleryVideoCard({
             }
           >
             <Sparkles className="w-5 h-5" />
-            <span className="text-[9px] font-black leading-tight text-center">AI</span>
+            <span className="text-[9px] font-black leading-tight text-center">{t('gallery.badgeAiShort')}</span>
           </button>
           <span className="text-[7px] font-semibold text-white/85 text-center leading-tight px-0.5">
             {t('gallery.cardCtaSwipeHint')}
@@ -3091,24 +3437,6 @@ function GalleryVideoCard({
         >
           <AssetThumbnail type="video" category={video.category} />
           <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25" />
-          {hasSeenAIGuide && isQueueWaiting && (
-            <span
-              className="absolute top-2 right-2 max-w-[min(100%,calc(100%-5rem))] px-2 py-1 rounded-md text-[10px] font-black bg-slate-600/95 text-slate-100 border border-slate-500/50 pointer-events-none line-clamp-2 text-left shadow-sm"
-              aria-hidden
-            >
-              {taskMeta.label}
-            </span>
-          )}
-          {showCompactTopBadge && (
-            <button
-              type="button"
-              onClick={onAiControlClick}
-              className={`absolute top-2 right-2 max-w-[min(100%,calc(100%-5rem))] px-2 py-1 rounded-md text-[10px] font-black ${taskMeta.className}`}
-              aria-label={taskMeta.label}
-            >
-              <span className="line-clamp-2 text-left">{taskMeta.label}</span>
-            </button>
-          )}
         </div>
 
         <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 min-h-[42px] bg-gradient-to-t from-black/92 via-black/78 to-black/40 border-t border-white/12">
@@ -3136,9 +3464,9 @@ function GalleryVideoCard({
 }
 
 const GalleryScreen = () => {
+  const { t } = useTranslation();
   const {
-    t,
-    popView,
+    popToHome,
     pushView,
     setTargetAnalysisType,
     setAiMode,
@@ -3153,6 +3481,7 @@ const GalleryScreen = () => {
     setGalleryHybridDemoView,
     liveSoccerStats,
     updateSoccerMatchPresentation,
+    galleryListFlowMode,
   } = useAppContext();
   const [hasSeenAIGuide, setHasSeenAIGuide] = useState(
     typeof localStorage !== 'undefined' ? localStorage.getItem('hasSeenAIGuide') === 'true' : false
@@ -3178,55 +3507,19 @@ const GalleryScreen = () => {
     };
   }, [sourceTab, typeTab, detailVideoId]);
 
-  const latestTaskByVideoId = React.useMemo(() => {
-    const sorted = [...(cloudTasks || [])].sort((a: CloudTask, b: CloudTask) => b.createdAt - a.createdAt);
-    const map = new Map<number, CloudTask>();
-    sorted.forEach((task: CloudTask) => {
-      if (!map.has(task.videoId)) map.set(task.videoId, task);
-    });
-    return map;
-  }, [cloudTasks]);
+  const latestTaskByVideoId = React.useMemo(() => buildLatestTaskByVideoId(cloudTasks), [cloudTasks]);
 
-  const getVideoTaskMeta = React.useCallback((videoId: number) => {
-    const task = latestTaskByVideoId.get(videoId);
-    if (!task) return { task: null as CloudTask | null, label: 'AI', className: 'bg-orange-500 text-white', action: 'start' as const };
-    if (task.status === 'completed') return { task, label: t('gallery.viewAnalysis'), className: 'bg-emerald-500 text-white', action: 'view' as const };
-    if (task.status === 'failed') {
-      if (task.failureCode === 'unsupported_video') {
-        return { task, label: '超时长不可分析', className: 'bg-slate-500 text-white', action: 'blocked' as const };
-      }
-      if (task.failureCode === 'queue_timeout') {
-        return { task, label: '重新排队', className: 'bg-rose-500 text-white', action: 'retry' as const };
-      }
-      if (task.failureCode === 'storage_insufficient') {
-        return { task, label: '清理云端后重试', className: 'bg-rose-500 text-white', action: 'retry' as const };
-      }
-      if (task.failureCode === 'analyze_failed') {
-        return { task, label: '分析失败，重试', className: 'bg-rose-500 text-white', action: 'retry' as const };
-      }
-      return { task, label: t('ui.retry'), className: 'bg-rose-500 text-white', action: 'retry' as const };
-    }
-    if (task.status === 'paused') {
-      if (task.failureCode === 'upload_interrupted' || task.failureCode === 'network_interrupted') {
-        return { task, label: '重试上传', className: 'bg-amber-500 text-white', action: 'retry' as const };
-      }
-      if (task.failureCode === 'device_disconnected') {
-        return { task, label: '连接设备', className: 'bg-amber-500 text-white', action: 'blocked' as const };
-      }
-      return { task, label: t('ui.paused'), className: 'bg-amber-500 text-white', action: 'progress' as const };
-    }
-    if (task.status === 'queued') {
-      const queueLabel = task.queuePosition && task.queuePosition > 0
-        ? `排队中（前方${task.queuePosition}个）`
-        : t('ui.cloudStatus_queued');
-      return { task, label: queueLabel, className: 'bg-slate-700 text-white', action: 'progress' as const };
-    }
-    return { task, label: `${t('ui.analyzing')} ${Math.round(task.progress)}%`, className: 'bg-blue-600 text-white', action: 'progress' as const };
-  }, [latestTaskByVideoId]);
+  const getVideoTaskMeta = React.useCallback(
+    (videoId: number) => computeVideoTaskMeta(latestTaskByVideoId, videoId, t),
+    [latestTaskByVideoId, t]
+  );
 
   const soccerVideos = React.useMemo(() => {
     const bySport = ALL_VIDEOS.filter((video) => video.category === 'soccer');
     const filtered = bySport.filter((video) => {
+      if (galleryListFlowMode === 'normal' && isAbnormalGalleryCard(getVideoTaskMeta(video.id))) {
+        return false;
+      }
       if (sourceTab === 'ai_analysis') {
         const hasSuccessCard = GALLERY_ANALYSIS_SUCCESS_CARDS.some((card) => card.videoId === video.id);
         const taskMeta = getVideoTaskMeta(video.id);
@@ -3267,10 +3560,26 @@ const GalleryScreen = () => {
       if (aTaskCreatedAt !== bTaskCreatedAt) return bTaskCreatedAt - aTaskCreatedAt;
       return (b.dateSuffix || '').localeCompare(a.dateSuffix || '');
     });
-  }, [sourceTab, typeTab, aiAnalysisFilter, getVideoTaskMeta]);
+  }, [sourceTab, typeTab, aiAnalysisFilter, getVideoTaskMeta, galleryListFlowMode]);
+
+  const galleryPinnedDemoIdOrder = React.useMemo(() => getGalleryPinnedDemoIds(sourceTab), [sourceTab]);
+
+  const soccerVideosForGrouping = React.useMemo(() => {
+    if (galleryPinnedDemoIdOrder.length === 0) return soccerVideos;
+    const drop = new Set(galleryPinnedDemoIdOrder);
+    return soccerVideos.filter((v) => !drop.has(v.id));
+  }, [soccerVideos, galleryPinnedDemoIdOrder]);
+
+  const pinnedNormalFlowVideos = React.useMemo(() => {
+    if (galleryPinnedDemoIdOrder.length === 0) return [];
+    return galleryPinnedDemoIdOrder
+      .map((id) => soccerVideos.find((v) => v.id === id))
+      .filter((v): v is (typeof soccerVideos)[number] => v != null);
+  }, [soccerVideos, galleryPinnedDemoIdOrder]);
+
   const groupedVideos = React.useMemo(() => {
-    const groups = new Map<string, typeof soccerVideos>();
-    soccerVideos.forEach((video) => {
+    const groups = new Map<string, typeof soccerVideosForGrouping>();
+    soccerVideosForGrouping.forEach((video) => {
       const key = String((video as any).dateKey);
       const existing = groups.get(key) || [];
       existing.push(video);
@@ -3286,19 +3595,26 @@ const GalleryScreen = () => {
         const bTop = b.videos[0]?.dateSuffix || '';
         return bTop.localeCompare(aTop);
       });
-  }, [soccerVideos]);
+  }, [soccerVideosForGrouping]);
   const successCards = React.useMemo(() => {
     if (!hasSeenAIGuide) return [];
+    let list: typeof GALLERY_ANALYSIS_SUCCESS_CARDS;
     if (sourceTab === 'ai_analysis') {
       if (aiAnalysisFilter === 'in_progress' || aiAnalysisFilter === 'failed') return [];
-      return GALLERY_ANALYSIS_SUCCESS_CARDS;
+      list = [...GALLERY_ANALYSIS_SUCCESS_CARDS];
+    } else if (!(typeTab === 'all' || typeTab === 'video')) {
+      return [];
+    } else {
+      list = GALLERY_ANALYSIS_SUCCESS_CARDS.filter((card) => {
+        if (sourceTab !== 'all' && card.source !== sourceTab) return false;
+        return true;
+      });
     }
-    if (!(typeTab === 'all' || typeTab === 'video')) return [];
-    return GALLERY_ANALYSIS_SUCCESS_CARDS.filter((card) => {
-      if (sourceTab !== 'all' && card.source !== sourceTab) return false;
-      return true;
-    });
-  }, [sourceTab, typeTab, aiAnalysisFilter, hasSeenAIGuide]);
+    if (galleryListFlowMode === 'normal') {
+      return list.filter((card) => !isAbnormalGalleryCard(getVideoTaskMeta(card.videoId)));
+    }
+    return list;
+  }, [sourceTab, typeTab, aiAnalysisFilter, hasSeenAIGuide, galleryListFlowMode, getVideoTaskMeta]);
 
   const openAnalyzedResult = (analysisType: 'highlight' | 'analysis', videoId?: number) => {
     setTargetAnalysisType(analysisType);
@@ -3370,9 +3686,9 @@ const GalleryScreen = () => {
       <div className="pt-10 px-4 pb-3 bg-white border-b border-slate-100">
         <div className="flex items-center gap-3 mb-3">
           {([
-            { id: 'falcon', label: 'Falcon' },
-            { id: 'local', label: 'Local' },
-            { id: 'cloud', label: 'Cloud' },
+            { id: 'falcon', label: t('gallery.sourceTabFalcon') },
+            { id: 'local', label: t('gallery.sourceTabLocal') },
+            { id: 'cloud', label: t('gallery.sourceTabCloud') },
             ...(hasSeenAIGuide ? [{ id: 'ai_analysis', label: t('ui.aiEntryLabel') }] : []),
           ] as const).map((item) => (
             <button
@@ -3394,7 +3710,7 @@ const GalleryScreen = () => {
                   if (sourceTab === 'ai_analysis') setSourceTab('falcon');
                 }}
                 className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center"
-                title="恢复初始状态"
+                title={t('gallery.resetInitialStateTitle')}
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
@@ -3457,7 +3773,7 @@ const GalleryScreen = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-5">
-        {analysisPipeline === 'edge_cloud_hybrid' && (
+        {galleryListFlowMode === 'full' && analysisPipeline === 'edge_cloud_hybrid' && (
           <section className="space-y-2">
             <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide px-0.5">
               {t('gallery.hybridRouteSectionTitle')}
@@ -3520,14 +3836,35 @@ const GalleryScreen = () => {
             </div>
           </section>
         )}
-        {groupedVideos.length === 0 && (
+        {soccerVideos.length === 0 && (
           <div className="text-center text-slate-400 text-sm py-10">{t('ui.pickerNoMatches')}</div>
+        )}
+        {pinnedNormalFlowVideos.length > 0 && (
+          <section className="space-y-3 mb-1">
+            {pinnedNormalFlowVideos.map((video) => (
+              <GalleryVideoCard
+                key={`pinned-flow-${video.id}`}
+                video={video}
+                hasSeenAIGuide={hasSeenAIGuide}
+                sourceTab={sourceTab}
+                getVideoTaskMeta={getVideoTaskMeta}
+                openAnalyzedResult={openAnalyzedResult}
+                openAiDecision={openAiDecision}
+                setSourceTab={setSourceTab}
+                setToastMessage={setToastMessage}
+                setDetailVideoId={setDetailVideoId}
+                setDetailFromAnalyzedCard={setDetailFromAnalyzedCard}
+                t={t}
+              />
+            ))}
+          </section>
         )}
         {groupedVideos.map((group) => (
           <section key={group.dateKey} className="space-y-2">
             {(() => {
               const localGroupVideos = group.videos.filter((video) => video.source === 'local');
-              const showLocalAggregate = sourceTab === 'local' && localGroupVideos.length > 1;
+              const showLocalAggregate =
+                galleryListFlowMode === 'full' && sourceTab === 'local' && localGroupVideos.length > 1;
               return (
                 <>
             <div className="flex items-center justify-between">
@@ -3581,15 +3918,19 @@ const GalleryScreen = () => {
                     >
                       <AssetThumbnail type="video" category="soccer" />
                       <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/94 via-[#12324A]/78 to-black/52" />
-                      <div className="absolute inset-0 p-3 text-white flex flex-col justify-center">
-                        <div className="flex-1 flex items-center justify-between gap-4">
-                          <div className="min-w-0 flex flex-col items-start gap-0.5">
-                            <span className="text-[12px] font-bold truncate max-w-[100px]">{nameA}</span>
-                            <span className="text-[30px] font-black leading-none">{scoreA}</span>
+                      <div className="absolute inset-0 flex items-center justify-center text-white px-6 sm:px-10">
+                        <div className="flex items-center justify-center gap-8 sm:gap-12 max-w-[min(100%,18rem)] w-full">
+                          <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
+                            <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">{nameA}</span>
+                            <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
+                              {scoreA}
+                            </span>
                           </div>
-                          <div className="min-w-0 flex flex-col items-end gap-0.5 text-right">
-                            <span className="text-[12px] font-bold truncate max-w-[100px]">{nameB}</span>
-                            <span className="text-[30px] font-black leading-none">{scoreB}</span>
+                          <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
+                            <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">{nameB}</span>
+                            <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
+                              {scoreB}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -3597,7 +3938,7 @@ const GalleryScreen = () => {
                       {card.isAnalyzed && !hasSeenAIGuide && (
                         <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[10px] font-black bg-orange-500 text-white shadow-sm border border-orange-400/50 flex items-center gap-0.5 pointer-events-none">
                           <Sparkles className="w-2.5 h-2.5" />
-                          [AI]
+                          {t('gallery.badgeAiMark')}
                         </div>
                       )}
                     </div>
@@ -3610,10 +3951,10 @@ const GalleryScreen = () => {
                             openAnalyzedResult(card.analysisType, card.videoId);
                           }}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-black border border-emerald-400/50 bg-emerald-600 text-white shadow-sm"
-                          aria-label={t('gallery.cardCtaViewReport')}
+                          aria-label={t('gallery.viewAnalysis')}
                         >
                           <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                          <span>{t('gallery.cardCtaViewReport')}</span>
+                          <span>{t('gallery.viewAnalysis')}</span>
                         </button>
                       </div>
                     )}
@@ -3666,29 +4007,25 @@ const GalleryScreen = () => {
                     {t('ui.aiAnalyzeMergeRecommended', { count: localGroupVideos.length })}
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {localGroupVideos.slice(0, 2).map((video) => (
-                    <button
-                      key={`agg-${video.id}`}
-                      type="button"
-                      onClick={() => {
-                        const taskMeta = getVideoTaskMeta(video.id);
-                        if (taskMeta.action === 'view' && taskMeta.task) {
-                          openAnalyzedResult((taskMeta.task.type || 'highlight') as 'highlight' | 'analysis', video.id);
-                          return;
-                        }
-                        setDetailVideoId(video.id);
-                        setDetailFromAnalyzedCard(false);
-                      }}
-                      className="relative rounded-lg overflow-hidden aspect-[16/10] text-left"
-                    >
-                      <AssetThumbnail type="video" category={video.category as 'basketball' | 'soccer'} />
-                      <div className="absolute left-2 right-2 bottom-1.5 flex items-end justify-end text-white">
-                        <span className="text-[9px] font-semibold">{video.duration}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <AggregateClipStrip
+                  videos={localGroupVideos}
+                  getVideoTaskMeta={getVideoTaskMeta}
+                  variant="light"
+                  t={t}
+                  onActivate={(video) => {
+                    const taskMeta = getVideoTaskMeta(video.id);
+                    if (taskMeta.action === 'view' && taskMeta.task) {
+                      openAnalyzedResult((taskMeta.task.type || 'highlight') as 'highlight' | 'analysis', video.id);
+                      return;
+                    }
+                    setDetailVideoId(video.id);
+                    setDetailFromAnalyzedCard(false);
+                  }}
+                  onOpenDetail={(video) => {
+                    setDetailVideoId(video.id);
+                    setDetailFromAnalyzedCard(false);
+                  }}
+                />
               </div>
             )}
                 </>
@@ -3699,13 +4036,20 @@ const GalleryScreen = () => {
       </div>
 
       <div className="h-[83px] bg-white border-t border-slate-100 flex justify-around items-end pb-6 pt-2 px-1">
-        <div className="flex flex-col items-center gap-1 text-slate-400 w-14 mb-1"><Home className="w-6 h-6" /><span className="text-[10px] font-bold">{t('nav.home')}</span></div>
+        <button
+          type="button"
+          onClick={popToHome}
+          className="flex flex-col items-center gap-1 text-slate-400 w-14 mb-1 active:scale-95 transition-transform"
+        >
+          <Home className="w-6 h-6" />
+          <span className="text-[10px] font-bold">{t('nav.home')}</span>
+        </button>
         <button type="button" className="flex flex-col items-center gap-1 text-orange-500 w-14 mb-1"><ImageIcon className="w-6 h-6" /><span className="text-[10px] font-bold">{t('nav.gallery')}</span></button>
         <div className="flex flex-col items-center justify-end -mt-6">
           <div className="w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center text-white shadow-lg shadow-slate-900/20 border-[3px] border-white mb-1"><Camera className="w-6 h-6" /></div>
           <span className="text-[10px] font-bold text-slate-900">{t('nav.shoot')}</span>
         </div>
-        <button type="button" onClick={popView} className="flex flex-col items-center gap-1 text-slate-400 w-14 mb-1"><CreditCard className="w-6 h-6" /><span className="text-[10px] font-bold">{t('nav.toolbox')}</span></button>
+        <button type="button" onClick={popToHome} className="flex flex-col items-center gap-1 text-slate-400 w-14 mb-1"><CreditCard className="w-6 h-6" /><span className="text-[10px] font-bold">{t('nav.toolbox')}</span></button>
         <div className="flex flex-col items-center gap-1 text-slate-400 w-14 mb-1"><User className="w-6 h-6" /><span className="text-[10px] font-bold">{t('nav.my')}</span></div>
       </div>
 
@@ -3803,7 +4147,7 @@ const GalleryScreen = () => {
                           setTimeout(() => setToastMessage(null), 2800);
                           return;
                         }
-                        setToastMessage(taskMeta.task?.failureMessage || '当前视频时长超过 150 分钟，暂不支持分析');
+                        setToastMessage(taskMeta.task?.failureMessage || t('gallery.errVideoTooLong'));
                         setTimeout(() => setToastMessage(null), 2600);
                         return;
                       }
@@ -3971,7 +4315,7 @@ const GalleryScreen = () => {
                   setHasSeenAIGuide(true);
                   if (typeof localStorage !== 'undefined') localStorage.setItem('hasSeenAIGuide', 'true');
                   setShowAIGuideSheet(false);
-                  setSourceTab('ai_analysis');
+                  setSourceTab('falcon');
                 }}
                 className="w-full py-4 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-[15px] shadow-lg shadow-orange-500/30 active:scale-[0.98] transition-transform"
               >
@@ -5716,12 +6060,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const isSoccer = resultSport === 'soccer';
     const [viewMode, setViewMode] = useState<'review' | 'fullMatch' | 'report'>('review');
-    const [isPlaying, setIsPlaying] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(true);
     const [currentTimeSec, setCurrentTimeSec] = useState(0);
     const [durationSec, setDurationSec] = useState(90 * 60);
     const [activeEventId, setActiveEventId] = useState<number | null>(null);
     const [showScoreEditModal, setShowScoreEditModal] = useState(false);
-    const [isScoreCollapsed, setIsScoreCollapsed] = useState(false);
+    const [isScoreCollapsed, setIsScoreCollapsed] = useState(true);
     const [editingScoreA, setEditingScoreA] = useState<string>(String(liveSoccerStats.teamA.score));
     const [editingScoreB, setEditingScoreB] = useState<string>(String(liveSoccerStats.teamB.score));
     const [editingNameA, setEditingNameA] = useState<string>(String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel));
@@ -5734,8 +6078,10 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const [seekToastMessage, setSeekToastMessage] = useState<string | null>(null);
 
     const eventItemRefs = useRef<Record<number, HTMLDivElement | null>>({});
+    const timelineScrollRef = useRef<HTMLDivElement | null>(null);
     const ignoreCollapseUntilRef = useRef(0);
     const seekToastHideRef = useRef<number | null>(null);
+    const hasTimelineScrolledDownRef = useRef(false);
 
     const sourceClips = React.useMemo(
       () => AI_CLIPS_ADVANCED.filter((clip) => clip.sport === (resultSport || 'soccer')),
@@ -5771,25 +6117,52 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const reviewTimelineSpanSec = Math.max(45, maxEventTimeSec + 30);
 
+    const REVIEW_PLAYER_MAX_SEC = 3 * 60;
+
     const selectedVideoDuration =
       viewMode === 'fullMatch'
         ? 95 * 60
-        : Math.min(5 * 60, reviewTimelineSpanSec);
+        : Math.min(REVIEW_PLAYER_MAX_SEC, reviewTimelineSpanSec);
 
     const matchClockToReviewPlayerSec = React.useCallback(
       (matchSec: number) => {
         const span = reviewTimelineSpanSec;
-        const dur = Math.min(5 * 60, span);
+        const dur = Math.min(REVIEW_PLAYER_MAX_SEC, span);
         if (span <= 0 || dur <= 0) return 0;
         return Math.min(dur, Math.max(0, (matchSec / span) * dur));
       },
       [reviewTimelineSpanSec]
     );
 
+    const scrollTimelineRowIntoViewIfNeeded = React.useCallback(
+      (eventId: number, behavior: ScrollBehavior = 'smooth', force = false) => {
+        const el = eventItemRefs.current[eventId];
+        const scroller = timelineScrollRef.current;
+        if (!el) return false;
+        if (!scroller) {
+          el.scrollIntoView({ block: 'center', behavior });
+          return true;
+        }
+        if (force) {
+          el.scrollIntoView({ block: 'center', behavior });
+          return true;
+        }
+        const er = el.getBoundingClientRect();
+        const sr = scroller.getBoundingClientRect();
+        const pad = Math.max(40, sr.height * 0.14);
+        if (er.top < sr.top + pad || er.bottom > sr.bottom - pad) {
+          el.scrollIntoView({ block: 'center', behavior });
+          return true;
+        }
+        return false;
+      },
+      []
+    );
+
     useEffect(() => {
       setDurationSec(selectedVideoDuration);
       setCurrentTimeSec(0);
-      setIsPlaying(false);
+      setIsPlaying(viewMode !== 'report');
       setActiveEventId(null);
     }, [selectedVideoDuration, viewMode]);
 
@@ -5806,40 +6179,47 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     }, [currentTimeSec, durationSec]);
 
     useEffect(() => {
-      if (viewMode !== 'review') return;
+      if (viewMode === 'report') return;
+      if (viewMode === 'fullMatch') return;
+      if (filteredTimelineEvents.length === 0) return;
+
       let idx = -1;
-      for (let i = 0; i < resolvedEvents.length; i += 1) {
-        const matchSec = parseMatchClockToSeconds(String(resolvedEvents[i].time));
-        const playerSec = matchClockToReviewPlayerSec(matchSec);
-        if (playerSec <= currentTimeSec + 1) {
-          idx = i;
+      if (viewMode === 'review') {
+        for (let i = 0; i < filteredTimelineEvents.length; i += 1) {
+          const matchSec = parseMatchClockToSeconds(String(filteredTimelineEvents[i].time));
+          const playerSec = matchClockToReviewPlayerSec(matchSec);
+          if (playerSec <= currentTimeSec + 1) idx = i;
+        }
+      } else {
+        const syncSlackSec = 8;
+        for (let i = 0; i < filteredTimelineEvents.length; i += 1) {
+          const matchSec = parseMatchClockToSeconds(String(filteredTimelineEvents[i].time));
+          if (matchSec <= currentTimeSec + syncSlackSec) idx = i;
         }
       }
       if (idx < 0) return;
-      const candidate = resolvedEvents[idx];
-      if (candidate?.id !== activeEventId) {
+      const candidate = filteredTimelineEvents[idx];
+      const idChanged = candidate.id !== activeEventId;
+      if (idChanged) {
         setActiveEventId(candidate.id);
-        ignoreCollapseUntilRef.current = Date.now() + 450;
-        eventItemRefs.current[candidate.id]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        ignoreCollapseUntilRef.current = Date.now() + 500;
       }
-    }, [currentTimeSec, viewMode, resolvedEvents, activeEventId, matchClockToReviewPlayerSec]);
-
-    useEffect(() => {
-      if (viewMode !== 'fullMatch') return;
-      let idx = -1;
-      const syncSlackSec = 8;
-      for (let i = 0; i < resolvedEvents.length; i += 1) {
-        const matchSec = parseMatchClockToSeconds(String(resolvedEvents[i].time));
-        if (matchSec <= currentTimeSec + syncSlackSec) idx = i;
-      }
-      if (idx < 0) return;
-      const candidate = resolvedEvents[idx];
-      if (candidate?.id !== activeEventId) {
-        setActiveEventId(candidate.id);
-        ignoreCollapseUntilRef.current = Date.now() + 450;
-        eventItemRefs.current[candidate.id]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-    }, [currentTimeSec, viewMode, resolvedEvents, activeEventId]);
+      const wantSmooth = idChanged || isPlaying;
+      const didScroll = scrollTimelineRowIntoViewIfNeeded(
+        candidate.id,
+        wantSmooth ? 'smooth' : 'auto',
+        idChanged
+      );
+      if (didScroll && !idChanged) ignoreCollapseUntilRef.current = Date.now() + 360;
+    }, [
+      currentTimeSec,
+      viewMode,
+      filteredTimelineEvents,
+      matchClockToReviewPlayerSec,
+      activeEventId,
+      isPlaying,
+      scrollTimelineRowIntoViewIfNeeded,
+    ]);
 
     useEffect(() => {
       if (!showScoreEditModal) return;
@@ -5858,7 +6238,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       setCurrentTimeSec(sec);
       setActiveEventId(event.id);
       ignoreCollapseUntilRef.current = Date.now() + 450;
-      eventItemRefs.current[event.id]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      if (viewMode !== 'fullMatch') {
+        eventItemRefs.current[event.id]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
       if (seekToastHideRef.current != null) window.clearTimeout(seekToastHideRef.current);
       setSeekToastMessage(t('ui.jumpToEvent', { event: scoreTypeLabel(String(event.scoreType)) }));
       seekToastHideRef.current = window.setTimeout(() => {
@@ -5911,8 +6293,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const handleTimelineScroll = (e: React.UIEvent<HTMLDivElement>) => {
       if (Date.now() < ignoreCollapseUntilRef.current) return;
       const top = e.currentTarget.scrollTop;
-      if (top > 12 && !isScoreCollapsed) setIsScoreCollapsed(true);
-      if (top <= 4 && isScoreCollapsed) setIsScoreCollapsed(false);
+      if (top > 12) {
+        hasTimelineScrolledDownRef.current = true;
+        if (!isScoreCollapsed) setIsScoreCollapsed(true);
+      }
+      if (top <= 4 && isScoreCollapsed && hasTimelineScrolledDownRef.current) setIsScoreCollapsed(false);
     };
 
     const handleSaveSoccerScore = () => {
@@ -5961,6 +6346,34 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       return { index: idx >= 0 ? idx + 1 : 1, total: filteredTimelineEvents.length };
     }, [activeKeyEvent, filteredTimelineEvents]);
 
+    /** 0–1: current playback progress toward this event in the same clock space as the progress slider (「水渐渐注满」) */
+    const eventFillById = React.useMemo(() => {
+      const out: Record<number, number> = {};
+      const list = filteredTimelineEvents;
+      for (let i = 0; i < list.length; i += 1) {
+        const ev = list[i];
+        const eventMatchSec = parseMatchClockToSeconds(String(ev.time));
+        let t0: number;
+        let t1: number;
+        let cur: number;
+        if (viewMode === 'fullMatch') {
+          t0 = i > 0 ? parseMatchClockToSeconds(String(list[i - 1].time)) : 0;
+          t1 = eventMatchSec;
+          cur = currentTimeSec;
+        } else {
+          t0 = i > 0 ? matchClockToReviewPlayerSec(parseMatchClockToSeconds(String(list[i - 1].time))) : 0;
+          t1 = matchClockToReviewPlayerSec(eventMatchSec);
+          cur = currentTimeSec;
+        }
+        if (t1 <= t0) {
+          out[ev.id] = cur >= t1 ? 1 : 0;
+        } else {
+          out[ev.id] = Math.min(1, Math.max(0, (cur - t0) / (t1 - t0)));
+        }
+      }
+      return out;
+    }, [filteredTimelineEvents, currentTimeSec, viewMode, matchClockToReviewPlayerSec]);
+
     const timelineFilters: Array<{ id: 'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'; label: string }> = [
       { id: 'all', label: t('filter.all') },
       { id: 'goal', label: scoreTypeLabel('goal') },
@@ -5991,7 +6404,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             </button>
           </div>
           {seekToastMessage && (
-            <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 animate-in zoom-in-95 z-40 pointer-events-none max-w-[min(100%,18rem)] text-center leading-snug">
+            <div
+              className={`absolute top-10 left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 z-40 pointer-events-none max-w-[min(100%,18rem)] text-center leading-snug ${
+                viewMode === 'fullMatch' ? '' : 'animate-in zoom-in-95'
+              }`}
+            >
               <RotateCcw className="w-3 h-3 shrink-0" />
               {seekToastMessage}
             </div>
@@ -6016,9 +6433,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           >
             <div className="relative flex items-center justify-center">
               {isPlaying ? (
-                <Pause className="w-7 h-7 text-white animate-in zoom-in duration-200" />
+                <Pause
+                  className={`w-7 h-7 text-white ${viewMode === 'fullMatch' ? '' : 'animate-in zoom-in duration-200'}`}
+                />
               ) : (
-                <Play className="w-7 h-7 text-white animate-in zoom-in duration-200 ml-1" />
+                <Play
+                  className={`w-7 h-7 text-white ml-1 ${viewMode === 'fullMatch' ? '' : 'animate-in zoom-in duration-200'}`}
+                />
               )}
             </div>
           </button>
@@ -6036,29 +6457,44 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                 onChange={(e) => setCurrentTimeSec(Number(e.target.value))}
                 className="w-full accent-blue-500"
               />
-              {viewMode === 'fullMatch' && (
-                <div className="absolute left-2 right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+            </div>
+            {viewMode === 'fullMatch' && filteredTimelineEvents.length > 0 && (
+              <div className="mt-1.5">
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-0.5 -mx-0.5 px-0.5">
                   {filteredTimelineEvents.map((event) => {
-                    const sec = parseMatchClockToSeconds(String(event.time));
-                    const ratio = durationSec > 0 ? sec / durationSec : 0;
-                    const left = `${Math.max(0, Math.min(100, ratio * 100))}%`;
                     const isA = event.team === 'A';
+                    const isSel = activeEventId === event.id;
                     return (
                       <button
-                        key={`dot-${event.id}`}
+                        key={`fm-strip-${event.id}`}
                         type="button"
                         onClick={() => handleSeekToEvent(event as any)}
-                        className={`pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 top-1/2 w-2.5 h-2.5 rounded-full border ${isA ? 'bg-blue-500 border-blue-200' : 'bg-red-500 border-red-200'}`}
-                        style={{ left }}
+                        className={`snap-start shrink-0 min-w-[5.5rem] max-w-[7.5rem] rounded-lg border px-2 py-1.5 text-left transition-colors ${
+                          isSel
+                            ? isA
+                              ? 'border-blue-400 bg-blue-950/50'
+                              : 'border-red-400 bg-red-950/50'
+                            : isA
+                              ? 'border-blue-500/40 bg-slate-900/80 active:bg-slate-800'
+                              : 'border-red-500/40 bg-slate-900/80 active:bg-slate-800'
+                        }`}
                         aria-label={`${scoreTypeLabel(String(event.scoreType))} ${event.time}`}
-                      />
+                      >
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isA ? 'bg-blue-500' : 'bg-red-500'}`} />
+                          <span className="text-[9px] font-mono text-slate-200 tabular-nums">{event.time}</span>
+                        </div>
+                        <p className="text-[9px] font-bold text-slate-100 leading-tight line-clamp-2">
+                          {scoreTypeLabel(String(event.scoreType))}
+                        </p>
+                      </button>
                     );
                   })}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
             {viewMode === 'fullMatch' && (
-              <p className="text-[9px] text-slate-300 mt-1">{t('ui.fullMatchNoSync')}</p>
+              <p className="text-[9px] text-slate-300 mt-1.5">{t('ui.fullMatchNoSync')}</p>
             )}
           </div>
         </div>
@@ -6101,59 +6537,77 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                 </button>
               </div>
             </div>
-            <div className={`${isScoreCollapsed ? 'mt-0.5' : 'mt-2'} grid grid-cols-3 items-end`}>
-              <div className="text-left">
-                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamA.color}`}>{liveSoccerStats.teamA.score}</p>
-                {!isScoreCollapsed && <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}</p>}
+            <div
+              className={`${isScoreCollapsed ? 'mt-0.5' : 'mt-2'} flex justify-center items-end gap-5 sm:gap-8 px-2`}
+            >
+              <div className="min-w-0 text-right">
+                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamA.color}`}>
+                  {liveSoccerStats.teamA.score}
+                </p>
+                {!isScoreCollapsed && (
+                  <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}</p>
+                )}
               </div>
-              <div className={`text-center text-slate-500 ${isScoreCollapsed ? 'text-[10px] pb-0' : 'text-xs pb-1'} font-black`}>VS</div>
-              <div className="text-right">
-                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamB.color}`}>{liveSoccerStats.teamB.score}</p>
-                {!isScoreCollapsed && <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}</p>}
+              <div
+                className={`shrink-0 text-center text-slate-500 ${isScoreCollapsed ? 'text-[10px] pb-0' : 'text-xs pb-1'} font-black px-0.5`}
+              >
+                VS
+              </div>
+              <div className="min-w-0 text-left">
+                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamB.color}`}>
+                  {liveSoccerStats.teamB.score}
+                </p>
+                {!isScoreCollapsed && (
+                  <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}</p>
+                )}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto" data-correction-scroll onScroll={handleTimelineScroll}>
+        <div
+          ref={timelineScrollRef}
+          className={`flex-1 overflow-y-auto overscroll-y-contain ${viewMode === 'fullMatch' ? '' : 'scroll-smooth'}`}
+          data-correction-scroll
+          onScroll={handleTimelineScroll}
+        >
           {viewMode === 'report' ? (
             <div className="px-4 py-3 space-y-4 pb-24">
-              {/* Analysis Note */}
-              <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                  <span className="text-xs font-bold text-yellow-500">Analysis Note</span>
-                </div>
-                <p className="text-[10px] text-yellow-500/80 leading-relaxed">
-                  The data in this report is automatically generated by AI algorithms, providing you with professional references and insights. In specific complex situations, some data might require manual review.
-                </p>
-              </div>
-
               {/* Comparative Data */}
-              <div className="space-y-4 pt-4">
-                <h3 className="text-sm font-bold text-white">Comparative Data</h3>
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-white">{t('matchReport.comparativeData')}</h3>
                 <div className="flex justify-between items-center text-[10px] font-bold pb-2">
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-orange-500" /> <span className="text-slate-200">Team 1</span></div>
-                  <div className="flex items-center gap-1.5"><span className="text-slate-200">Team 2</span> <div className="w-3 h-3 rounded-full bg-red-600" /></div>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="w-3 h-3 rounded-full bg-orange-500 shrink-0" />
+                    <span className="text-slate-200 truncate">{(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 min-w-0 justify-end">
+                    <span className="text-slate-200 truncate">{(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}</span>
+                    <div className="w-3 h-3 rounded-full bg-red-600 shrink-0" />
+                  </div>
                 </div>
 
-                {[
-                  { label: 'Goals', t1: 3, t2: 2, max: 5 },
-                  { label: 'Assists', t1: 10, t2: 10, max: 20 },
-                  { label: 'Possession', t1: 44, t2: 56, max: 100 },
-                  { label: 'Total Shots', t1: 17, t2: 0, max: 20 },
-                  { label: 'Shots On Target', t1: 10, t2: 6, max: 16 },
-                  { label: 'Saves', t1: 5, t2: 5, max: 10 },
-                  { label: 'Duels Won', t1: 13, t2: 50, max: 63 },
-                  { label: 'Fouls', t1: 5, t2: 5, max: 10 },
-                  { label: 'Corners', t1: 3, t2: 3, max: 6 },
-                  { label: 'Free Kicks', t1: 10, t2: 6, max: 16 },
-                  { label: 'Penalties', t1: 0, t2: 0, max: 2 }
-                ].map(stat => (
-                  <div key={stat.label} className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                {(
+                  [
+                    { labelKey: 'timelineGoals' as const, t1: 3, t2: 2, max: 5 },
+                    { labelKey: 'timelineAssists' as const, t1: 10, t2: 10, max: 20 },
+                    { labelKey: 'timelinePossession' as const, t1: 44, t2: 56, max: 100 },
+                    { labelKey: 'statTotalShots' as const, t1: 17, t2: 0, max: 20 },
+                    { labelKey: 'statShotsOnTarget' as const, t1: 10, t2: 6, max: 16 },
+                    { labelKey: 'timelineSaves' as const, t1: 5, t2: 5, max: 10 },
+                    { labelKey: 'statDuelsWon' as const, t1: 13, t2: 50, max: 63 },
+                    { labelKey: 'statFouls' as const, t1: 5, t2: 5, max: 10 },
+                    { labelKey: 'statCorners' as const, t1: 3, t2: 3, max: 6 },
+                    { labelKey: 'statFreeKicks' as const, t1: 10, t2: 6, max: 16 },
+                    { labelKey: 'statPenalties' as const, t1: 0, t2: 0, max: 2 },
+                  ] as const
+                ).map((stat) => (
+                  <div key={stat.labelKey} className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
                     <span className="text-sm font-bold text-white w-6">{stat.t1}</span>
                     <div className="flex flex-col items-center">
-                      <span className="text-[10px] text-slate-400 mb-1">{stat.label}</span>
+                      <span className="text-[10px] text-slate-400 mb-1 text-center leading-tight px-1">
+                        {t(`matchReport.${stat.labelKey}`)}
+                      </span>
                       <div className="flex w-full gap-1">
                         <div className="flex-1 h-1 bg-slate-800 rounded-full flex justify-end">
                           <div className="h-full bg-orange-500 rounded-full" style={{ width: `${(stat.t1 / stat.max) * 100}%` }} />
@@ -6167,6 +6621,17 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   </div>
                 ))}
               </div>
+
+              <details className="rounded-xl border border-white/10 bg-[#2c2a23] open:[&>summary>svg:last-child]:rotate-180">
+                <summary className="list-none cursor-pointer flex items-center gap-2 p-3 [&::-webkit-details-marker]:hidden">
+                  <AlertTriangle className="w-4 h-4 text-[#e5b02a] shrink-0" />
+                  <span className="text-xs font-bold text-[#e5b02a] flex-1 text-left">{t('matchReport.analysisNoteTitle')}</span>
+                  <ChevronDown className="w-4 h-4 text-[#e5b02a]/80 shrink-0 transition-transform" />
+                </summary>
+                <p className="text-[10px] text-[#e5b02a]/80 leading-relaxed px-3 pb-3 -mt-1">
+                  {t('matchReport.analysisNoteBody')}
+                </p>
+              </details>
             </div>
           ) : (
             <div className="px-4 py-3 space-y-3 pb-24">
@@ -6250,27 +6715,43 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             <button
                               type="button"
                               onClick={() => handleSeekToEvent(event as any)}
-                              className={`min-h-[68px] text-left rounded-lg border p-2 transition-colors ${event.team === 'A' ? `${isActive ? 'border-blue-500 bg-blue-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
+                              className={`relative min-h-[68px] overflow-hidden text-left rounded-lg border p-2 transition-colors ${event.team === 'A' ? `${isActive ? 'border-blue-500 bg-blue-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
                               disabled={event.team !== 'A'}
                             >
                               {event.team === 'A' && (
                                 <>
-                                  <div className="mt-1 flex items-center gap-2">
-                                    {scoreTypeIcon(String(event.scoreType))}
-                                    <span className="text-xs font-bold text-slate-100">{scoreTypeLabel(String(event.scoreType))}</span>
-                                  </div>
-                                  <div className="mt-2 flex justify-end items-center">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        startEditEvent(event as any);
-                                      }}
-                                      className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1"
-                                    >
-                                      <Edit3 className="w-3 h-3" />
-                                      {t('ui.edit')}
-                                    </button>
+                                  {viewMode !== 'fullMatch' && (
+                                    <div className="absolute inset-0 z-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden>
+                                      <div
+                                        className={`absolute bottom-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-t from-blue-500/50 via-sky-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
+                                        style={{ height: `${(eventFillById[event.id] ?? 0) * 100}%` }}
+                                      />
+                                      {isPlaying && (eventFillById[event.id] ?? 0) > 0.04 && (eventFillById[event.id] ?? 0) < 0.98 && (
+                                        <div
+                                          className="event-liquid-surface event-liquid-surface-a absolute left-0 right-0 h-1.5"
+                                          style={{ bottom: `calc(${(eventFillById[event.id] ?? 0) * 100}% - 1px)` }}
+                                        />
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="relative z-[1]">
+                                    <div className="mt-1 flex items-center gap-2">
+                                      {scoreTypeIcon(String(event.scoreType))}
+                                      <span className="text-xs font-bold text-slate-100">{scoreTypeLabel(String(event.scoreType))}</span>
+                                    </div>
+                                    <div className="mt-2 flex justify-end items-center">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          startEditEvent(event as any);
+                                        }}
+                                        className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                        {t('ui.edit')}
+                                      </button>
+                                    </div>
                                   </div>
                                 </>
                               )}
@@ -6282,27 +6763,43 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             <button
                               type="button"
                               onClick={() => handleSeekToEvent(event as any)}
-                              className={`min-h-[68px] text-left rounded-lg border p-2 transition-colors ${event.team === 'B' ? `${isActive ? 'border-red-500 bg-red-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
+                              className={`relative min-h-[68px] overflow-hidden text-left rounded-lg border p-2 transition-colors ${event.team === 'B' ? `${isActive ? 'border-red-500 bg-red-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
                               disabled={event.team !== 'B'}
                             >
                               {event.team === 'B' && (
                                 <>
-                                  <div className="mt-1 flex items-center gap-2">
-                                    {scoreTypeIcon(String(event.scoreType))}
-                                    <span className="text-xs font-bold text-slate-100">{scoreTypeLabel(String(event.scoreType))}</span>
-                                  </div>
-                                  <div className="mt-2 flex justify-end items-center">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        startEditEvent(event as any);
-                                      }}
-                                      className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1"
-                                    >
-                                      <Edit3 className="w-3 h-3" />
-                                      {t('ui.edit')}
-                                    </button>
+                                  {viewMode !== 'fullMatch' && (
+                                    <div className="absolute inset-0 z-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden>
+                                      <div
+                                        className={`absolute bottom-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-t from-red-500/50 via-rose-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
+                                        style={{ height: `${(eventFillById[event.id] ?? 0) * 100}%` }}
+                                      />
+                                      {isPlaying && (eventFillById[event.id] ?? 0) > 0.04 && (eventFillById[event.id] ?? 0) < 0.98 && (
+                                        <div
+                                          className="event-liquid-surface event-liquid-surface-b absolute left-0 right-0 h-1.5"
+                                          style={{ bottom: `calc(${(eventFillById[event.id] ?? 0) * 100}% - 1px)` }}
+                                        />
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="relative z-[1]">
+                                    <div className="mt-1 flex items-center gap-2">
+                                      {scoreTypeIcon(String(event.scoreType))}
+                                      <span className="text-xs font-bold text-slate-100">{scoreTypeLabel(String(event.scoreType))}</span>
+                                    </div>
+                                    <div className="mt-2 flex justify-end items-center">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          startEditEvent(event as any);
+                                        }}
+                                        className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                        {t('ui.edit')}
+                                      </button>
+                                    </div>
                                   </div>
                                 </>
                               )}
@@ -6353,11 +6850,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
         {viewMode === 'report' ? (
           <div className="p-4 bg-[#0F172A] border-t border-white/10">
-            <button onClick={() => {
-              setToastMessage('下载海报（演示）');
-              setTimeout(() => setToastMessage(null), 1500);
-            }} className="w-full bg-orange-600 hover:bg-orange-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 flex items-center justify-center">
-              Download Poster
+            <button
+              onClick={() => {
+                setToastMessage(t('matchReport.downloadPosterDemo'));
+                setTimeout(() => setToastMessage(null), 1500);
+              }}
+              className="w-full bg-orange-600 hover:bg-orange-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 flex items-center justify-center"
+            >
+              {t('matchReport.downloadPoster')}
             </button>
           </div>
         ) : (
@@ -7004,7 +7504,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   const { t, i18n } = useTranslation();
 
-  const [viewStack, setViewStack] = useState<ViewState[]>(['home']);
+  const [viewStack, setViewStack] = useState<ViewState[]>(['gallery']);
 
   const currentView = viewStack[viewStack.length - 1];
 
@@ -7015,6 +7515,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
   const [aiMode, setAiMode] = useState<AIMode>('cloud');
 
   const [analysisPipeline, setAnalysisPipeline] = useState<AnalysisPipeline>('falcon_direct_cloud');
+
+  /** 相册列表：全流程展示含重试/阻断等边界态；正常流程仍展示进行中云任务，仅收敛边界态 */
+  const [galleryListFlowMode, setGalleryListFlowMode] = useState<'full' | 'normal'>('normal');
 
   /** Hybrid pipeline: false = 端侧核心分析阶段；true = 已完成端侧，进入上传/云端全量阶段 */
   const [hybridPastEdge, setHybridPastEdge] = useState(false);
@@ -7258,15 +7761,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       createdAt: Date.now() - 420000,
     },
     {
-      id: 'mock_task_busy_5',
-      videoId: 9105,
-      videoName: 'tasks.busyQueueE',
-      type: 'highlight',
-      status: 'analyzing',
-      progress: 67,
-      createdAt: Date.now() - 360000,
-    },
-    {
       id: 'mock_task_queue_waiting',
       videoId: 403,
       videoName: 'videos.secondHalf',
@@ -7323,7 +7817,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       progress: 0,
       failureCode: 'unsupported_video',
       failureStage: 'preflight',
-      failureMessage: '当前视频时长超过 150 分钟，暂不支持分析，请裁剪后重试',
+      failureMessage: '',
       createdAt: Date.now() - 2400000,
     },
     {
@@ -7357,14 +7851,18 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const taskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const analyzingCount = getAnalyzingTasksCount();
-    
-    let status: CloudTaskStatus = 'uploading';
+    const videoRow = ALL_VIDEOS.find((v) => v.id === videoId);
+    const isCloudSource = videoRow != null && videoRow.type === 'video' && videoRow.source === 'cloud';
+
+    let status: CloudTaskStatus;
     let queuePosition: number | undefined = undefined;
-    
+
     if (analyzingCount >= maxConcurrentTasks) {
       status = 'queued';
       const queuedTasks = getQueuedTasks();
       queuePosition = queuedTasks.length + 1;
+    } else {
+      status = isCloudSource ? 'analyzing' : 'uploading';
     }
 
     const createdAt = Date.now();
@@ -7570,8 +8068,27 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       .filter(Boolean) as (typeof ALL_VIDEOS)[number][];
     if (selectedVideos.length === 0) return;
 
-    const mainVideo = selectedVideos[0];
     const merged = mode === 'merge' && selectedVideos.length > 1;
+    // Merge preflight: block entire merge when any segment fails checks (no skip); see plan.
+    if (merged) {
+      const badUnsupported = selectedVideos.filter((v) => UNSUPPORTED_VIDEO_IDS.has(v.id));
+      if (badUnsupported.length > 0) {
+        const names = badUnsupported
+          .map((v) => t((v as { labelKey?: string }).labelKey!))
+          .join(t('ui.mergePreflightNameSeparator'));
+        setToastMessage(t('ui.mergePreflightUnsupported', { names }));
+        setTimeout(() => setToastMessage(null), 5000);
+        return;
+      }
+      const firstSource = selectedVideos[0].source;
+      if (!selectedVideos.every((v) => v.source === firstSource)) {
+        setToastMessage(t('ui.mergePreflightMixedSource'));
+        setTimeout(() => setToastMessage(null), 4000);
+        return;
+      }
+    }
+
+    const mainVideo = selectedVideos[0];
     const taskName = merged
       ? t('ui.aiMergedTaskName', { title: t((mainVideo as any).labelKey), count: selectedVideos.length - 1 })
       : t((mainVideo as any).labelKey);
@@ -7646,9 +8163,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           targetAnalysisType || 'highlight',
           'unsupported_video',
           'preflight',
-          '当前视频时长超过 150 分钟，暂不支持分析，请裁剪后重试'
+          t('gallery.errVideoTooLongWithCrop')
         );
-        setToastMessage('当前视频时长超过 150 分钟，暂不支持分析，请裁剪后重试');
+        setToastMessage(t('gallery.errVideoTooLongWithCrop'));
         setTimeout(() => setToastMessage(null), 2800);
         return;
       }
@@ -8272,6 +8789,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
       analysisPipeline, setAnalysisPipeline,
 
+      galleryListFlowMode,
+      setGalleryListFlowMode,
+
       hybridPastEdge,
 
       setHybridPastEdge,
@@ -8370,6 +8890,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       <div className="flex flex-col sm:flex-row justify-center items-center min-h-screen bg-gray-100 font-sans text-slate-800 gap-6 p-4">
 
         <TechRouteToggle />
+
+        <GalleryFlowModeToggle />
 
         <div className="w-full max-w-[375px] h-[812px] bg-black overflow-hidden relative shadow-2xl flex flex-col rounded-[40px] border-[8px] border-slate-900 ring-4 ring-slate-300/50 shrink-0">
 
@@ -8479,6 +9001,18 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
           @keyframes slide-in-from-bottom { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+          @keyframes event-liquid-breathe-ky { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.15); } }
+
+          @keyframes event-liquid-ripple-ky { 0%, 100% { transform: translateX(-4%) scaleX(1); opacity: 0.75; } 50% { transform: translateX(4%) scaleX(1.06); opacity: 1; } }
+
+          .event-liquid-breathe { animation: event-liquid-breathe-ky 2.4s ease-in-out infinite; }
+
+          .event-liquid-surface { border-radius: 2px; animation: event-liquid-ripple-ky 1.4s ease-in-out infinite; }
+
+          .event-liquid-surface-a { background: linear-gradient(90deg, transparent, rgba(191, 219, 254, 0.65), transparent); box-shadow: 0 0 10px rgba(59, 130, 246, 0.4); }
+
+          .event-liquid-surface-b { background: linear-gradient(90deg, transparent, rgba(254, 202, 202, 0.65), transparent); box-shadow: 0 0 10px rgba(239, 68, 68, 0.35); }
 
           .animate-in { animation-fill-mode: both; }
 
