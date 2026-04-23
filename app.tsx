@@ -3215,6 +3215,7 @@ function GalleryVideoCard({
   setDetailFromAnalyzedCard,
   t,
 }: GalleryVideoCardProps) {
+  const { liveSoccerStats } = useAppContext();
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwipeDragging, setIsSwipeDragging] = useState(false);
   const swipeTouchRef = useRef<{ startX: number; startY: number; startOffset: number } | null>(null);
@@ -3351,6 +3352,8 @@ function GalleryVideoCard({
       }
     : {};
 
+  const showSoccerResultOverlay = taskMeta.action === 'view' && video.category === 'soccer';
+
   if (!hasSeenAIGuide) {
     return (
       <button
@@ -3367,7 +3370,35 @@ function GalleryVideoCard({
         className="relative w-full rounded-xl overflow-hidden aspect-[16/8.5] text-left"
       >
         <AssetThumbnail type="video" category={video.category} />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25" />
+        <div
+          className={`absolute inset-0 ${
+            showSoccerResultOverlay
+              ? 'bg-gradient-to-r from-[#0E2A3C]/94 via-[#12324A]/78 to-black/52'
+              : 'bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25'
+          }`}
+        />
+        {showSoccerResultOverlay && (
+          <div className="absolute inset-0 flex items-center justify-center text-white px-6 sm:px-10 pointer-events-none">
+            <div className="flex items-center justify-center gap-8 sm:gap-12 max-w-[min(100%,18rem)] w-full">
+              <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
+                <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">
+                  {(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}
+                </span>
+                <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
+                  {liveSoccerStats.teamA.score}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
+                <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">
+                  {(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}
+                </span>
+                <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
+                  {liveSoccerStats.teamB.score}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="absolute left-3 right-3 bottom-3 flex items-end justify-end text-white">
           <span className="text-[11px] font-semibold">{video.duration}</span>
         </div>
@@ -3377,7 +3408,11 @@ function GalleryVideoCard({
 
   return (
     <div className="relative w-full rounded-xl overflow-hidden aspect-[16/8.5] shadow-sm ring-1 ring-black/10">
-      <div className="absolute inset-0 z-0 flex justify-end pointer-events-none" aria-hidden>
+      {/** 仅覆盖缩略图区域，不延伸到时间/CTA 底栏，避免底栏半透时透出橙色像蒙层；底栏用实色，与 GALLERY_ANALYSIS_SUCCESS_CARDS 一致 */}
+      <div
+        className="absolute inset-x-0 top-0 bottom-16 z-0 flex justify-end pointer-events-none"
+        aria-hidden
+      >
         <div
           className={`w-[72px] h-full flex flex-col items-center justify-center px-1 gap-1 border-l border-white/15 pointer-events-auto ${
             isQueueWaiting || isDurationBlocked
@@ -3436,10 +3471,44 @@ function GalleryVideoCard({
           {...swipeThumbHandlers}
         >
           <AssetThumbnail type="video" category={video.category} />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25" />
+          <div
+            className={`absolute inset-0 ${
+              showSoccerResultOverlay
+                ? 'bg-gradient-to-r from-[#0E2A3C]/94 via-[#12324A]/78 to-black/52'
+                : 'bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25'
+            }`}
+          />
+          {showSoccerResultOverlay && (
+            <div className="absolute inset-0 flex items-center justify-center text-white px-6 sm:px-10 pointer-events-none">
+              <div className="flex items-center justify-center gap-8 sm:gap-12 max-w-[min(100%,18rem)] w-full">
+                <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
+                  <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">
+                    {(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}
+                  </span>
+                  <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
+                    {liveSoccerStats.teamA.score}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
+                  <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">
+                    {(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}
+                  </span>
+                  <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
+                    {liveSoccerStats.teamB.score}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 min-h-[42px] bg-gradient-to-t from-black/92 via-black/78 to-black/40 border-t border-white/12">
+        <div
+          className={`relative z-20 shrink-0 flex items-center justify-between gap-2 px-3 py-2 min-h-[42px] ${
+            showSoccerResultOverlay
+              ? 'bg-emerald-950 border-t border-emerald-500/40'
+              : 'bg-slate-950 border-t border-white/12'
+          }`}
+        >
           <span className="text-[11px] font-semibold text-white tabular-nums">{video.duration}</span>
           <button
             type="button"
@@ -7936,6 +8005,32 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   const completeTask = (taskId: string) => {
     setCloudTasks(prev => {
+      const finishing = prev.find((t) => t.id === taskId);
+      if (finishing) {
+        const videoRow = ALL_VIDEOS.find((v) => v.id === finishing.videoId);
+        if (videoRow?.category === 'soccer') {
+          queueMicrotask(() => {
+            const card = GALLERY_ANALYSIS_SUCCESS_CARDS.find((c) => c.videoId === finishing.videoId);
+            if (card) {
+              updateSoccerMatchPresentation({
+                teamAScore: card.teamAScore,
+                teamBScore: card.teamBScore,
+                teamALabel: i18n.t(card.teamANameKey),
+                teamBLabel: i18n.t(card.teamBNameKey),
+              });
+            } else {
+              const a = finishing.videoId % 5;
+              const b = (finishing.videoId * 2) % 5;
+              updateSoccerMatchPresentation({
+                teamAScore: a,
+                teamBScore: b,
+                teamALabel: i18n.t('ui.teamA'),
+                teamBLabel: i18n.t('ui.teamB'),
+              });
+            }
+          });
+        }
+      }
       const updated = prev.map(task => {
         if (task.id === taskId) {
           return { ...task, status: 'completed' as CloudTaskStatus, progress: 100 };
