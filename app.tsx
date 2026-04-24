@@ -6168,6 +6168,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const fullMatchStripItemRefs = useRef<Record<number, HTMLButtonElement | null>>({});
     const ignoreCollapseUntilRef = useRef(0);
     const hasTimelineScrolledDownRef = useRef(false);
+    /** 与「赛事回顾」时间轴/播放头：播放时用 rAF 按真实时间推进，避免 1s 整步进 */
+    const analysisPlaybackRef = useRef({ anchorSec: 0, wallMs: 0 });
+    const currentTimeSecRef = useRef(0);
+    currentTimeSecRef.current = currentTimeSec;
+    const wasPlayingRafRef = useRef(false);
+    const durationSecRafRef = useRef(durationSec);
 
     const sourceClips = React.useMemo(
       () => AI_CLIPS_ADVANCED.filter((clip) => clip.sport === (resultSport || 'soccer')),
@@ -6254,19 +6260,56 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       setCurrentTimeSec(0);
       setIsPlaying(viewMode !== 'report');
       setActiveEventId(null);
+      currentTimeSecRef.current = 0;
+      analysisPlaybackRef.current = { anchorSec: 0, wallMs: performance.now() };
     }, [selectedVideoDuration, viewMode]);
 
-    useEffect(() => {
-      if (!isPlaying) return;
-      const id = window.setInterval(() => {
-        setCurrentTimeSec((prev) => Math.min(prev + 1, durationSec));
-      }, 1000);
-      return () => window.clearInterval(id);
-    }, [isPlaying, durationSec]);
+    const seekAnalysisTime = React.useCallback(
+      (next: number) => {
+        const clamped = Math.max(0, Math.min(durationSec, next));
+        setCurrentTimeSec(clamped);
+        currentTimeSecRef.current = clamped;
+        if (isPlaying) {
+          analysisPlaybackRef.current = { anchorSec: clamped, wallMs: performance.now() };
+        }
+      },
+      [isPlaying, durationSec]
+    );
 
     useEffect(() => {
-      if (currentTimeSec >= durationSec) setIsPlaying(false);
-    }, [currentTimeSec, durationSec]);
+      if (!isPlaying) {
+        wasPlayingRafRef.current = false;
+        return;
+      }
+      const justStarted = !wasPlayingRafRef.current;
+      const durationChanged = durationSecRafRef.current !== durationSec;
+      wasPlayingRafRef.current = true;
+      durationSecRafRef.current = durationSec;
+      if (justStarted || durationChanged) {
+        analysisPlaybackRef.current = { anchorSec: currentTimeSecRef.current, wallMs: performance.now() };
+      }
+      let rafId = 0;
+      let cancelled = false;
+      const step = () => {
+        if (cancelled) return;
+        const { anchorSec, wallMs } = analysisPlaybackRef.current;
+        const elapsed = (performance.now() - wallMs) / 1000;
+        const t = Math.min(durationSec, anchorSec + elapsed);
+        if (t >= durationSec) {
+          setCurrentTimeSec(durationSec);
+          setIsPlaying(false);
+          return;
+        }
+        setCurrentTimeSec(t);
+        rafId = requestAnimationFrame(step);
+      };
+      rafId = requestAnimationFrame(step);
+      return () => {
+        cancelled = true;
+        wasPlayingRafRef.current = false;
+        cancelAnimationFrame(rafId);
+      };
+    }, [isPlaying, durationSec]);
 
     useEffect(() => {
       if (viewMode === 'report') return;
@@ -6361,7 +6404,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         viewMode === 'fullMatch'
           ? Math.max(0, Math.min(Math.max(0, selectedVideoDuration - 1), rawMatchSec - 4))
           : matchClockToReviewPlayerSec(Math.max(0, rawMatchSec - 4));
-      setCurrentTimeSec(sec);
+      seekAnalysisTime(sec);
       setActiveEventId(event.id);
       ignoreCollapseUntilRef.current = Date.now() + 450;
       if (viewMode !== 'fullMatch') {
@@ -6525,6 +6568,26 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       return out;
     }, [filteredTimelineEvents, currentTimeSec, viewMode, matchClockToReviewPlayerSec]);
 
+    /** 0–1: 中轴播放在「首末事件比赛时钟」之间的线性位置（仅赛事回顾；全场回看用行内大圆点、不随时间连续滑动） */
+    const timelinePlayheadY = React.useMemo(() => {
+      if (viewMode === 'fullMatch') return { pos: 0, show: false as const };
+      const list = filteredTimelineEvents;
+      if (list.length === 0) return { pos: 0.5, show: false as const };
+      const span = reviewTimelineSpanSec;
+      const dur = Math.min(REVIEW_PLAYER_MAX_SEC, span);
+      const matchSec = dur > 0 ? Math.max(0, Math.min(span, (currentTimeSec / dur) * span)) : 0;
+      const tFirst = parseMatchClockToSeconds(String(list[0].time));
+      const tLast = parseMatchClockToSeconds(String(list[list.length - 1].time));
+      if (tLast <= tFirst) return { pos: 0.5, show: true as const };
+      const pos = Math.min(1, Math.max(0, (matchSec - tFirst) / (tLast - tFirst)));
+      return { pos, show: true as const };
+    }, [currentTimeSec, viewMode, filteredTimelineEvents, reviewTimelineSpanSec]);
+
+    const timelinePlayheadRing = React.useMemo(() => {
+      const pe = activeEventId != null ? filteredTimelineEvents.find((e) => e.id === activeEventId) : null;
+      return pe?.team === 'B' ? 'bg-red-500 ring-2 ring-red-400/45' : 'bg-blue-500 ring-2 ring-blue-400/45';
+    }, [activeEventId, filteredTimelineEvents]);
+
     const timelineFilters: Array<{ id: 'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'; label: string }> = [
       { id: 'all', label: t('filter.all') },
       { id: 'goal', label: scoreTypeLabel('goal') },
@@ -6595,7 +6658,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                 min={0}
                 max={durationSec}
                 value={currentTimeSec}
-                onChange={(e) => setCurrentTimeSec(Number(e.target.value))}
+                onChange={(e) => seekAnalysisTime(Number(e.target.value))}
                 className="w-full accent-blue-500"
               />
             </div>
@@ -6679,40 +6742,43 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         <div
           className={`px-4 pt-3 pb-2 bg-[#0F172A] border-b border-white/10 transition-all`}
         >
-          <div className={`rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] transition-all ${isScoreCollapsed ? 'px-2.5 py-1.5' : 'p-3 space-y-2'}`}>
-            <div className="flex items-center justify-end gap-2 min-h-[1.5rem]">
+          <div className={`rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] transition-all ${isScoreCollapsed ? 'px-2.5 py-1.5' : 'p-3'}`}>
+            <div className="relative flex items-end min-h-[2.25rem]">
               {!isScoreCollapsed && (
-                <span className="text-[10px] font-bold text-emerald-200/90 tracking-wide flex-1 min-w-0">{t('matchReport.gameStatistics')}</span>
+                <span className="z-10 text-[10px] font-bold text-emerald-200/90 tracking-wide shrink-0 max-w-[30%] truncate pr-2">
+                  {t('matchReport.gameStatistics')}
+                </span>
               )}
+              <div className="absolute inset-0 flex items-end justify-center pointer-events-none">
+                <div className="flex items-end justify-center gap-1 sm:gap-2 px-0.5 w-full max-w-md pointer-events-auto">
+                  <span className="text-[9px] font-bold text-slate-300 max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-right leading-tight self-end mb-0.5 shrink min-w-0">
+                    {(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}
+                  </span>
+                  <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamA.color} tabular-nums shrink-0`}>
+                    {liveSoccerStats.teamA.score}
+                  </p>
+                  <div
+                    className={`shrink-0 text-center text-slate-500 ${isScoreCollapsed ? 'text-[10px] pb-0' : 'text-xs pb-0.5'} font-black px-0.5 self-end`}
+                  >
+                    VS
+                  </div>
+                  <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamB.color} tabular-nums shrink-0`}>
+                    {liveSoccerStats.teamB.score}
+                  </p>
+                  <span className="text-[9px] font-bold text-slate-300 max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-left leading-tight self-end mb-0.5 shrink min-w-0">
+                    {(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}
+                  </span>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowScoreEditModal(true)}
-                className="text-[9px] font-bold px-2 py-1 rounded-full bg-slate-800 border border-white/15 text-slate-100 inline-flex items-center gap-1 shrink-0"
+                className="z-10 ml-auto inline-flex items-center justify-center p-1.5 rounded-lg bg-slate-800 border border-white/15 text-slate-100 shrink-0"
+                aria-label={t('ui.edit')}
+                title={t('ui.edit')}
               >
-                <Edit3 className="w-3 h-3" />
-                {t('ui.edit')}
+                <Edit3 className="w-3.5 h-3.5" />
               </button>
-            </div>
-            <div
-              className={`${isScoreCollapsed ? 'mt-0.5' : 'mt-1'} flex items-end justify-center gap-1 sm:gap-2 px-0.5 w-full max-w-md mx-auto`}
-            >
-              <span className="text-[9px] font-bold text-slate-300 max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-right leading-tight self-end mb-0.5 shrink min-w-0">
-                {(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}
-              </span>
-              <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamA.color} tabular-nums shrink-0`}>
-                {liveSoccerStats.teamA.score}
-              </p>
-              <div
-                className={`shrink-0 text-center text-slate-500 ${isScoreCollapsed ? 'text-[10px] pb-0' : 'text-xs pb-0.5'} font-black px-0.5 self-end`}
-              >
-                VS
-              </div>
-              <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamB.color} tabular-nums shrink-0`}>
-                {liveSoccerStats.teamB.score}
-              </p>
-              <span className="text-[9px] font-bold text-slate-300 max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-left leading-tight self-end mb-0.5 shrink min-w-0">
-                {(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}
-              </span>
             </div>
           </div>
         </div>
@@ -6866,8 +6932,19 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   <span className="text-[9px] text-slate-500">TIME</span>
                   <span className="text-[10px] font-bold text-red-300 text-right">{t('ui.teamB')}</span>
                 </div>
-                <div className="absolute left-1/2 -translate-x-1/2 top-6 bottom-1 w-px bg-white/15" />
-                <div className="space-y-2">
+                <div className="relative">
+                  <div className="pointer-events-none absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 bg-white/15" />
+                  {viewMode === 'review' && timelinePlayheadY.show && (
+                    <div
+                      className={`pointer-events-none absolute left-1/2 z-20 h-3.5 w-3.5 rounded-full border-2 border-[#0B1220] shadow-md ${timelinePlayheadRing}`}
+                      style={{
+                        top: `${timelinePlayheadY.pos * 100}%`,
+                        transform: 'translate(-50%, -50%)',
+                      }}
+                      aria-hidden
+                    />
+                  )}
+                  <div className="space-y-2">
                   {filteredTimelineEvents.map((event, rowIndex) => {
                     const isActive = activeEventId === event.id;
                     const isEditing = editingEventId === event.id;
@@ -6910,10 +6987,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                           e.stopPropagation();
                                           startEditEvent(event as any);
                                         }}
-                                        className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1 shrink-0"
+                                        className="p-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center justify-center shrink-0"
+                                        aria-label={t('ui.edit')}
+                                        title={t('ui.edit')}
                                       >
-                                        <Edit3 className="w-3 h-3" />
-                                        {t('ui.edit')}
+                                        <Edit3 className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
                                   </div>
@@ -6921,7 +6999,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                               )}
                             </button>
                             <div className="relative w-5 shrink-0 min-h-[68px] self-stretch px-0.5">
-                              {rowIndex === activeRowIndex && (
+                              {viewMode === 'fullMatch' && rowIndex === activeRowIndex && (
                                 <div
                                   className={`absolute left-1/2 top-0 z-10 h-3.5 w-3.5 -translate-x-1/2 rounded-full border-2 border-[#0B1220] shadow-md ${
                                     event.team === 'A'
@@ -6975,10 +7053,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                           e.stopPropagation();
                                           startEditEvent(event as any);
                                         }}
-                                        className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1 shrink-0"
+                                        className="p-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center justify-center shrink-0"
+                                        aria-label={t('ui.edit')}
+                                        title={t('ui.edit')}
                                       >
-                                        <Edit3 className="w-3 h-3" />
-                                        {t('ui.edit')}
+                                        <Edit3 className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
                                   </div>
@@ -7033,6 +7112,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   {filteredTimelineEvents.length === 0 && <p className="text-xs text-slate-500 pl-2">{t('ui.noEventsInType')}</p>}
                 </div>
               </div>
+            </div>
             </div>
           </div>
         )}
