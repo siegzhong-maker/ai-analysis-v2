@@ -6149,16 +6149,24 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const [editingNameA, setEditingNameA] = useState<string>(String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel));
     const [editingNameB, setEditingNameB] = useState<string>(String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel));
     const [editingEventId, setEditingEventId] = useState<number | null>(null);
-    const [eventDraft, setEventDraft] = useState<{ scoreType: string; time: string }>({ scoreType: 'goal', time: '00:00' });
-    const [eventCorrections, setEventCorrections] = useState<Record<number, { scoreType?: string; time?: string }>>({});
+    const [eventDraft, setEventDraft] = useState<{ scoreType: string; time: string; name: string }>({
+      scoreType: 'goal',
+      time: '00:00',
+      name: '',
+    });
+    const [eventCorrections, setEventCorrections] = useState<
+      Record<number, { scoreType?: string; time?: string; name?: string }>
+    >({});
     const [activeTimelineFilter, setActiveTimelineFilter] = useState<'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'>('all');
     const [selectedExportClipIds, setSelectedExportClipIds] = useState<number[]>([]);
-    const [seekToastMessage, setSeekToastMessage] = useState<string | null>(null);
+    const [isMatchFlowExpanded, setIsMatchFlowExpanded] = useState(false);
+    const [isFullMatchStripExpanded, setIsFullMatchStripExpanded] = useState(false);
 
     const eventItemRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const timelineScrollRef = useRef<HTMLDivElement | null>(null);
+    const fullMatchStripRef = useRef<HTMLDivElement | null>(null);
+    const fullMatchStripItemRefs = useRef<Record<number, HTMLButtonElement | null>>({});
     const ignoreCollapseUntilRef = useRef(0);
-    const seekToastHideRef = useRef<number | null>(null);
     const hasTimelineScrolledDownRef = useRef(false);
 
     const sourceClips = React.useMemo(
@@ -6175,11 +6183,15 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const resolvedEvents = React.useMemo(
       () =>
-        soccerTimelineEvents.map((clip) => ({
-          ...clip,
-          scoreType: eventCorrections[clip.id]?.scoreType ?? String(clip.scoreType),
-          time: eventCorrections[clip.id]?.time ?? String(clip.time),
-        })),
+        soccerTimelineEvents.map((clip) => {
+          const c = eventCorrections[clip.id];
+          return {
+            ...clip,
+            scoreType: c?.scoreType ?? String(clip.scoreType),
+            time: c?.time ?? String(clip.time),
+            customEventName: c?.name,
+          };
+        }),
       [soccerTimelineEvents, eventCorrections]
     );
 
@@ -6307,6 +6319,42 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       setEditingNameB(String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel));
     }, [showScoreEditModal, liveSoccerStats]);
 
+    useEffect(() => {
+      if (viewMode !== 'fullMatch' || filteredTimelineEvents.length === 0) return;
+      const syncSlackSec = 8;
+      let idx = -1;
+      for (let i = 0; i < filteredTimelineEvents.length; i += 1) {
+        const matchSec = parseMatchClockToSeconds(String(filteredTimelineEvents[i].time));
+        if (matchSec <= currentTimeSec + syncSlackSec) idx = i;
+      }
+      if (idx < 0) return;
+      const candidate = filteredTimelineEvents[idx];
+      setActiveEventId((prev) => (prev === candidate.id ? prev : candidate.id));
+    }, [viewMode, currentTimeSec, filteredTimelineEvents]);
+
+    /** 全场模式：树状区不随播放连续跟滚，仅在「当前事件」切换时定位到对应行 */
+    useEffect(() => {
+      if (viewMode !== 'fullMatch' || activeEventId == null || filteredTimelineEvents.length === 0) return;
+      ignoreCollapseUntilRef.current = Date.now() + 400;
+      const didScroll = scrollTimelineRowIntoViewIfNeeded(activeEventId, 'auto', true);
+      if (didScroll) ignoreCollapseUntilRef.current = Date.now() + 360;
+    }, [viewMode, activeEventId, filteredTimelineEvents, scrollTimelineRowIntoViewIfNeeded]);
+
+    useEffect(() => {
+      if (viewMode !== 'fullMatch' || !isFullMatchStripExpanded || activeEventId == null) return;
+      const raf = requestAnimationFrame(() => {
+        const el = fullMatchStripItemRefs.current[activeEventId];
+        if (!el) return;
+        el.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
+      });
+      return () => cancelAnimationFrame(raf);
+    }, [viewMode, activeEventId, isFullMatchStripExpanded]);
+
+    useEffect(() => {
+      if (viewMode !== 'fullMatch') return;
+      setIsFullMatchStripExpanded(false);
+    }, [viewMode]);
+
     const handleSeekToEvent = (event: { id: number; time: string; scoreType: string }) => {
       const rawMatchSec = parseMatchClockToSeconds(String(event.time));
       const sec =
@@ -6319,12 +6367,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       if (viewMode !== 'fullMatch') {
         eventItemRefs.current[event.id]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
-      if (seekToastHideRef.current != null) window.clearTimeout(seekToastHideRef.current);
-      setSeekToastMessage(t('ui.jumpToEvent', { event: scoreTypeLabel(String(event.scoreType)) }));
-      seekToastHideRef.current = window.setTimeout(() => {
-        setSeekToastMessage(null);
-        seekToastHideRef.current = null;
-      }, 1200);
     };
 
     const formatClock = (sec: number) => {
@@ -6340,6 +6382,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       return t('ui.eventPenaltyKicks');
     };
 
+    const eventTypeDisplayLabel = (event: { id: number; scoreType: string; customEventName?: string }) => {
+      if (event.customEventName != null && String(event.customEventName).trim() !== '') {
+        return String(event.customEventName).trim();
+      }
+      if (event.id === 20) return t('ui.eventDemoGoalByPlayer6');
+      return scoreTypeLabel(String(event.scoreType));
+    };
+
     const scoreTypeIcon = (scoreType: string) => {
       if (scoreType === 'goal') return <CircleDot className="w-3.5 h-3.5 text-emerald-300" />;
       if (scoreType === 'corner') return <Hexagon className="w-3.5 h-3.5 text-sky-300" />;
@@ -6347,9 +6397,15 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       return <Target className="w-3.5 h-3.5 text-amber-300" />;
     };
 
-    const startEditEvent = (event: { id: number; time: string; scoreType: string }) => {
+    const startEditEvent = (event: { id: number; time: string; scoreType: string; customEventName?: string }) => {
       setEditingEventId(event.id);
-      setEventDraft({ scoreType: String(event.scoreType), time: String(event.time) });
+      const nameInit =
+        event.customEventName != null && String(event.customEventName).trim() !== ''
+          ? String(event.customEventName).trim()
+          : event.id === 20
+            ? t('ui.eventDemoGoalByPlayer6')
+            : scoreTypeLabel(String(event.scoreType));
+      setEventDraft({ scoreType: String(event.scoreType), time: String(event.time), name: nameInit });
     };
 
     const saveEventEdit = (eventId: number) => {
@@ -6359,10 +6415,17 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         setTimeout(() => setToastMessage(null), 1600);
         return;
       }
-      setEventCorrections((prev) => ({
-        ...prev,
-        [eventId]: { scoreType: eventDraft.scoreType, time: eventDraft.time },
-      }));
+      setEventCorrections((prev) => {
+        const trimmed = eventDraft.name.trim();
+        return {
+          ...prev,
+          [eventId]: {
+            scoreType: eventDraft.scoreType,
+            time: eventDraft.time,
+            ...(trimmed ? { name: trimmed } : {}),
+          },
+        };
+      });
       setEditingEventId(null);
       setToastMessage(t('ui.updated'));
       setTimeout(() => setToastMessage(null), 1200);
@@ -6424,6 +6487,16 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       return { index: idx >= 0 ? idx + 1 : 1, total: filteredTimelineEvents.length };
     }, [activeKeyEvent, filteredTimelineEvents]);
 
+    /** 与播放同步：播放头出现在「当前事件」行竖线顶端，上一事件结束后移至下一行起点 */
+    const activeRowIndex = React.useMemo(() => {
+      if (filteredTimelineEvents.length === 0) return 0;
+      if (activeEventId != null) {
+        const idx = filteredTimelineEvents.findIndex((e) => e.id === activeEventId);
+        if (idx >= 0) return idx;
+      }
+      return 0;
+    }, [filteredTimelineEvents, activeEventId]);
+
     /** 0–1: current playback progress toward this event in the same clock space as the progress slider (「水渐渐注满」) */
     const eventFillById = React.useMemo(() => {
       const out: Record<number, number> = {};
@@ -6481,16 +6554,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
               <ArrowLeft className="w-5 h-5 text-white" />
             </button>
           </div>
-          {seekToastMessage && (
-            <div
-              className={`absolute top-10 left-1/2 -translate-x-1/2 bg-black/80 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 z-40 pointer-events-none max-w-[min(100%,18rem)] text-center leading-snug ${
-                viewMode === 'fullMatch' ? '' : 'animate-in zoom-in-95'
-              }`}
-            >
-              <RotateCcw className="w-3 h-3 shrink-0" />
-              {seekToastMessage}
-            </div>
-          )}
           <div className="absolute top-3 right-4 z-20">
             <div className="rounded-full p-1 bg-slate-950/80 border border-white/20 flex gap-1 shadow-lg backdrop-blur">
               <button type="button" onClick={() => setViewMode('review')} className={`px-3 py-1 rounded-full text-[10px] font-bold ${viewMode === 'review' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}>
@@ -6538,41 +6601,57 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             </div>
             {viewMode === 'fullMatch' && filteredTimelineEvents.length > 0 && (
               <div className="mt-1.5">
-                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-0.5 -mx-0.5 px-0.5">
-                  {filteredTimelineEvents.map((event) => {
-                    const isA = event.team === 'A';
-                    const isSel = activeEventId === event.id;
-                    return (
-                      <button
-                        key={`fm-strip-${event.id}`}
-                        type="button"
-                        onClick={() => handleSeekToEvent(event as any)}
-                        className={`snap-start shrink-0 min-w-[5.5rem] max-w-[7.5rem] rounded-lg border px-2 py-1.5 text-left transition-colors ${
-                          isSel
-                            ? isA
-                              ? 'border-blue-400 bg-blue-950/50'
-                              : 'border-red-400 bg-red-950/50'
-                            : isA
-                              ? 'border-blue-500/40 bg-slate-900/80 active:bg-slate-800'
-                              : 'border-red-500/40 bg-slate-900/80 active:bg-slate-800'
-                        }`}
-                        aria-label={`${scoreTypeLabel(String(event.scoreType))} ${event.time}`}
-                      >
-                        <div className="flex items-center gap-1 mb-0.5">
-                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isA ? 'bg-blue-500' : 'bg-red-500'}`} />
-                          <span className="text-[9px] font-mono text-slate-200 tabular-nums">{event.time}</span>
-                        </div>
-                        <p className="text-[9px] font-bold text-slate-100 leading-tight line-clamp-2">
-                          {scoreTypeLabel(String(event.scoreType))}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsFullMatchStripExpanded((v) => !v)}
+                  className="w-full flex items-center justify-between gap-2 rounded-lg border border-white/15 bg-black/35 backdrop-blur-sm px-2.5 py-1.5 text-left"
+                >
+                  <span className="text-[10px] font-bold text-white/90">{t('ui.fullMatchStripToggleLabel')}</span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${isFullMatchStripExpanded ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {isFullMatchStripExpanded && (
+                  <>
+                    <div className="mt-1.5" ref={fullMatchStripRef}>
+                      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-0.5 -mx-0.5 px-0.5">
+                        {filteredTimelineEvents.map((event) => {
+                          const isA = event.team === 'A';
+                          const isSel = activeEventId === event.id;
+                          return (
+                            <button
+                              key={`fm-strip-${event.id}`}
+                              ref={(el) => {
+                                fullMatchStripItemRefs.current[event.id] = el;
+                              }}
+                              type="button"
+                              onClick={() => handleSeekToEvent(event as any)}
+                              className={`snap-start shrink-0 min-w-[5.5rem] max-w-[7.5rem] rounded-lg border px-2 py-1.5 text-left transition-colors ${
+                                isSel
+                                  ? isA
+                                    ? 'border-blue-400 bg-blue-950/50'
+                                    : 'border-red-400 bg-red-950/50'
+                                  : isA
+                                    ? 'border-blue-500/40 bg-slate-900/80 active:bg-slate-800'
+                                    : 'border-red-500/40 bg-slate-900/80 active:bg-slate-800'
+                              }`}
+                              aria-label={`${eventTypeDisplayLabel(event as { id: number; scoreType: string })} ${event.time}`}
+                            >
+                              <div className="flex items-center gap-1 mb-0.5">
+                                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isA ? 'bg-blue-500' : 'bg-red-500'}`} />
+                                <span className="text-[9px] font-mono text-slate-200 tabular-nums">{event.time}</span>
+                              </div>
+                              <p className="text-[9px] font-bold text-slate-100 leading-tight line-clamp-2">
+                                {eventTypeDisplayLabel(event as { id: number; scoreType: string })}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-            )}
-            {viewMode === 'fullMatch' && (
-              <p className="text-[9px] text-slate-300 mt-1.5">{t('ui.fullMatchNoSync')}</p>
             )}
           </div>
         </div>
@@ -6600,45 +6679,40 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         <div
           className={`px-4 pt-3 pb-2 bg-[#0F172A] border-b border-white/10 transition-all`}
         >
-          <div className={`rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] transition-all ${isScoreCollapsed ? 'px-2.5 py-1.5' : 'p-3 space-y-3'}`}>
-            <div className="flex items-center justify-between gap-2">
-              {!isScoreCollapsed && <span className="text-[10px] font-bold text-emerald-200/90 tracking-wide">{t('matchReport.gameStatistics')}</span>}
-              <div className="flex items-center gap-2">
-                {!isScoreCollapsed && (
-                  <button type="button" onClick={() => setShowScoreEditModal(true)} className="text-[9px] font-bold px-2 py-1 rounded-full bg-white/10 border border-white/15 text-emerald-100 inline-flex items-center gap-1">
-                    <Edit3 className="w-3 h-3" />
-                    {t('matchReport.adjustMatchButton')}
-                  </button>
-                )}
-                <button type="button" onClick={() => setIsScoreCollapsed((prev) => !prev)} className="text-[9px] font-bold px-2 py-1 rounded-full bg-slate-800 border border-white/15 text-slate-100 whitespace-nowrap">
-                  {isScoreCollapsed ? t('ui.expandDetail') : t('ui.collapseDetail')}
-                </button>
-              </div>
+          <div className={`rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] transition-all ${isScoreCollapsed ? 'px-2.5 py-1.5' : 'p-3 space-y-2'}`}>
+            <div className="flex items-center justify-end gap-2 min-h-[1.5rem]">
+              {!isScoreCollapsed && (
+                <span className="text-[10px] font-bold text-emerald-200/90 tracking-wide flex-1 min-w-0">{t('matchReport.gameStatistics')}</span>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowScoreEditModal(true)}
+                className="text-[9px] font-bold px-2 py-1 rounded-full bg-slate-800 border border-white/15 text-slate-100 inline-flex items-center gap-1 shrink-0"
+              >
+                <Edit3 className="w-3 h-3" />
+                {t('ui.edit')}
+              </button>
             </div>
             <div
-              className={`${isScoreCollapsed ? 'mt-0.5' : 'mt-2'} flex justify-center items-end gap-5 sm:gap-8 px-2`}
+              className={`${isScoreCollapsed ? 'mt-0.5' : 'mt-1'} flex items-end justify-center gap-1 sm:gap-2 px-0.5 w-full max-w-md mx-auto`}
             >
-              <div className="min-w-0 text-right">
-                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamA.color}`}>
-                  {liveSoccerStats.teamA.score}
-                </p>
-                {!isScoreCollapsed && (
-                  <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}</p>
-                )}
-              </div>
+              <span className="text-[9px] font-bold text-slate-300 max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-right leading-tight self-end mb-0.5 shrink min-w-0">
+                {(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}
+              </span>
+              <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamA.color} tabular-nums shrink-0`}>
+                {liveSoccerStats.teamA.score}
+              </p>
               <div
-                className={`shrink-0 text-center text-slate-500 ${isScoreCollapsed ? 'text-[10px] pb-0' : 'text-xs pb-1'} font-black px-0.5`}
+                className={`shrink-0 text-center text-slate-500 ${isScoreCollapsed ? 'text-[10px] pb-0' : 'text-xs pb-0.5'} font-black px-0.5 self-end`}
               >
                 VS
               </div>
-              <div className="min-w-0 text-left">
-                <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamB.color}`}>
-                  {liveSoccerStats.teamB.score}
-                </p>
-                {!isScoreCollapsed && (
-                  <p className="text-[11px] font-bold text-slate-200">{(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}</p>
-                )}
-              </div>
+              <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamB.color} tabular-nums shrink-0`}>
+                {liveSoccerStats.teamB.score}
+              </p>
+              <span className="text-[9px] font-bold text-slate-300 max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-left leading-tight self-end mb-0.5 shrink min-w-0">
+                {(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}
+              </span>
             </div>
           </div>
         </div>
@@ -6714,57 +6788,74 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           ) : (
             <div className="px-4 py-3 space-y-3 pb-24">
             <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
-              <div className="mb-2">
-                <h3 className="text-sm font-bold text-white">{t('ui.matchFlowTitle')}</h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">{t('ui.matchFlowSubtitle')}</p>
-              </div>
-              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-2">
-                {timelineFilters.map((filter) => (
-                  <button
-                    key={filter.id}
-                    type="button"
-                    onClick={() => setActiveTimelineFilter(filter.id)}
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
-                      activeTimelineFilter === filter.id
-                        ? 'bg-blue-600/95 text-white border-blue-500 shadow-sm shadow-blue-900/40'
-                        : 'bg-slate-800/80 text-slate-300 border-white/10 hover:bg-slate-700/80'
-                    }`}
-                  >
-                    {filter.id === 'all' ? (
-                      <Filter className="w-3.5 h-3.5" />
-                    ) : (
-                      scoreTypeIcon(filter.id)
-                    )}
-                    {filter.label}
-                  </button>
-                ))}
-              </div>
-              {activeKeyEvent ? (
-                <button
-                  type="button"
-                  onClick={() => handleSeekToEvent(activeKeyEvent as any)}
-                  className="w-full text-left rounded-lg border border-emerald-500/35 bg-emerald-900/15 px-2.5 py-1.5"
-                >
-                  <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 text-[10px]">
-                    <div className="flex items-center gap-1.5 min-w-0 text-emerald-100">
-                      {scoreTypeIcon(String(activeKeyEvent.scoreType))}
-                      <span className="font-bold truncate">{scoreTypeLabel(String(activeKeyEvent.scoreType))}</span>
-                    </div>
-                    <span className="font-mono text-slate-200">{activeKeyEvent.time}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full font-bold ${
-                        activeKeyEvent.team === 'A'
-                          ? 'bg-blue-600/85 text-white'
-                          : 'bg-red-600/85 text-white'
-                      }`}
-                    >
-                      {activeKeyEvent.team === 'A' ? t('ui.teamA') : t('ui.teamB')}
-                    </span>
-                    <span className="text-slate-300">{activeKeyEventPosition.index}/{activeKeyEventPosition.total}</span>
+              <button
+                type="button"
+                onClick={() => setIsMatchFlowExpanded((v) => !v)}
+                className="w-full text-left"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold text-white">{t('ui.matchFlowTitle')}</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{t('ui.matchFlowSubtitle')}</p>
                   </div>
-                </button>
-              ) : (
-                <p className="text-xs text-slate-500">{t('ui.noEventsInType')}</p>
+                  <ChevronDown
+                    className={`w-4 h-4 text-slate-400 shrink-0 mt-0.5 transition-transform ${isMatchFlowExpanded ? 'rotate-180' : ''}`}
+                  />
+                </div>
+              </button>
+              {isMatchFlowExpanded && (
+                <>
+                  <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-2 mt-3">
+                    {timelineFilters.map((filter) => (
+                      <button
+                        key={filter.id}
+                        type="button"
+                        onClick={() => setActiveTimelineFilter(filter.id)}
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
+                          activeTimelineFilter === filter.id
+                            ? 'bg-blue-600/95 text-white border-blue-500 shadow-sm shadow-blue-900/40'
+                            : 'bg-slate-800/80 text-slate-300 border-white/10 hover:bg-slate-700/80'
+                        }`}
+                      >
+                        {filter.id === 'all' ? (
+                          <Filter className="w-3.5 h-3.5" />
+                        ) : (
+                          scoreTypeIcon(filter.id)
+                        )}
+                        {filter.label}
+                      </button>
+                    ))}
+                  </div>
+                  {activeKeyEvent ? (
+                    <button
+                      type="button"
+                      onClick={() => handleSeekToEvent(activeKeyEvent as any)}
+                      className="w-full text-left rounded-lg border border-emerald-500/35 bg-emerald-900/15 px-2.5 py-1.5"
+                    >
+                      <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 text-[10px]">
+                        <div className="flex items-center gap-1.5 min-w-0 text-emerald-100">
+                          {scoreTypeIcon(String(activeKeyEvent.scoreType))}
+                          <span className="font-bold truncate">
+                            {eventTypeDisplayLabel(activeKeyEvent as { id: number; scoreType: string })}
+                          </span>
+                        </div>
+                        <span className="font-mono text-slate-200">{activeKeyEvent.time}</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full font-bold ${
+                            activeKeyEvent.team === 'A' ? 'bg-blue-600/85 text-white' : 'bg-red-600/85 text-white'
+                          }`}
+                        >
+                          {activeKeyEvent.team === 'A' ? t('ui.teamA') : t('ui.teamB')}
+                        </span>
+                        <span className="text-slate-300">
+                          {activeKeyEventPosition.index}/{activeKeyEventPosition.total}
+                        </span>
+                      </div>
+                    </button>
+                  ) : (
+                    <p className="text-xs text-slate-500 mt-3">{t('ui.noEventsInType')}</p>
+                  )}
+                </>
               )}
             </div>
 
@@ -6775,9 +6866,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   <span className="text-[9px] text-slate-500">TIME</span>
                   <span className="text-[10px] font-bold text-red-300 text-right">{t('ui.teamB')}</span>
                 </div>
-                <div className="absolute left-1/2 -translate-x-1/2 top-7 bottom-1 w-px bg-white/15" />
+                <div className="absolute left-1/2 -translate-x-1/2 top-6 bottom-1 w-px bg-white/15" />
                 <div className="space-y-2">
-                  {filteredTimelineEvents.map((event) => {
+                  {filteredTimelineEvents.map((event, rowIndex) => {
                     const isActive = activeEventId === event.id;
                     const isEditing = editingEventId === event.id;
                     return (
@@ -6798,33 +6889,28 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             >
                               {event.team === 'A' && (
                                 <>
-                                  {viewMode !== 'fullMatch' && (
-                                    <div className="absolute inset-0 z-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden>
-                                      <div
-                                        className={`absolute bottom-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-t from-blue-500/50 via-sky-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
-                                        style={{ height: `${(eventFillById[event.id] ?? 0) * 100}%` }}
-                                      />
-                                      {isPlaying && (eventFillById[event.id] ?? 0) > 0.04 && (eventFillById[event.id] ?? 0) < 0.98 && (
-                                        <div
-                                          className="event-liquid-surface event-liquid-surface-a absolute left-0 right-0 h-1.5"
-                                          style={{ bottom: `calc(${(eventFillById[event.id] ?? 0) * 100}% - 1px)` }}
-                                        />
-                                      )}
-                                    </div>
-                                  )}
-                                  <div className="relative z-[1]">
-                                    <div className="mt-1 flex items-center gap-2">
+                                  <div className="absolute inset-0 z-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden>
+                                    <div
+                                      className={`absolute bottom-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-t from-blue-500/50 via-sky-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
+                                      style={{ height: `${(eventFillById[event.id] ?? 0) * 100}%` }}
+                                    />
+                                  </div>
+                                  <div className="relative z-[1] flex flex-col min-h-[68px] justify-between">
+                                    <div className="mt-0.5 flex items-center gap-2 min-w-0">
                                       {scoreTypeIcon(String(event.scoreType))}
-                                      <span className="text-xs font-bold text-slate-100">{scoreTypeLabel(String(event.scoreType))}</span>
+                                      <span className="text-xs font-bold text-slate-100 truncate">
+                                        {eventTypeDisplayLabel(event as { id: number; scoreType: string })}
+                                      </span>
                                     </div>
-                                    <div className="mt-2 flex justify-end items-center">
+                                    <div className="mt-2 flex items-end justify-between gap-2">
+                                      <span className="text-[10px] font-mono text-slate-400 tabular-nums shrink-0">{event.time}</span>
                                       <button
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           startEditEvent(event as any);
                                         }}
-                                        className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1"
+                                        className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1 shrink-0"
                                       >
                                         <Edit3 className="w-3 h-3" />
                                         {t('ui.edit')}
@@ -6834,9 +6920,31 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                 </>
                               )}
                             </button>
-                            <div className="flex flex-col items-center justify-start pt-2.5 px-1">
-                              <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">{event.time}</span>
-                              <div className={`mt-1 w-3 h-3 rounded-full border-2 ${event.team === 'A' ? 'bg-blue-500 border-[#0F172A]' : 'bg-red-500 border-[#0F172A]'}`} />
+                            <div className="relative w-5 shrink-0 min-h-[68px] self-stretch px-0.5">
+                              {rowIndex === activeRowIndex && (
+                                <div
+                                  className={`absolute left-1/2 top-0 z-10 h-3.5 w-3.5 -translate-x-1/2 rounded-full border-2 border-[#0B1220] shadow-md ${
+                                    event.team === 'A'
+                                      ? 'bg-blue-500 ring-2 ring-blue-400/45'
+                                      : 'bg-red-500 ring-2 ring-red-400/45'
+                                  }`}
+                                  aria-hidden
+                                />
+                              )}
+                              {rowIndex < activeRowIndex && (
+                                <div
+                                  className={`absolute bottom-0 left-1/2 z-[1] mb-px h-2 w-2 -translate-x-1/2 rounded-full ${
+                                    event.team === 'A' ? 'bg-blue-500/80' : 'bg-red-500/80'
+                                  }`}
+                                  aria-hidden
+                                />
+                              )}
+                              {rowIndex > activeRowIndex && (
+                                <div
+                                  className="absolute left-1/2 top-0 z-[1] h-1.5 w-1.5 -translate-x-1/2 rounded-full border border-white/30 bg-[#0F172A]/90 opacity-60"
+                                  aria-hidden
+                                />
+                              )}
                             </div>
                             <button
                               type="button"
@@ -6846,33 +6954,28 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             >
                               {event.team === 'B' && (
                                 <>
-                                  {viewMode !== 'fullMatch' && (
-                                    <div className="absolute inset-0 z-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden>
-                                      <div
-                                        className={`absolute bottom-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-t from-red-500/50 via-rose-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
-                                        style={{ height: `${(eventFillById[event.id] ?? 0) * 100}%` }}
-                                      />
-                                      {isPlaying && (eventFillById[event.id] ?? 0) > 0.04 && (eventFillById[event.id] ?? 0) < 0.98 && (
-                                        <div
-                                          className="event-liquid-surface event-liquid-surface-b absolute left-0 right-0 h-1.5"
-                                          style={{ bottom: `calc(${(eventFillById[event.id] ?? 0) * 100}% - 1px)` }}
-                                        />
-                                      )}
-                                    </div>
-                                  )}
-                                  <div className="relative z-[1]">
-                                    <div className="mt-1 flex items-center gap-2">
+                                  <div className="absolute inset-0 z-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden>
+                                    <div
+                                      className={`absolute bottom-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-t from-red-500/50 via-rose-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
+                                      style={{ height: `${(eventFillById[event.id] ?? 0) * 100}%` }}
+                                    />
+                                  </div>
+                                  <div className="relative z-[1] flex flex-col min-h-[68px] justify-between">
+                                    <div className="mt-0.5 flex items-center gap-2 min-w-0">
                                       {scoreTypeIcon(String(event.scoreType))}
-                                      <span className="text-xs font-bold text-slate-100">{scoreTypeLabel(String(event.scoreType))}</span>
+                                      <span className="text-xs font-bold text-slate-100 truncate">
+                                        {eventTypeDisplayLabel(event as { id: number; scoreType: string })}
+                                      </span>
                                     </div>
-                                    <div className="mt-2 flex justify-end items-center">
+                                    <div className="mt-2 flex items-end justify-between gap-2">
+                                      <span className="text-[10px] font-mono text-slate-400 tabular-nums shrink-0">{event.time}</span>
                                       <button
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           startEditEvent(event as any);
                                         }}
-                                        className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1"
+                                        className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center gap-1 shrink-0"
                                       >
                                         <Edit3 className="w-3 h-3" />
                                         {t('ui.edit')}
@@ -6886,6 +6989,15 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                         ) : (
                           <div className="rounded-lg border border-white/10 bg-[#1E293B]/80 p-2.5 space-y-2">
                             <div className="text-[10px] font-bold text-slate-300">{event.team === 'A' ? t('ui.teamA') : t('ui.teamB')} · {event.time}</div>
+                            <label className="text-[10px] text-slate-400 block">
+                              {t('ui.eventNameLabel')}
+                              <input
+                                value={eventDraft.name}
+                                onChange={(e) => setEventDraft((prev) => ({ ...prev, name: e.target.value }))}
+                                className="mt-1 w-full rounded bg-slate-800 border border-white/10 px-2 py-1.5 text-xs text-white"
+                                autoComplete="off"
+                              />
+                            </label>
                             <div className="grid grid-cols-2 gap-2">
                               <label className="text-[10px] text-slate-400">
                                 {t('ui.typeLabel')}
@@ -9093,15 +9205,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
           @keyframes event-liquid-breathe-ky { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.15); } }
 
-          @keyframes event-liquid-ripple-ky { 0%, 100% { transform: translateX(-4%) scaleX(1); opacity: 0.75; } 50% { transform: translateX(4%) scaleX(1.06); opacity: 1; } }
-
           .event-liquid-breathe { animation: event-liquid-breathe-ky 2.4s ease-in-out infinite; }
-
-          .event-liquid-surface { border-radius: 2px; animation: event-liquid-ripple-ky 1.4s ease-in-out infinite; }
-
-          .event-liquid-surface-a { background: linear-gradient(90deg, transparent, rgba(191, 219, 254, 0.65), transparent); box-shadow: 0 0 10px rgba(59, 130, 246, 0.4); }
-
-          .event-liquid-surface-b { background: linear-gradient(90deg, transparent, rgba(254, 202, 202, 0.65), transparent); box-shadow: 0 0 10px rgba(239, 68, 68, 0.35); }
 
           .animate-in { animation-fill-mode: both; }
 
