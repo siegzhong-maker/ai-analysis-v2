@@ -6143,7 +6143,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const [durationSec, setDurationSec] = useState(90 * 60);
     const [activeEventId, setActiveEventId] = useState<number | null>(null);
     const [showScoreEditModal, setShowScoreEditModal] = useState(false);
-    const [isScoreCollapsed, setIsScoreCollapsed] = useState(true);
     const [editingScoreA, setEditingScoreA] = useState<string>(String(liveSoccerStats.teamA.score));
     const [editingScoreB, setEditingScoreB] = useState<string>(String(liveSoccerStats.teamB.score));
     const [editingNameA, setEditingNameA] = useState<string>(String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel));
@@ -6166,8 +6165,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const timelineScrollRef = useRef<HTMLDivElement | null>(null);
     const fullMatchStripRef = useRef<HTMLDivElement | null>(null);
     const fullMatchStripItemRefs = useRef<Record<number, HTMLButtonElement | null>>({});
-    const ignoreCollapseUntilRef = useRef(0);
-    const hasTimelineScrolledDownRef = useRef(false);
     /** 与「赛事回顾」时间轴/播放头：播放时用 rAF 按真实时间推进，避免 1s 整步进 */
     const analysisPlaybackRef = useRef({ anchorSec: 0, wallMs: 0 });
     const currentTimeSecRef = useRef(0);
@@ -6213,7 +6210,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     const reviewTimelineSpanSec = Math.max(45, maxEventTimeSec + 30);
 
-    const REVIEW_PLAYER_MAX_SEC = 3 * 60;
+    const REVIEW_PLAYER_MAX_SEC = 150;
 
     const selectedVideoDuration =
       viewMode === 'fullMatch'
@@ -6335,15 +6332,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       const idChanged = candidate.id !== activeEventId;
       if (idChanged) {
         setActiveEventId(candidate.id);
-        ignoreCollapseUntilRef.current = Date.now() + 500;
       }
       const wantSmooth = idChanged || isPlaying;
-      const didScroll = scrollTimelineRowIntoViewIfNeeded(
+      scrollTimelineRowIntoViewIfNeeded(
         candidate.id,
         wantSmooth ? 'smooth' : 'auto',
         idChanged
       );
-      if (didScroll && !idChanged) ignoreCollapseUntilRef.current = Date.now() + 360;
     }, [
       currentTimeSec,
       viewMode,
@@ -6378,9 +6373,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     /** 全场模式：树状区不随播放连续跟滚，仅在「当前事件」切换时定位到对应行 */
     useEffect(() => {
       if (viewMode !== 'fullMatch' || activeEventId == null || filteredTimelineEvents.length === 0) return;
-      ignoreCollapseUntilRef.current = Date.now() + 400;
-      const didScroll = scrollTimelineRowIntoViewIfNeeded(activeEventId, 'auto', true);
-      if (didScroll) ignoreCollapseUntilRef.current = Date.now() + 360;
+      scrollTimelineRowIntoViewIfNeeded(activeEventId, 'auto', true);
     }, [viewMode, activeEventId, filteredTimelineEvents, scrollTimelineRowIntoViewIfNeeded]);
 
     useEffect(() => {
@@ -6406,7 +6399,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           : matchClockToReviewPlayerSec(Math.max(0, rawMatchSec - 4));
       seekAnalysisTime(sec);
       setActiveEventId(event.id);
-      ignoreCollapseUntilRef.current = Date.now() + 450;
       if (viewMode !== 'fullMatch') {
         eventItemRefs.current[event.id]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
@@ -6472,16 +6464,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       setEditingEventId(null);
       setToastMessage(t('ui.updated'));
       setTimeout(() => setToastMessage(null), 1200);
-    };
-
-    const handleTimelineScroll = (e: React.UIEvent<HTMLDivElement>) => {
-      if (Date.now() < ignoreCollapseUntilRef.current) return;
-      const top = e.currentTarget.scrollTop;
-      if (top > 12) {
-        hasTimelineScrolledDownRef.current = true;
-        if (!isScoreCollapsed) setIsScoreCollapsed(true);
-      }
-      if (top <= 4 && isScoreCollapsed && hasTimelineScrolledDownRef.current) setIsScoreCollapsed(false);
     };
 
     const handleSaveSoccerScore = () => {
@@ -6575,11 +6557,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       if (list.length === 0) return { pos: 0.5, show: false as const };
       const span = reviewTimelineSpanSec;
       const dur = Math.min(REVIEW_PLAYER_MAX_SEC, span);
-      const matchSec = dur > 0 ? Math.max(0, Math.min(span, (currentTimeSec / dur) * span)) : 0;
-      const tFirst = parseMatchClockToSeconds(String(list[0].time));
-      const tLast = parseMatchClockToSeconds(String(list[list.length - 1].time));
-      if (tLast <= tFirst) return { pos: 0.5, show: true as const };
-      const pos = Math.min(1, Math.max(0, (matchSec - tFirst) / (tLast - tFirst)));
+      if (dur <= 0 || span <= 0) return { pos: 0.5, show: true as const };
+      // 让播放点从回顾开始即连续下移，而不是等到首事件时间后才开始移动。
+      const pos = Math.min(1, Math.max(0, currentTimeSec / dur));
       return { pos, show: true as const };
     }, [currentTimeSec, viewMode, filteredTimelineEvents, reviewTimelineSpanSec]);
 
@@ -6587,6 +6567,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       const pe = activeEventId != null ? filteredTimelineEvents.find((e) => e.id === activeEventId) : null;
       return pe?.team === 'B' ? 'bg-red-500 ring-2 ring-red-400/45' : 'bg-blue-500 ring-2 ring-blue-400/45';
     }, [activeEventId, filteredTimelineEvents]);
+
+    const teamADisplayName = String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel);
+    const teamBDisplayName = String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel);
 
     const timelineFilters: Array<{ id: 'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'; label: string }> = [
       { id: 'all', label: t('filter.all') },
@@ -6608,28 +6591,66 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     }
 
     return (
-      <div className="flex flex-col h-full bg-[#0F172A] text-white relative">
-        <div className="min-h-[200px] h-[33vh] max-h-[40vh] bg-black relative shrink-0 border-b border-white/10">
-          <AssetThumbnail type="video" category={resultSport || 'soccer'} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-          <div className="absolute top-4 left-4 z-30">
-            <button onClick={popToHome} className="p-2 bg-black/40 rounded-full">
+      <div className="flex flex-col h-full bg-[#0F172A] text-white relative pt-1">
+        <div className="px-4 pt-2 pb-2 space-y-2 border-b border-white/10 bg-gradient-to-b from-[#0b1220]/95 via-[#0e1627]/88 to-[#0F172A]">
+          <div className="flex items-center gap-2.5">
+            <button onClick={popToHome} className="p-2 bg-white/8 border border-white/20 rounded-full backdrop-blur-md shadow-sm shadow-black/25 shrink-0">
               <ArrowLeft className="w-5 h-5 text-white" />
             </button>
+            <div className="flex-1 rounded-2xl p-1 bg-white/8 border border-white/20 shadow-sm shadow-black/25 backdrop-blur-xl">
+              <div className="flex gap-1">
+                <button type="button" onClick={() => setViewMode('review')} className={`flex-1 px-2.5 py-1 rounded-xl text-[10px] font-semibold transition-colors ${viewMode === 'review' ? 'bg-[#2f7cff] text-white shadow-sm shadow-blue-900/35' : 'text-slate-300 hover:bg-white/8'}`}>
+                  {t('ui.eventReview')}
+                </button>
+                <button type="button" onClick={() => setViewMode('fullMatch')} className={`flex-1 px-2.5 py-1 rounded-xl text-[10px] font-semibold transition-colors ${viewMode === 'fullMatch' ? 'bg-[#2f7cff] text-white shadow-sm shadow-blue-900/35' : 'text-slate-300 hover:bg-white/8'}`}>
+                  {t('ui.fullMatchView')}
+                </button>
+                <button type="button" onClick={() => setViewMode('report')} className={`flex-1 px-2.5 py-1 rounded-xl text-[10px] font-semibold transition-colors ${viewMode === 'report' ? 'bg-[#2f7cff] text-white shadow-sm shadow-blue-900/35' : 'text-slate-300 hover:bg-white/8'}`}>
+                  {t('matchReport.tabMatchReport')}
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="absolute top-3 right-4 z-20">
-            <div className="rounded-full p-1 bg-slate-950/80 border border-white/20 flex gap-1 shadow-lg backdrop-blur">
-              <button type="button" onClick={() => setViewMode('review')} className={`px-3 py-1 rounded-full text-[10px] font-bold ${viewMode === 'review' ? 'bg-blue-600 text-white' : 'text-slate-300'}`}>
-                {t('ui.eventReview')}
-              </button>
-              <button type="button" onClick={() => setViewMode('fullMatch')} className={`px-3 py-1 rounded-full text-[10px] font-bold ${viewMode === 'fullMatch' ? 'bg-emerald-600 text-white' : 'text-slate-300'}`}>
-                {t('ui.fullMatchView')}
-              </button>
-              <button type="button" onClick={() => setViewMode('report')} className={`px-3 py-1 rounded-full text-[10px] font-bold ${viewMode === 'report' ? 'bg-orange-600 text-white' : 'text-slate-300'}`}>
-                {t('matchReport.tabMatchReport')}
+          <div>
+            <div className="relative w-full rounded-xl border border-white/15 bg-[#3c4b5e]/88 px-3 py-3 shadow-sm shadow-black/30">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-8">
+                <div className="min-w-0">
+                  <span className="block text-[11px] font-semibold text-slate-100 truncate">
+                    {teamADisplayName}
+                  </span>
+                </div>
+                <div className="text-center px-1">
+                  <div className="flex items-end justify-center gap-2">
+                    <p className="text-[24px] font-black tabular-nums text-white leading-none">
+                      {liveSoccerStats.teamA.score}
+                    </p>
+                    <span className="text-[20px] font-black text-slate-300 leading-none">-</span>
+                    <p className="text-[24px] font-black tabular-nums text-white leading-none">
+                      {liveSoccerStats.teamB.score}
+                    </p>
+                  </div>
+                </div>
+                <div className="min-w-0 text-right">
+                  <span className="block text-[11px] font-semibold text-slate-100 truncate">
+                    {teamBDisplayName}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowScoreEditModal(true)}
+                className="absolute right-2 top-2 inline-flex items-center justify-center p-1 rounded-md bg-white/10 border border-white/20 text-slate-100 shrink-0"
+                aria-label={t('ui.edit')}
+                title={t('ui.edit')}
+              >
+                <Edit3 className="w-3 h-3" />
               </button>
             </div>
           </div>
+        </div>
+        <div className="min-h-[190px] h-[30vh] max-h-[36vh] bg-black relative shrink-0 border-b border-white/10">
+          <AssetThumbnail type="video" category={resultSport || 'soccer'} />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
           <button
             type="button"
             onClick={() => setIsPlaying((prev) => !prev)}
@@ -6740,54 +6761,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         )}
 
         <div
-          className={`px-4 pt-3 pb-2 bg-[#0F172A] border-b border-white/10 transition-all`}
-        >
-          <div className={`rounded-2xl border border-emerald-500/35 bg-gradient-to-br from-emerald-950/80 via-[#111827] to-[#0F172A] transition-all ${isScoreCollapsed ? 'px-2.5 py-1.5' : 'p-3'}`}>
-            <div className="relative flex items-end min-h-[2.25rem]">
-              {!isScoreCollapsed && (
-                <span className="z-10 text-[10px] font-bold text-emerald-200/90 tracking-wide shrink-0 max-w-[30%] truncate pr-2">
-                  {t('matchReport.gameStatistics')}
-                </span>
-              )}
-              <div className="absolute inset-0 flex items-end justify-center pointer-events-none">
-                <div className="flex items-end justify-center gap-1 sm:gap-2 px-0.5 w-full max-w-md pointer-events-auto">
-                  <span className="text-[9px] font-bold text-slate-300 max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-right leading-tight self-end mb-0.5 shrink min-w-0">
-                    {(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}
-                  </span>
-                  <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamA.color} tabular-nums shrink-0`}>
-                    {liveSoccerStats.teamA.score}
-                  </p>
-                  <div
-                    className={`shrink-0 text-center text-slate-500 ${isScoreCollapsed ? 'text-[10px] pb-0' : 'text-xs pb-0.5'} font-black px-0.5 self-end`}
-                  >
-                    VS
-                  </div>
-                  <p className={`${isScoreCollapsed ? 'text-xl' : 'text-3xl'} font-black ${liveSoccerStats.teamB.color} tabular-nums shrink-0`}>
-                    {liveSoccerStats.teamB.score}
-                  </p>
-                  <span className="text-[9px] font-bold text-slate-300 max-w-[4.5rem] sm:max-w-[5.5rem] truncate text-left leading-tight self-end mb-0.5 shrink min-w-0">
-                    {(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowScoreEditModal(true)}
-                className="z-10 ml-auto inline-flex items-center justify-center p-1.5 rounded-lg bg-slate-800 border border-white/15 text-slate-100 shrink-0"
-                aria-label={t('ui.edit')}
-                title={t('ui.edit')}
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div
           ref={timelineScrollRef}
-          className={`flex-1 overflow-y-auto overscroll-y-contain ${viewMode === 'fullMatch' ? '' : 'scroll-smooth'}`}
+          className={`flex-1 overflow-y-auto overscroll-y-contain pt-2 ${viewMode === 'fullMatch' ? '' : 'scroll-smooth'}`}
           data-correction-scroll
-          onScroll={handleTimelineScroll}
         >
           {viewMode === 'report' ? (
             <div className="px-4 py-3 space-y-4 pb-24">
@@ -6911,7 +6887,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             activeKeyEvent.team === 'A' ? 'bg-blue-600/85 text-white' : 'bg-red-600/85 text-white'
                           }`}
                         >
-                          {activeKeyEvent.team === 'A' ? t('ui.teamA') : t('ui.teamB')}
+                          {activeKeyEvent.team === 'A' ? teamADisplayName : teamBDisplayName}
                         </span>
                         <span className="text-slate-300">
                           {activeKeyEventPosition.index}/{activeKeyEventPosition.total}
@@ -6928,9 +6904,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
               <div className="relative">
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mb-2 px-1">
-                  <span className="text-[10px] font-bold text-blue-300">{t('ui.teamA')}</span>
+                  <span className="text-[10px] font-bold text-blue-300 truncate pr-2">{teamADisplayName}</span>
                   <span className="text-[9px] text-slate-500">TIME</span>
-                  <span className="text-[10px] font-bold text-red-300 text-right">{t('ui.teamB')}</span>
+                  <span className="text-[10px] font-bold text-red-300 text-right truncate pl-2">{teamBDisplayName}</span>
                 </div>
                 <div className="relative">
                   <div className="pointer-events-none absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 bg-white/15" />
@@ -6968,7 +6944,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                 <>
                                   <div className="absolute inset-0 z-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden>
                                     <div
-                                      className={`absolute bottom-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-t from-blue-500/50 via-sky-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
+                                      className={`absolute top-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-b from-blue-500/50 via-sky-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
                                       style={{ height: `${(eventFillById[event.id] ?? 0) * 100}%` }}
                                     />
                                   </div>
@@ -7034,7 +7010,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                 <>
                                   <div className="absolute inset-0 z-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden>
                                     <div
-                                      className={`absolute bottom-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-t from-red-500/50 via-rose-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
+                                      className={`absolute top-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-b from-red-500/50 via-rose-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
                                       style={{ height: `${(eventFillById[event.id] ?? 0) * 100}%` }}
                                     />
                                   </div>
@@ -7067,7 +7043,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                           </div>
                         ) : (
                           <div className="rounded-lg border border-white/10 bg-[#1E293B]/80 p-2.5 space-y-2">
-                            <div className="text-[10px] font-bold text-slate-300">{event.team === 'A' ? t('ui.teamA') : t('ui.teamB')} · {event.time}</div>
+                            <div className="text-[10px] font-bold text-slate-300">{event.team === 'A' ? teamADisplayName : teamBDisplayName} · {event.time}</div>
                             <label className="text-[10px] text-slate-400 block">
                               {t('ui.eventNameLabel')}
                               <input
