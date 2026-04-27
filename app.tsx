@@ -36,7 +36,7 @@ import {
 
   MessageSquare, Save, User, Users, ChevronDown, Heart, Trash2,
 
-  ArrowDownUp, Info,
+  ArrowDownUp, Info, Scissors, Type, Sticker, Music2,
 
 } from 'lucide-react';
 
@@ -48,6 +48,7 @@ type ViewState =
   | 'media_picker'
   | 'ai_result_highlight'
   | 'ai_result_analysis'
+  | 'manual_editor'
   | 'task_submitted'
   | 'task_center'
   | 'transfer_list'
@@ -390,6 +391,9 @@ const AI_CLIPS_ADVANCED = [
   { id: 25, labelKey: 'clips.goal', time: "88:45", duration: "15s", type: "soccer_event", scoreType: 'goal', team: 'B', sport: 'soccer', confidence: 'high', player: '#9 Lewy' },
 
 ];
+
+/** 演示兜底：当用户尚未真实打点时，给「用户打点」筛选保留可见样例 */
+const DEMO_USER_MARKED_EVENT_IDS = [20, 23];
 
 const HISTORY_TASKS = [
 
@@ -2042,6 +2046,22 @@ const GalleryFlowModeToggle = () => {
       >
         {isFull ? t('gallery.flowFull') : t('gallery.flowNormal')}
       </span>
+    </button>
+  );
+};
+
+const AnalysisOrientationToggle = () => {
+  const { t, currentView, analysisResultLayout, setAnalysisResultLayout } = useAppContext();
+  if (currentView !== 'ai_result_analysis') return null;
+  const isLandscape = analysisResultLayout === 'landscape';
+  return (
+    <button
+      type="button"
+      onClick={() => setAnalysisResultLayout(isLandscape ? 'portrait' : 'landscape')}
+      className="h-8 shrink-0 rounded-full border border-slate-300 bg-white px-3 text-[12px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+      title={t('ui.toggleAnalysisLayout')}
+    >
+      {isLandscape ? t('ui.switchToPortrait') : t('ui.switchToLandscape')}
     </button>
   );
 };
@@ -6124,16 +6144,20 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
   const AnalysisResultScreen = () => {
     const {
       popToHome,
+      pushView,
       resultSport,
+      eventClaims,
       setShowShareModal,
       setShareType,
       setShareContext,
+      setHighlightEntryIntent,
       setToastMessage,
       t,
       galleryHybridDemoView,
       setGalleryHybridDemoView,
       liveSoccerStats,
       updateSoccerMatchPresentation,
+      analysisResultLayout,
     } = useAppContext();
 
     const isSoccer = resultSport === 'soccer';
@@ -6156,15 +6180,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const [eventCorrections, setEventCorrections] = useState<
       Record<number, { scoreType?: string; time?: string; name?: string }>
     >({});
-    const [activeTimelineFilter, setActiveTimelineFilter] = useState<'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'>('all');
+    const [activeTimelineFilter, setActiveTimelineFilter] = useState<'all' | 'goal' | 'corner' | 'setpiece' | 'penalty' | 'user'>('all');
     const [selectedExportClipIds, setSelectedExportClipIds] = useState<number[]>([]);
     const [isMatchFlowExpanded, setIsMatchFlowExpanded] = useState(false);
-    const [isFullMatchStripExpanded, setIsFullMatchStripExpanded] = useState(false);
+    const isLandscape = analysisResultLayout === 'landscape';
 
     const eventItemRefs = useRef<Record<number, HTMLDivElement | null>>({});
     const timelineScrollRef = useRef<HTMLDivElement | null>(null);
-    const fullMatchStripRef = useRef<HTMLDivElement | null>(null);
-    const fullMatchStripItemRefs = useRef<Record<number, HTMLButtonElement | null>>({});
     /** 与「赛事回顾」时间轴/播放头：播放时用 rAF 按真实时间推进，避免 1s 整步进 */
     const analysisPlaybackRef = useRef({ anchorSec: 0, wallMs: 0 });
     const currentTimeSecRef = useRef(0);
@@ -6177,31 +6199,80 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       [resultSport]
     );
 
-    const soccerTimelineEvents = React.useMemo(() => {
+    const userMarkedEventIds = React.useMemo(() => {
+      const claimIds = Object.keys(eventClaims)
+        .filter((id) => String(eventClaims[Number(id)] ?? '').trim() !== '')
+        .map((id) => Number(id));
+      const correctionIds = Object.keys(eventCorrections).map((id) => Number(id));
+      const merged = new Set<number>([...claimIds, ...correctionIds]);
+      if (merged.size === 0) {
+        DEMO_USER_MARKED_EVENT_IDS.forEach((id) => merged.add(id));
+      }
+      return merged;
+    }, [eventClaims, eventCorrections]);
+
+    const resolvedEvents = React.useMemo(() => {
       if (!isSoccer) return [] as any[];
       return sourceClips
-        .filter((clip) => ['goal', 'corner', 'setpiece', 'penalty'].includes(String(clip.scoreType)))
-        .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)));
-    }, [isSoccer, sourceClips]);
-
-    const resolvedEvents = React.useMemo(
-      () =>
-        soccerTimelineEvents.map((clip) => {
+        .filter((clip) => {
+          if (clip.sport !== 'soccer') return false;
+          const isCore = ['goal', 'corner', 'setpiece', 'penalty'].includes(String(clip.scoreType));
+          const isUserMarked = userMarkedEventIds.has(clip.id);
+          return isCore || (viewMode === 'fullMatch' && isUserMarked);
+        })
+        .map((clip) => {
           const c = eventCorrections[clip.id];
           return {
             ...clip,
             scoreType: c?.scoreType ?? String(clip.scoreType),
             time: c?.time ?? String(clip.time),
             customEventName: c?.name,
+            isUserMarked: viewMode === 'fullMatch' && userMarkedEventIds.has(clip.id),
           };
-        }),
-      [soccerTimelineEvents, eventCorrections]
-    );
+        })
+        .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)));
+    }, [isSoccer, sourceClips, eventCorrections, userMarkedEventIds, viewMode]);
+
+    const userMarkedTimelineEvents = React.useMemo(() => {
+      const actualMarked = sourceClips
+        .filter((clip) => clip.sport === 'soccer' && userMarkedEventIds.has(clip.id))
+        .map((clip) => {
+          const c = eventCorrections[clip.id];
+          return {
+            ...clip,
+            scoreType: c?.scoreType ?? String(clip.scoreType),
+            time: c?.time ?? String(clip.time),
+            customEventName: c?.name,
+            isUserMarked: true,
+          };
+        })
+        .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)));
+
+      if (actualMarked.length > 0) return actualMarked;
+
+      return sourceClips
+        .filter((clip) => clip.sport === 'soccer' && DEMO_USER_MARKED_EVENT_IDS.includes(clip.id))
+        .map((clip) => {
+          const c = eventCorrections[clip.id];
+          return {
+            ...clip,
+            scoreType: c?.scoreType ?? String(clip.scoreType),
+            time: c?.time ?? String(clip.time),
+            customEventName: c?.name,
+            isUserMarked: true,
+          };
+        })
+        .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)));
+    }, [sourceClips, eventCorrections, userMarkedEventIds]);
 
     const filteredTimelineEvents = React.useMemo(() => {
       if (activeTimelineFilter === 'all') return resolvedEvents;
+      if (activeTimelineFilter === 'user') {
+        if (viewMode !== 'fullMatch') return resolvedEvents;
+        return userMarkedTimelineEvents;
+      }
       return resolvedEvents.filter((event) => String(event.scoreType) === activeTimelineFilter);
-    }, [resolvedEvents, activeTimelineFilter]);
+    }, [resolvedEvents, activeTimelineFilter, userMarkedTimelineEvents, viewMode]);
 
     const maxEventTimeSec = React.useMemo(
       () => resolvedEvents.reduce((acc, event) => Math.max(acc, parseMatchClockToSeconds(String(event.time))), 0),
@@ -6260,6 +6331,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       currentTimeSecRef.current = 0;
       analysisPlaybackRef.current = { anchorSec: 0, wallMs: performance.now() };
     }, [selectedVideoDuration, viewMode]);
+
+    useEffect(() => {
+      if (viewMode !== 'fullMatch' && activeTimelineFilter === 'user') {
+        setActiveTimelineFilter('all');
+      }
+    }, [viewMode, activeTimelineFilter]);
 
     const seekAnalysisTime = React.useCallback(
       (next: number) => {
@@ -6357,39 +6434,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       setEditingNameB(String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel));
     }, [showScoreEditModal, liveSoccerStats]);
 
-    useEffect(() => {
-      if (viewMode !== 'fullMatch' || filteredTimelineEvents.length === 0) return;
-      const syncSlackSec = 8;
-      let idx = -1;
-      for (let i = 0; i < filteredTimelineEvents.length; i += 1) {
-        const matchSec = parseMatchClockToSeconds(String(filteredTimelineEvents[i].time));
-        if (matchSec <= currentTimeSec + syncSlackSec) idx = i;
-      }
-      if (idx < 0) return;
-      const candidate = filteredTimelineEvents[idx];
-      setActiveEventId((prev) => (prev === candidate.id ? prev : candidate.id));
-    }, [viewMode, currentTimeSec, filteredTimelineEvents]);
-
-    /** 全场模式：树状区不随播放连续跟滚，仅在「当前事件」切换时定位到对应行 */
-    useEffect(() => {
-      if (viewMode !== 'fullMatch' || activeEventId == null || filteredTimelineEvents.length === 0) return;
-      scrollTimelineRowIntoViewIfNeeded(activeEventId, 'auto', true);
-    }, [viewMode, activeEventId, filteredTimelineEvents, scrollTimelineRowIntoViewIfNeeded]);
-
-    useEffect(() => {
-      if (viewMode !== 'fullMatch' || !isFullMatchStripExpanded || activeEventId == null) return;
-      const raf = requestAnimationFrame(() => {
-        const el = fullMatchStripItemRefs.current[activeEventId];
-        if (!el) return;
-        el.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
-      });
-      return () => cancelAnimationFrame(raf);
-    }, [viewMode, activeEventId, isFullMatchStripExpanded]);
-
+    /** 全场模式：树状区不随播放时间自动切换，仅响应用户点击事件跳转 */
     useEffect(() => {
       if (viewMode !== 'fullMatch') return;
-      setIsFullMatchStripExpanded(false);
-    }, [viewMode]);
+      // intentionally noop: keep tree static during playback in full-match mode
+    }, [viewMode, currentTimeSec]);
 
     const handleSeekToEvent = (event: { id: number; time: string; scoreType: string }) => {
       const rawMatchSec = parseMatchClockToSeconds(String(event.time));
@@ -6497,6 +6546,10 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       setShowShareModal(true);
     };
 
+    const goToManualEdit = () => {
+      pushView('manual_editor');
+    };
+
     const activeKeyEvent = React.useMemo(() => {
       if (filteredTimelineEvents.length === 0) return null;
       if (activeEventId != null) {
@@ -6571,12 +6624,13 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     const teamADisplayName = String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel);
     const teamBDisplayName = String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel);
 
-    const timelineFilters: Array<{ id: 'all' | 'goal' | 'corner' | 'setpiece' | 'penalty'; label: string }> = [
+    const timelineFilters: Array<{ id: 'all' | 'goal' | 'corner' | 'setpiece' | 'penalty' | 'user'; label: string }> = [
       { id: 'all', label: t('filter.all') },
       { id: 'goal', label: scoreTypeLabel('goal') },
       { id: 'corner', label: scoreTypeLabel('corner') },
       { id: 'setpiece', label: scoreTypeLabel('setpiece') },
       { id: 'penalty', label: scoreTypeLabel('penalty') },
+      ...(viewMode === 'fullMatch' ? [{ id: 'user' as const, label: t('ui.userMarkedEvents') }] : []),
     ];
 
     if (!isSoccer) {
@@ -6592,13 +6646,14 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     return (
       <div className="flex flex-col h-full bg-[#0F172A] text-white relative pt-1">
-        <div className="px-4 pt-2 pb-2 space-y-2 border-b border-white/10 bg-gradient-to-b from-[#0b1220]/95 via-[#0e1627]/88 to-[#0F172A]">
-          <div className="flex items-center gap-2.5">
-            <button onClick={popToHome} className="p-2 bg-white/8 border border-white/20 rounded-full backdrop-blur-md shadow-sm shadow-black/25 shrink-0">
-              <ArrowLeft className="w-5 h-5 text-white" />
-            </button>
-            <div className="flex-1 rounded-2xl p-1 bg-white/8 border border-white/20 shadow-sm shadow-black/25 backdrop-blur-xl">
-              <div className="flex gap-1">
+        <div className={`${isLandscape ? 'hidden' : 'px-4 pt-2 pb-2 border-b border-white/10 bg-gradient-to-b from-[#0b1220]/95 via-[#0e1627]/88 to-[#0F172A]'}`}>
+          <div className="rounded-2xl border border-white/20 bg-white/8 shadow-sm shadow-black/25 backdrop-blur-xl overflow-hidden">
+            <div className="p-1.5">
+            <div className="flex items-center gap-1.5">
+              <button onClick={popToHome} className="p-2 rounded-full border border-white/20 bg-white/5 hover:bg-white/10 transition-colors shrink-0">
+                <ArrowLeft className="w-5 h-5 text-white" />
+              </button>
+              <div className="flex-1 flex gap-1">
                 <button type="button" onClick={() => setViewMode('review')} className={`flex-1 px-2.5 py-1 rounded-xl text-[10px] font-semibold transition-colors ${viewMode === 'review' ? 'bg-[#2f7cff] text-white shadow-sm shadow-blue-900/35' : 'text-slate-300 hover:bg-white/8'}`}>
                   {t('ui.eventReview')}
                 </button>
@@ -6610,9 +6665,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                 </button>
               </div>
             </div>
-          </div>
-          <div>
-            <div className="relative w-full rounded-xl border border-white/15 bg-[#3c4b5e]/88 px-3 py-3 shadow-sm shadow-black/30">
+            </div>
+            <div className="h-px bg-white/10" />
+            <div className="relative px-3 py-3">
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-8">
                 <div className="min-w-0">
                   <span className="block text-[11px] font-semibold text-slate-100 truncate">
@@ -6630,7 +6685,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                     </p>
                   </div>
                 </div>
-                <div className="min-w-0 text-right">
+                <div className="min-w-0 text-right pr-8">
                   <span className="block text-[11px] font-semibold text-slate-100 truncate">
                     {teamBDisplayName}
                   </span>
@@ -6639,7 +6694,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
               <button
                 type="button"
                 onClick={() => setShowScoreEditModal(true)}
-                className="absolute right-2 top-2 inline-flex items-center justify-center p-1 rounded-md bg-white/10 border border-white/20 text-slate-100 shrink-0"
+                className="absolute right-2.5 top-2 inline-flex items-center justify-center p-1 rounded-md bg-white/10 border border-white/20 text-slate-100 shrink-0"
                 aria-label={t('ui.edit')}
                 title={t('ui.edit')}
               >
@@ -6648,123 +6703,124 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             </div>
           </div>
         </div>
-        <div className="min-h-[190px] h-[30vh] max-h-[36vh] bg-black relative shrink-0 border-b border-white/10">
-          <AssetThumbnail type="video" category={resultSport || 'soccer'} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-          <button
-            type="button"
-            onClick={() => setIsPlaying((prev) => !prev)}
-            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-90 hover:bg-white/30"
-          >
-            <div className="relative flex items-center justify-center">
-              {isPlaying ? (
-                <Pause
-                  className={`w-7 h-7 text-white ${viewMode === 'fullMatch' ? '' : 'animate-in zoom-in duration-200'}`}
-                />
-              ) : (
-                <Play
-                  className={`w-7 h-7 text-white ml-1 ${viewMode === 'fullMatch' ? '' : 'animate-in zoom-in duration-200'}`}
-                />
-              )}
-            </div>
-          </button>
-          <div className="absolute left-4 right-4 bottom-3">
-            <div className="flex justify-between text-[10px] font-mono text-white/85 mb-1">
-              <span>{formatClock(currentTimeSec)}</span>
-              <span>{formatClock(durationSec)}</span>
-            </div>
-            <div className="relative">
-              <input
-                type="range"
-                min={0}
-                max={durationSec}
-                value={currentTimeSec}
-                onChange={(e) => seekAnalysisTime(Number(e.target.value))}
-                className="w-full accent-blue-500"
-              />
-            </div>
-            {viewMode === 'fullMatch' && filteredTimelineEvents.length > 0 && (
-              <div className="mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setIsFullMatchStripExpanded((v) => !v)}
-                  className="w-full flex items-center justify-between gap-2 rounded-lg border border-white/15 bg-black/35 backdrop-blur-sm px-2.5 py-1.5 text-left"
-                >
-                  <span className="text-[10px] font-bold text-white/90">{t('ui.fullMatchStripToggleLabel')}</span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${isFullMatchStripExpanded ? 'rotate-180' : ''}`}
-                  />
-                </button>
-                {isFullMatchStripExpanded && (
-                  <>
-                    <div className="mt-1.5" ref={fullMatchStripRef}>
-                      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-0.5 -mx-0.5 px-0.5">
-                        {filteredTimelineEvents.map((event) => {
-                          const isA = event.team === 'A';
-                          const isSel = activeEventId === event.id;
-                          return (
-                            <button
-                              key={`fm-strip-${event.id}`}
-                              ref={(el) => {
-                                fullMatchStripItemRefs.current[event.id] = el;
-                              }}
-                              type="button"
-                              onClick={() => handleSeekToEvent(event as any)}
-                              className={`snap-start shrink-0 min-w-[5.5rem] max-w-[7.5rem] rounded-lg border px-2 py-1.5 text-left transition-colors ${
-                                isSel
-                                  ? isA
-                                    ? 'border-blue-400 bg-blue-950/50'
-                                    : 'border-red-400 bg-red-950/50'
-                                  : isA
-                                    ? 'border-blue-500/40 bg-slate-900/80 active:bg-slate-800'
-                                    : 'border-red-500/40 bg-slate-900/80 active:bg-slate-800'
-                              }`}
-                              aria-label={`${eventTypeDisplayLabel(event as { id: number; scoreType: string })} ${event.time}`}
-                            >
-                              <div className="flex items-center gap-1 mb-0.5">
-                                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isA ? 'bg-blue-500' : 'bg-red-500'}`} />
-                                <span className="text-[9px] font-mono text-slate-200 tabular-nums">{event.time}</span>
-                              </div>
-                              <p className="text-[9px] font-bold text-slate-100 leading-tight line-clamp-2">
-                                {eventTypeDisplayLabel(event as { id: number; scoreType: string })}
-                              </p>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {galleryHybridDemoView === 'edge_result' && (
-          <div className="relative z-20 px-4 pt-3 pb-2">
-            <div className="rounded-xl border border-emerald-500/45 bg-emerald-950/55 px-3 py-2.5 space-y-2">
-              <p className="text-[12px] font-bold text-white leading-snug">{t('gallery.hybridEdgeBannerTitle')}</p>
-              <p className="text-[10px] text-emerald-100/85 leading-relaxed">{t('gallery.hybridEdgeBannerSub')}</p>
+        <div className={`flex-1 min-h-0 ${isLandscape ? 'flex flex-row gap-3 px-3 py-2' : 'flex flex-col'}`}>
+          <div className={`${isLandscape ? 'w-[58%] min-w-0 rounded-xl border border-white/10 overflow-hidden bg-black' : ''}`}>
+            <div className={`min-h-[190px] ${isLandscape ? 'h-full min-h-0' : 'h-[30vh] max-h-[36vh]'} bg-black relative shrink-0 ${isLandscape ? '' : 'border-b border-white/10'}`}>
+              <AssetThumbnail type="video" category={resultSport || 'soccer'} />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
               <button
                 type="button"
-                onClick={() => {
-                  setGalleryHybridDemoView('cloud_result');
-                  setToastMessage(t('gallery.hybridCloudPreviewToast'));
-                  setTimeout(() => setToastMessage(null), 1800);
-                }}
-                className="w-full py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold"
+                onClick={() => setIsPlaying((prev) => !prev)}
+                className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-90 hover:bg-white/30"
               >
-                {t('gallery.hybridUploadToCloudCta')}
+                <div className="relative flex items-center justify-center">
+                  {isPlaying ? (
+                    <Pause
+                      className={`w-7 h-7 text-white ${viewMode === 'fullMatch' ? '' : 'animate-in zoom-in duration-200'}`}
+                    />
+                  ) : (
+                    <Play
+                      className={`w-7 h-7 text-white ml-1 ${viewMode === 'fullMatch' ? '' : 'animate-in zoom-in duration-200'}`}
+                    />
+                  )}
+                </div>
               </button>
+              <div className="absolute left-4 right-4 bottom-3">
+                <div className="flex justify-between text-[10px] font-mono text-white/85 mb-1">
+                  <span>{formatClock(currentTimeSec)}</span>
+                  <span>{formatClock(durationSec)}</span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="range"
+                    min={0}
+                    max={durationSec}
+                    value={currentTimeSec}
+                    onChange={(e) => seekAnalysisTime(Number(e.target.value))}
+                    className="w-full accent-blue-500"
+                  />
+                </div>
+              </div>
             </div>
           </div>
-        )}
 
-        <div
-          ref={timelineScrollRef}
-          className={`flex-1 overflow-y-auto overscroll-y-contain pt-2 ${viewMode === 'fullMatch' ? '' : 'scroll-smooth'}`}
-          data-correction-scroll
-        >
+          <div className={`${isLandscape ? 'w-[42%] min-w-0 rounded-xl border border-white/10 bg-[#0F172A]' : 'flex-1'} flex flex-col min-h-0`}>
+            {isLandscape && (
+              <div className="px-2 pt-2 pb-1 border-b border-white/10 bg-gradient-to-b from-[#0b1220]/95 via-[#0e1627]/88 to-[#0F172A] shrink-0">
+                <div className="rounded-2xl border border-white/20 bg-white/8 shadow-sm shadow-black/25 backdrop-blur-xl overflow-hidden">
+                  <div className="p-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={popToHome} className="p-2 rounded-full border border-white/20 bg-white/5 hover:bg-white/10 transition-colors shrink-0">
+                        <ArrowLeft className="w-5 h-5 text-white" />
+                      </button>
+                      <div className="flex-1 flex gap-1">
+                        <button type="button" onClick={() => setViewMode('review')} className={`flex-1 px-2.5 py-1 rounded-xl text-[10px] font-semibold transition-colors ${viewMode === 'review' ? 'bg-[#2f7cff] text-white shadow-sm shadow-blue-900/35' : 'text-slate-300 hover:bg-white/8'}`}>
+                          {t('ui.eventReview')}
+                        </button>
+                        <button type="button" onClick={() => setViewMode('fullMatch')} className={`flex-1 px-2.5 py-1 rounded-xl text-[10px] font-semibold transition-colors ${viewMode === 'fullMatch' ? 'bg-[#2f7cff] text-white shadow-sm shadow-blue-900/35' : 'text-slate-300 hover:bg-white/8'}`}>
+                          {t('ui.fullMatchView')}
+                        </button>
+                        <button type="button" onClick={() => setViewMode('report')} className={`flex-1 px-2.5 py-1 rounded-xl text-[10px] font-semibold transition-colors ${viewMode === 'report' ? 'bg-[#2f7cff] text-white shadow-sm shadow-blue-900/35' : 'text-slate-300 hover:bg-white/8'}`}>
+                          {t('matchReport.tabMatchReport')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="h-px bg-white/10" />
+                  <div className="relative px-3 py-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-2">
+                      <div className="min-w-0">
+                        <span className="block text-[11px] font-semibold text-slate-100 truncate">{teamADisplayName}</span>
+                      </div>
+                      <div className="text-center px-1">
+                        <div className="flex items-end justify-center gap-2">
+                          <p className="text-[24px] font-black tabular-nums text-white leading-none">{liveSoccerStats.teamA.score}</p>
+                          <span className="text-[20px] font-black text-slate-300 leading-none">-</span>
+                          <p className="text-[24px] font-black tabular-nums text-white leading-none">{liveSoccerStats.teamB.score}</p>
+                        </div>
+                      </div>
+                      <div className="min-w-0 text-right pr-8">
+                        <span className="block text-[11px] font-semibold text-slate-100 truncate">{teamBDisplayName}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowScoreEditModal(true)}
+                      className="absolute right-2.5 top-2 inline-flex items-center justify-center p-1 rounded-md bg-white/10 border border-white/20 text-slate-100 shrink-0"
+                      aria-label={t('ui.edit')}
+                      title={t('ui.edit')}
+                    >
+                      <Edit3 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {galleryHybridDemoView === 'edge_result' && (
+              <div className="relative z-20 px-4 pt-3 pb-2">
+                <div className="rounded-xl border border-emerald-500/45 bg-emerald-950/55 px-3 py-2.5 space-y-2">
+                  <p className="text-[12px] font-bold text-white leading-snug">{t('gallery.hybridEdgeBannerTitle')}</p>
+                  <p className="text-[10px] text-emerald-100/85 leading-relaxed">{t('gallery.hybridEdgeBannerSub')}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGalleryHybridDemoView('cloud_result');
+                      setToastMessage(t('gallery.hybridCloudPreviewToast'));
+                      setTimeout(() => setToastMessage(null), 1800);
+                    }}
+                    className="w-full py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold"
+                  >
+                    {t('gallery.hybridUploadToCloudCta')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div
+              ref={timelineScrollRef}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain pt-2"
+              data-correction-scroll
+            >
           {viewMode === 'report' ? (
             <div className="px-4 py-3 space-y-4 pb-24">
               {/* Comparative Data */}
@@ -6828,7 +6884,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
               </details>
             </div>
           ) : (
-            <div className="px-4 py-3 space-y-3 pb-24">
+            <div className={`px-4 py-3 space-y-2.5 ${viewMode === 'review' ? 'pb-36' : 'pb-8'}`}>
             <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
               <button
                 type="button"
@@ -6861,6 +6917,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                       >
                         {filter.id === 'all' ? (
                           <Filter className="w-3.5 h-3.5" />
+                        ) : filter.id === 'user' ? (
+                          <User className="w-3.5 h-3.5" />
                         ) : (
                           scoreTypeIcon(filter.id)
                         )}
@@ -6889,6 +6947,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                         >
                           {activeKeyEvent.team === 'A' ? teamADisplayName : teamBDisplayName}
                         </span>
+                        {viewMode === 'fullMatch' && Boolean((activeKeyEvent as any).isUserMarked) && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-blue-600/85 text-white font-bold">
+                            {t('ui.userMarkedShort')}
+                          </span>
+                        )}
                         <span className="text-slate-300">
                           {activeKeyEventPosition.index}/{activeKeyEventPosition.total}
                         </span>
@@ -6933,29 +6996,36 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                         className="relative"
                       >
                         {!isEditing ? (
-                          <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
+                          <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-1.5">
                             <button
                               type="button"
                               onClick={() => handleSeekToEvent(event as any)}
-                              className={`relative min-h-[68px] overflow-hidden text-left rounded-lg border p-2 transition-colors ${event.team === 'A' ? `${isActive ? 'border-blue-500 bg-blue-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
+                              className={`relative min-h-[50px] overflow-hidden text-left rounded-lg border px-2 py-1 transition-colors ${event.team === 'A' ? `${isActive ? 'border-blue-500 bg-blue-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
                               disabled={event.team !== 'A'}
                             >
                               {event.team === 'A' && (
                                 <>
                                   <div className="absolute inset-0 z-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden>
                                     <div
-                                      className={`absolute top-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-b from-blue-500/50 via-sky-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
-                                      style={{ height: `${(eventFillById[event.id] ?? 0) * 100}%` }}
+                                      className="absolute top-0 left-0 right-0 bg-gradient-to-b from-blue-500/50 via-sky-500/20 to-transparent"
+                                      style={{ height: `${viewMode === 'fullMatch' ? 0 : (eventFillById[event.id] ?? 0) * 100}%` }}
                                     />
                                   </div>
-                                  <div className="relative z-[1] flex flex-col min-h-[68px] justify-between">
-                                    <div className="mt-0.5 flex items-center gap-2 min-w-0">
-                                      {scoreTypeIcon(String(event.scoreType))}
-                                      <span className="text-xs font-bold text-slate-100 truncate">
+                                  <div className="relative z-[1] flex flex-col min-h-[50px] justify-between">
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1">
+                                        {scoreTypeIcon(String(event.scoreType))}
+                                        {viewMode === 'fullMatch' && Boolean((event as any).isUserMarked) && (
+                                          <span className="px-1 py-0.5 rounded-full bg-blue-600/85 text-white text-[8px] font-bold shrink-0">
+                                            {t('ui.userMarkedShort')}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="mt-0.5 block text-[11px] font-bold text-slate-100 leading-[1.2] break-words line-clamp-2">
                                         {eventTypeDisplayLabel(event as { id: number; scoreType: string })}
                                       </span>
                                     </div>
-                                    <div className="mt-2 flex items-end justify-between gap-2">
+                                    <div className="mt-1 flex items-end justify-between gap-1">
                                       <span className="text-[10px] font-mono text-slate-400 tabular-nums shrink-0">{event.time}</span>
                                       <button
                                         type="button"
@@ -6963,18 +7033,18 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                           e.stopPropagation();
                                           startEditEvent(event as any);
                                         }}
-                                        className="p-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center justify-center shrink-0"
+                                        className="p-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center justify-center shrink-0"
                                         aria-label={t('ui.edit')}
                                         title={t('ui.edit')}
                                       >
-                                        <Edit3 className="w-3.5 h-3.5" />
+                                        <Edit3 className="w-3 h-3" />
                                       </button>
                                     </div>
                                   </div>
                                 </>
                               )}
                             </button>
-                            <div className="relative w-5 shrink-0 min-h-[68px] self-stretch px-0.5">
+                            <div className="relative w-5 shrink-0 min-h-[50px] self-stretch px-0.5">
                               {viewMode === 'fullMatch' && rowIndex === activeRowIndex && (
                                 <div
                                   className={`absolute left-1/2 top-0 z-10 h-3.5 w-3.5 -translate-x-1/2 rounded-full border-2 border-[#0B1220] shadow-md ${
@@ -7003,25 +7073,32 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                             <button
                               type="button"
                               onClick={() => handleSeekToEvent(event as any)}
-                              className={`relative min-h-[68px] overflow-hidden text-left rounded-lg border p-2 transition-colors ${event.team === 'B' ? `${isActive ? 'border-red-500 bg-red-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
+                              className={`relative min-h-[50px] overflow-hidden text-left rounded-lg border px-2 py-1 transition-colors ${event.team === 'B' ? `${isActive ? 'border-red-500 bg-red-500/15' : 'border-white/10 bg-[#1E293B]/70'}` : 'opacity-25 border-white/5 bg-[#111827]/40'}`}
                               disabled={event.team !== 'B'}
                             >
                               {event.team === 'B' && (
                                 <>
                                   <div className="absolute inset-0 z-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden>
                                     <div
-                                      className={`absolute top-0 left-0 right-0 transition-[height] duration-[450ms] ease-out bg-gradient-to-b from-red-500/50 via-rose-500/20 to-transparent ${isPlaying ? 'event-liquid-breathe' : ''}`}
-                                      style={{ height: `${(eventFillById[event.id] ?? 0) * 100}%` }}
+                                      className="absolute top-0 left-0 right-0 bg-gradient-to-b from-red-500/50 via-rose-500/20 to-transparent"
+                                      style={{ height: `${viewMode === 'fullMatch' ? 0 : (eventFillById[event.id] ?? 0) * 100}%` }}
                                     />
                                   </div>
-                                  <div className="relative z-[1] flex flex-col min-h-[68px] justify-between">
-                                    <div className="mt-0.5 flex items-center gap-2 min-w-0">
-                                      {scoreTypeIcon(String(event.scoreType))}
-                                      <span className="text-xs font-bold text-slate-100 truncate">
+                                  <div className="relative z-[1] flex flex-col min-h-[50px] justify-between">
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1">
+                                        {scoreTypeIcon(String(event.scoreType))}
+                                        {viewMode === 'fullMatch' && Boolean((event as any).isUserMarked) && (
+                                          <span className="px-1 py-0.5 rounded-full bg-blue-600/85 text-white text-[8px] font-bold shrink-0">
+                                            {t('ui.userMarkedShort')}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="mt-0.5 block text-[11px] font-bold text-slate-100 leading-[1.2] break-words line-clamp-2">
                                         {eventTypeDisplayLabel(event as { id: number; scoreType: string })}
                                       </span>
                                     </div>
-                                    <div className="mt-2 flex items-end justify-between gap-2">
+                                    <div className="mt-1 flex items-end justify-between gap-1">
                                       <span className="text-[10px] font-mono text-slate-400 tabular-nums shrink-0">{event.time}</span>
                                       <button
                                         type="button"
@@ -7029,11 +7106,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                           e.stopPropagation();
                                           startEditEvent(event as any);
                                         }}
-                                        className="p-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center justify-center shrink-0"
+                                        className="p-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center justify-center shrink-0"
                                         aria-label={t('ui.edit')}
                                         title={t('ui.edit')}
                                       >
-                                        <Edit3 className="w-3.5 h-3.5" />
+                                        <Edit3 className="w-3 h-3" />
                                       </button>
                                     </div>
                                   </div>
@@ -7092,7 +7169,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             </div>
           </div>
         )}
-      </div>
+            </div>
+          </div>
+        </div>
 
         {viewMode === 'report' ? (
           <div className="p-4 bg-[#0F172A] border-t border-white/10">
@@ -7106,15 +7185,18 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
               {t('matchReport.downloadPoster')}
             </button>
           </div>
-        ) : (
+        ) : viewMode === 'review' ? (
           <div className="p-4 bg-[#0F172A] border-t border-white/10 relative">
             <div className="flex items-center gap-3">
               <button onClick={shareMatchVideo} className="flex-1 bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
                 <Share2 className="w-4 h-4" /> {t('ui.shareMatchVideo')}
               </button>
+              <button onClick={goToManualEdit} className="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-bold text-sm shadow-lg shadow-slate-900/20 flex items-center justify-center gap-2">
+                <Scissors className="w-4 h-4" /> {t('ui.goManualEdit')}
+              </button>
             </div>
           </div>
-        )}
+        ) : null}
 
         {showScoreEditModal && (
           <div className="absolute inset-0 z-40 flex items-end">
@@ -7359,6 +7441,85 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
     );
 
+  };
+
+  const ManualEditorScreen = () => {
+    const { popView, t } = useAppContext();
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [currentSec, setCurrentSec] = useState(0);
+    const totalSec = 10;
+
+    useEffect(() => {
+      if (!isPlaying) return;
+      const id = window.setInterval(() => {
+        setCurrentSec((prev) => {
+          const next = Math.min(prev + 1, totalSec);
+          if (next >= totalSec) setIsPlaying(false);
+          return next;
+        });
+      }, 1000);
+      return () => window.clearInterval(id);
+    }, [isPlaying]);
+
+    const fmt = (sec: number) => `00:${String(sec).padStart(2, '0')}`;
+
+    return (
+      <div className="h-full bg-black text-white flex flex-col">
+        <div className="px-4 pt-12 pb-3 flex items-center justify-between">
+          <button type="button" onClick={popView} className="p-1.5 rounded-full hover:bg-white/10">
+            <X className="w-5 h-5" />
+          </button>
+          <button type="button" className="px-5 py-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-sm font-bold">
+            导出
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-[0_0_46%] min-h-0 flex items-start justify-center px-6 pt-2">
+            <div className="w-full max-w-[360px] aspect-video rounded-md overflow-hidden relative bg-slate-900">
+              <AssetThumbnail type="video" category="soccer" />
+              <button
+                type="button"
+                onClick={() => setIsPlaying((v) => !v)}
+                className="absolute inset-0 m-auto w-14 h-14 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center"
+              >
+                {isPlaying ? <Pause className="w-7 h-7" /> : <Play className="w-7 h-7 ml-0.5" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-[0_0_34%] min-h-0 px-4 pb-2">
+            <div className="h-full rounded-t-2xl bg-[#0D1118] border-t border-white/10 px-3 pt-3 pb-2 flex flex-col">
+              <div className="flex items-center gap-2 text-[11px] text-white/90 mb-2 shrink-0">
+                <Play className="w-4 h-4" />
+                <span>{fmt(currentSec)}/{fmt(totalSec)}</span>
+              </div>
+              <div className="h-[126px] rounded-lg bg-black/40 border border-white/10 p-2">
+                <div className="h-full flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={`thumb-${i}`} className="w-[96px] h-[68px] rounded bg-slate-700/70 border border-white/10 shrink-0" />
+                  ))}
+                  <button type="button" className="w-[36px] h-[36px] rounded bg-white text-black text-xl leading-none shrink-0">+</button>
+                </div>
+              </div>
+              <button type="button" className="mt-2 w-full py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-slate-300 shrink-0">
+                + 添加音频
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-4 pb-6 pt-3 border-t border-white/10 bg-black">
+          <div className="grid grid-cols-5 gap-2 text-[11px] text-slate-300">
+            <button className="flex flex-col items-center gap-1"><Film className="w-4 h-4" /><span>编辑</span></button>
+            <button className="flex flex-col items-center gap-1"><Sparkles className="w-4 h-4" /><span>滤镜</span></button>
+            <button className="flex flex-col items-center gap-1"><Type className="w-4 h-4" /><span>字幕</span></button>
+            <button className="flex flex-col items-center gap-1"><Sticker className="w-4 h-4" /><span>贴纸</span></button>
+            <button className="flex flex-col items-center gap-1"><Music2 className="w-4 h-4" /><span>音频</span></button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const HomeScreen = () => {
@@ -7764,6 +7925,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   /** 相册列表：全流程展示含重试/阻断等边界态；正常流程仍展示进行中云任务，仅收敛边界态 */
   const [galleryListFlowMode, setGalleryListFlowMode] = useState<'full' | 'normal'>('normal');
+  const [analysisResultLayout, setAnalysisResultLayout] = useState<'portrait' | 'landscape'>('portrait');
 
   /** Hybrid pipeline: false = 端侧核心分析阶段；true = 已完成端侧，进入上传/云端全量阶段 */
   const [hybridPastEdge, setHybridPastEdge] = useState(false);
@@ -9034,6 +9196,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     setSoccerMvpCloudReadyAt(Date.now());
   }, [transferStep]);
 
+  const isAnalysisLandscapePreview =
+    currentView === 'ai_result_analysis' && analysisResultLayout === 'landscape';
+  const deviceShellClass = isAnalysisLandscapePreview
+    ? 'w-full max-w-[812px] h-[375px]'
+    : 'w-full max-w-[375px] h-[812px]';
+
   return (
 
     <AppContext.Provider value={{
@@ -9048,6 +9216,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
       galleryListFlowMode,
       setGalleryListFlowMode,
+      analysisResultLayout,
+      setAnalysisResultLayout,
 
       hybridPastEdge,
 
@@ -9149,8 +9319,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         <TechRouteToggle />
 
         <GalleryFlowModeToggle />
+        <AnalysisOrientationToggle />
 
-        <div className="w-full max-w-[375px] h-[812px] bg-black overflow-hidden relative shadow-2xl flex flex-col rounded-[40px] border-[8px] border-slate-900 ring-4 ring-slate-300/50 shrink-0">
+        <div className={`${deviceShellClass} bg-black overflow-hidden relative shadow-2xl flex flex-col rounded-[40px] border-[8px] border-slate-900 ring-4 ring-slate-300/50 shrink-0`}>
 
           <div className="absolute inset-0 bg-white">
 
@@ -9165,6 +9336,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
              {currentView === 'ai_result_highlight' && <HighlightResultScreen />}
 
              {currentView === 'ai_result_analysis' && <AnalysisResultScreen />}
+
+             {currentView === 'manual_editor' && <ManualEditorScreen />}
 
             {currentView === 'merge_preview' && <MergePreviewScreen />}
 
