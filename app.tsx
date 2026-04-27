@@ -38,6 +38,8 @@ import {
 
   ArrowDownUp, Info, Scissors, Type, Sticker, Music2,
 
+  Trophy, Star,
+
 } from 'lucide-react';
 
 // --- Types ---
@@ -52,7 +54,8 @@ type ViewState =
   | 'task_submitted'
   | 'task_center'
   | 'transfer_list'
-  | 'merge_preview';
+  | 'merge_preview'
+  | 'membership_purchase';
 
 type AIMode = 'cloud';
 
@@ -2263,6 +2266,289 @@ const TransferListScreen = () => {
   );
 };
 
+type PurchaseStage = 'select' | 'bonus' | 'agreement' | 'success';
+
+const MEMBERSHIP_PACKS = [
+  { id: '1' as const, credits: 1, priceKey: 'membership.price1', originalKey: 'membership.original1', percent: 25 },
+  { id: '4' as const, credits: 4, priceKey: 'membership.price4', originalKey: 'membership.original4', percent: 38 },
+  { id: '10' as const, credits: 10, priceKey: 'membership.price10', originalKey: 'membership.original10', percent: 51 },
+];
+
+const MembershipPurchaseScreen = () => {
+  const {
+    t,
+    popView,
+    setAnalysisCredits,
+    analysisCredits,
+    lifetimeAnalysisCredits,
+    setLifetimeAnalysisCredits,
+    setToastMessage,
+  } = useAppContext();
+  const [stage, setStage] = useState<PurchaseStage>('select');
+  const [selectedPack, setSelectedPack] = useState<'1' | '4' | '10'>('1');
+  const [ackTerms, setAckTerms] = useState(false);
+
+  const selectedCredits = MEMBERSHIP_PACKS.find((p) => p.id === selectedPack)?.credits ?? 1;
+
+  const handleHeaderBack = () => {
+    if (stage === 'select' || stage === 'success') {
+      popView();
+      return;
+    }
+    if (stage === 'bonus' || stage === 'agreement') {
+      setStage('select');
+    }
+  };
+
+  const completePurchase = () => {
+    setAnalysisCredits((c: number) => c + selectedCredits);
+    setLifetimeAnalysisCredits((l: number) => l + selectedCredits);
+    setStage('success');
+  };
+
+  const usedLifetime = Math.max(0, lifetimeAnalysisCredits - analysisCredits);
+  const usagePct =
+    lifetimeAnalysisCredits > 0 ? Math.min(100, (usedLifetime / lifetimeAnalysisCredits) * 100) : 0;
+
+  const benefitsGrid = (
+    <div className="grid grid-cols-2 gap-2.5">
+      {[
+        { icon: Cloud, labelKey: 'membership.benefitCloud' },
+        { icon: Film, labelKey: 'membership.benefitHighlights' },
+        { icon: FileText, labelKey: 'membership.benefitReports' },
+        { icon: MapIcon, labelKey: 'membership.benefitInstant' },
+      ].map(({ icon: Icon, labelKey }) => (
+        <div
+          key={labelKey}
+          className="rounded-xl bg-white/5 border border-white/10 p-3 flex flex-col gap-2 min-h-[88px]"
+        >
+          <div className="w-9 h-9 rounded-lg bg-[#F7D060]/20 flex items-center justify-center text-[#F7D060]">
+            <Icon className="w-4 h-4" />
+          </div>
+          <p className="text-[11px] font-bold text-white/90 leading-snug">{t(labelKey as any)}</p>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col h-full bg-[#0B0F14] text-white animate-in slide-in-from-right relative overflow-hidden">
+      <div className="pt-12 pb-3 px-4 flex items-center justify-between shrink-0 border-b border-white/10 bg-[#0B0F14] z-20">
+        <button type="button" onClick={handleHeaderBack} className="p-1 -ml-1 rounded-lg text-white/90 hover:bg-white/10" aria-label={t('membership.ariaBack')}>
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <span className="text-sm font-black tracking-tight truncate px-2">{t('membership.screenTitle')}</span>
+        <span className="w-6 h-6 shrink-0" aria-hidden />
+      </div>
+
+      {stage === 'success' ? (
+        <div className="flex-1 flex flex-col overflow-y-auto px-4 pb-6 pt-6">
+          <div className="flex flex-col items-center text-center mb-6">
+            <div className="w-16 h-16 rounded-full bg-emerald-500 flex items-center justify-center mb-4 shadow-lg shadow-emerald-900/40">
+              <Check className="w-9 h-9 text-white stroke-[3]" />
+            </div>
+            <h2 className="text-xl font-black text-white">{t('membership.paymentSuccess')}</h2>
+          </div>
+          <h3 className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">{t('membership.membershipBenefits')}</h3>
+          {benefitsGrid}
+          <button
+            type="button"
+            onClick={() => popView()}
+            className="mt-8 w-full py-3.5 rounded-2xl bg-[#F7D060] text-[#1a1408] text-[15px] font-black shadow-lg"
+          >
+            {t('membership.backToAnalysis')}
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-40 space-y-6">
+            <div className="rounded-2xl bg-white/[0.04] border border-[#F7D060]/30 p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#F7D060]/90">
+                  {t('membership.balanceHeaderRemaining')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setToastMessage(t('membership.usageRecordToast'));
+                    setTimeout(() => setToastMessage(null), 2600);
+                  }}
+                  className="text-[11px] font-bold text-[#F7D060] hover:text-[#F7D060]/80"
+                >
+                  {t('membership.balanceUsageRecord')}
+                </button>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[40px] font-black text-white tabular-nums leading-none">{analysisCredits}</span>
+                <span className="text-sm font-bold text-white/50">{t('membership.balanceUnit')}</span>
+              </div>
+              <p className="text-[11px] text-white/45 mt-2">{t('membership.balanceLifetime', { count: lifetimeAnalysisCredits })}</p>
+              {lifetimeAnalysisCredits > 0 ? (
+                <>
+                  <p className="text-[10px] text-white/40 mt-2 tabular-nums">
+                    {t('membership.balanceUsedLabel', { used: usedLifetime, total: lifetimeAnalysisCredits })}
+                  </p>
+                  <div className="mt-2 h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[#F7D060] to-amber-500 transition-all duration-300"
+                      style={{ width: `${usagePct}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-[10px] text-white/40 mt-2">{t('membership.balanceEmpty')}</p>
+                  <div className="mt-2 h-2 rounded-full bg-white/10" />
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col items-center text-center pt-2">
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <Trophy className="w-10 h-10 text-[#F7D060]" />
+                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center border border-white/20">
+                  <span className="text-lg">⚽</span>
+                </div>
+              </div>
+              <h1 className="text-xl font-black text-white leading-tight mb-2">{t('membership.heroTitle')}</h1>
+              <p className="text-xs text-white/55 leading-relaxed max-w-[280px]">{t('membership.heroDesc')}</p>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-bold text-[#F7D060] uppercase tracking-wider mb-3">{t('membership.buyNowSave')}</h3>
+              <div className="space-y-3">
+                {MEMBERSHIP_PACKS.map((pack) => {
+                  const selected = selectedPack === pack.id;
+                  return (
+                    <button
+                      key={pack.id}
+                      type="button"
+                      onClick={() => setSelectedPack(pack.id)}
+                      className={`relative w-full text-left rounded-2xl border-2 p-4 pr-16 transition-colors ${
+                        selected ? 'border-[#F7D060] bg-[#F7D060]/10' : 'border-white/10 bg-white/[0.04]'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                            selected ? 'border-[#F7D060] bg-[#F7D060]' : 'border-white/30'
+                          }`}
+                        >
+                          {selected && <Check className="w-3 h-3 text-[#1a1408] stroke-[3]" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-black text-white">
+                            {pack.id === '1' ? t('membership.pack1Match') : pack.id === '4' ? t('membership.pack4Matches') : t('membership.pack10Matches')}
+                          </p>
+                          <p className="text-[11px] text-white/45 line-through mt-1">{t(pack.originalKey as any)}</p>
+                          <p className="text-lg font-black text-[#F7D060] tabular-nums">{t(pack.priceKey as any)}</p>
+                        </div>
+                      </div>
+                      <span className="absolute top-3 right-3 px-2 py-0.5 rounded-md bg-[#F7D060] text-[#1a1408] text-[10px] font-black">
+                        {t('membership.discountTag', { percent: pack.percent })}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">{t('membership.membershipBenefits')}</h3>
+              {benefitsGrid}
+            </div>
+
+            <div className="rounded-xl bg-white/[0.04] border border-white/10 p-3 space-y-2">
+              <p className="text-[11px] text-white/50 leading-relaxed">{t('membership.benefitsDisclaimer')}</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                <button
+                  type="button"
+                  onClick={() => setStage('bonus')}
+                  className="text-[12px] font-bold text-[#F7D060] underline underline-offset-2"
+                >
+                  {t('membership.bonusOfferDetails')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStage('bonus')}
+                  className="text-[12px] font-bold text-[#F7D060]/90 underline underline-offset-2"
+                >
+                  {t('membership.exclusiveBeta')}
+                </button>
+              </div>
+              <p className="text-[10px] text-white/35">{t('membership.benefitsDetails')}</p>
+            </div>
+          </div>
+
+          <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-[#0B0F14] via-[#0B0F14] to-transparent pt-8 px-4 pb-6 border-t border-white/5">
+            <label className="flex items-start gap-2.5 mb-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={ackTerms}
+                onChange={(e) => setAckTerms(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-white/30 accent-[#F7D060] shrink-0"
+              />
+              <span className="text-[11px] text-white/60 leading-snug">{t('membership.ackCheckbox')}</span>
+            </label>
+            <button
+              type="button"
+              disabled={!ackTerms}
+              onClick={() => setStage('agreement')}
+              className="w-full py-3.5 rounded-2xl bg-[#F7D060] text-[#1a1408] text-[15px] font-black disabled:opacity-40 disabled:cursor-not-allowed shadow-lg"
+            >
+              {t('membership.purchase')}
+            </button>
+          </div>
+        </>
+      )}
+
+      {stage === 'bonus' && (
+        <div className="absolute inset-0 z-[60] bg-black/75 flex items-end sm:items-center justify-center p-4 animate-in fade-in">
+          <div className="w-full max-w-sm bg-white rounded-2xl p-5 text-slate-900 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-black">{t('membership.bonusOfferDetails')}</h3>
+              <button type="button" onClick={() => setStage('select')} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs font-bold text-slate-600 mb-2">{t('membership.bonusEventPeriod')}</p>
+            <ul className="text-xs text-slate-600 space-y-2 mb-5 list-disc pl-4">
+              <li>{t('membership.bonusLine1')}</li>
+              <li>{t('membership.bonusLine2')}</li>
+              <li>{t('membership.bonusLine3')}</li>
+              <li>{t('membership.bonusLine4')}</li>
+            </ul>
+            <button
+              type="button"
+              onClick={() => setStage('select')}
+              className="w-full py-3 rounded-xl bg-[#F7D060] text-[#1a1408] text-sm font-black"
+            >
+              {t('membership.confirm')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {stage === 'agreement' && (
+        <div className="absolute inset-0 z-[60] bg-black/70 flex items-center justify-center p-6 animate-in fade-in">
+          <div className="w-full max-w-[300px] bg-white rounded-2xl p-5 text-center shadow-2xl">
+            <p className="text-sm text-slate-800 leading-relaxed mb-6">{t('membership.agreementTitle')}</p>
+            <p className="text-xs text-blue-600 font-semibold mb-6">{t('membership.agreementLink')}</p>
+            <div className="flex justify-center gap-8">
+              <button type="button" onClick={() => setStage('select')} className="text-sm font-bold text-blue-600">
+                {t('membership.decline')}
+              </button>
+              <button type="button" onClick={completePurchase} className="text-sm font-bold text-blue-600">
+                {t('membership.agree')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const TaskCenterScreen = () => {
 
   const {
@@ -3976,6 +4262,7 @@ const GalleryScreen = () => {
     resolveSoccerMatchPresentationByVideoId,
     setActiveSoccerPresentationVideoId,
     galleryListFlowMode,
+    analysisCredits,
   } = useAppContext();
   const [hasSeenAIGuide, setHasSeenAIGuide] = useState(
     typeof localStorage !== 'undefined' ? localStorage.getItem('hasSeenAIGuide') === 'true' : false
@@ -4229,6 +4516,7 @@ const GalleryScreen = () => {
           ))}
           {!hasSeenAIGuide && (
             <button
+              type="button"
               onClick={() => setShowAIGuideSheet(true)}
               className="ml-auto px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white text-[12px] font-bold shadow-sm flex items-center gap-1 shrink-0 animate-pulse"
             >
@@ -4261,6 +4549,44 @@ const GalleryScreen = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-5">
+        {sourceTab === 'ai_analysis' &&
+          (analysisCredits > 0 ? (
+            <div className="flex items-center justify-between rounded-[14px] bg-gradient-to-r from-[#081A3A] via-[#071633] to-[#061328] px-4 py-2.5 border border-[#14315B] shadow-sm">
+              <div className="min-w-0">
+                <p className="text-[13px] font-extrabold text-white tracking-tight">{t('membership.balanceLabel', { count: analysisCredits })}</p>
+                <p className="text-[10px] text-[#B7C3DA] mt-0.5">{t('membership.balanceSubtleHint')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => pushView('membership_purchase')}
+                className="shrink-0 text-[11px] font-bold text-[#F6D45F] px-3 py-1.5 rounded-full bg-[#172947] border border-[#9A7D2F] leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"
+              >
+                {t('membership.topUp')}
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-2xl overflow-hidden bg-gradient-to-r from-[#1B1610] via-[#252018] to-[#1A1408] border border-[#F7D060]/25 shadow-sm">
+              <div className="px-3.5 py-3 flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#F7D060]/20 text-[#F7D060] mb-1.5">
+                    {t('membership.campaignTag')}
+                  </div>
+                  <p className="text-[14px] font-black text-white leading-tight">{t('membership.heroTitle')}</p>
+                  <p className="text-[11px] text-white/60 mt-0.5 line-clamp-1">{t('membership.albumPromoHint')}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => pushView('membership_purchase')}
+                  className="shrink-0 inline-flex items-center gap-1 pl-1.5 pr-2 py-1.5 rounded-full bg-[#141414] border border-[#F7D060]/35"
+                >
+                  <span className="w-5 h-5 rounded-full bg-[#F7D060] flex items-center justify-center">
+                    <Star className="w-3 h-3 text-[#141414] fill-[#141414]" />
+                  </span>
+                  <span className="text-[11px] font-black text-[#F7D060]">{t('membership.redeem')}</span>
+                </button>
+              </div>
+            </div>
+          ))}
         {galleryListFlowMode === 'full' && analysisPipeline === 'edge_cloud_hybrid' && (
           <section className="space-y-2">
             <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide px-0.5">
@@ -4877,8 +5203,6 @@ const GalleryScreen = () => {
           </div>
         </div>
       )}
-      
-      {/* AI Guide Bottom Sheet */}
       {showAIGuideSheet && (
         <div className="absolute inset-0 z-[100] flex items-end justify-center animate-in fade-in duration-200">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowAIGuideSheet(false)} />
@@ -4892,7 +5216,7 @@ const GalleryScreen = () => {
               <p className="text-slate-500 text-sm leading-relaxed mb-6 px-4">
                 {t('gallery.aiGuideDesc')}
               </p>
-              
+
               <div className="w-full space-y-3 mb-8">
                 <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-left">
                   <div className="mt-0.5 shrink-0"><PlayCircle className="w-5 h-5 text-blue-500" /></div>
@@ -4922,7 +5246,7 @@ const GalleryScreen = () => {
                   setHasSeenAIGuide(true);
                   if (typeof localStorage !== 'undefined') localStorage.setItem('hasSeenAIGuide', 'true');
                   setShowAIGuideSheet(false);
-                  setSourceTab('falcon');
+                  pushView('membership_purchase');
                 }}
                 className="w-full py-4 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-[15px] shadow-lg shadow-orange-500/30 active:scale-[0.98] transition-transform"
               >
@@ -8540,6 +8864,12 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
   // Highlights entry stays available without subscription; full-game stats/analysis entry requires membership.
   const [isVip, setIsVip] = useState(false);
 
+  /** AI 分析场次包余额（购买 Redeem 流程后累加；演示用内存态） */
+  const [analysisCredits, setAnalysisCredits] = useState(0);
+
+  /** 累计购买的分析场次（用于 Redeem 页进度条：已用 = lifetime - remaining） */
+  const [lifetimeAnalysisCredits, setLifetimeAnalysisCredits] = useState(0);
+
   const [targetAnalysisType, setTargetAnalysisType] = useState<AnalysisType>('highlight');
 
   
@@ -9857,7 +10187,16 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
       isTaskCompleted, setIsTaskCompleted, sportType, setSportType,
 
-      isVip, setIsVip, targetAnalysisType, setTargetAnalysisType, handleEntryClick, handleUnlockVip,
+      isVip,
+      setIsVip,
+      analysisCredits,
+      setAnalysisCredits,
+      lifetimeAnalysisCredits,
+      setLifetimeAnalysisCredits,
+      targetAnalysisType,
+      setTargetAnalysisType,
+      handleEntryClick,
+      handleUnlockVip,
 
       videoSourceTab, setVideoSourceTab, videoSportFilter, setVideoSportFilter, videoSortOrder, setVideoSortOrder,
 
@@ -9966,6 +10305,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
              {currentView === 'task_center' && <TaskCenterScreen />}
 
              {currentView === 'transfer_list' && <TransferListScreen />}
+
+             {currentView === 'membership_purchase' && <MembershipPurchaseScreen />}
 
           </div>
 
