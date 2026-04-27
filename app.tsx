@@ -7195,6 +7195,16 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
             <div className={`min-h-[190px] ${isLandscape ? 'h-full min-h-0' : 'h-[30vh] max-h-[36vh]'} bg-black relative shrink-0 ${isLandscape ? '' : 'border-b border-white/10'}`}>
               <AssetThumbnail type="video" category={resultSport || 'soccer'} />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+              {isLandscape && (
+                <button
+                  type="button"
+                  onClick={popToHome}
+                  className="absolute top-3 left-3 z-30 p-2 rounded-full border border-white/20 bg-white/5 hover:bg-white/10 transition-colors"
+                  aria-label={t('ui.backToHome')}
+                >
+                  <ArrowLeft className="w-5 h-5 text-white" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setIsPlaying((prev) => !prev)}
@@ -7237,9 +7247,6 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                 <div className="rounded-2xl border border-white/20 bg-white/8 shadow-sm shadow-black/25 backdrop-blur-xl overflow-hidden">
                   <div className="p-1.5">
                     <div className="flex items-center gap-1.5">
-                      <button onClick={popToHome} className="p-2 rounded-full border border-white/20 bg-white/5 hover:bg-white/10 transition-colors shrink-0">
-                        <ArrowLeft className="w-5 h-5 text-white" />
-                      </button>
                       <div className="flex-1 flex gap-1">
                         <button type="button" onClick={() => setViewMode('review')} className={`flex-1 px-2.5 py-1 rounded-xl text-[10px] font-semibold transition-colors ${viewMode === 'review' ? 'bg-[#2f7cff] text-white shadow-sm shadow-blue-900/35' : 'text-slate-300 hover:bg-white/8'}`}>
                           {t('ui.eventReview')}

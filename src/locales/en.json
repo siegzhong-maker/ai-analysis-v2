@@ -361,6 +361,7 @@
     "mediaAll": "All",
     "mediaVideo": "Video",
     "mediaImage": "Image",
+    "mediaFavorite": "Favorites",
     "aiDetectHighlight": "AI will detect highlights",
     "aiMineTactics": "AI will mine tactics",
     "selectedMediaCount": "{{count}} selected",
