@@ -317,6 +317,15 @@ function parseMatchClockToSeconds(clock: string): number {
   return m * 60 + s;
 }
 
+function extractPlayerNumberTag(player: unknown): string | null {
+  if (player == null) return null;
+  const text = String(player).trim();
+  if (!text) return null;
+  const match = text.match(/#\d+/);
+  if (!match) return null;
+  return match[0];
+}
+
 type TimelineFilterId = 'goals' | 'assists' | 'possession' | 'saves';
 
 function buildSoccerTimelinePoints(
@@ -644,6 +653,13 @@ const buildSoccerStatsWithScore = (
     row.rowKey === 'goals' ? { ...row, a: teamAScore, b: teamBScore } : row
   ),
 });
+
+type SoccerMatchPresentation = {
+  teamAScore: number;
+  teamBScore: number;
+  teamALabel: string;
+  teamBLabel: string;
+};
 
 /** 足球 MVP 云端结果（演示形态，契约见 docs/soccer-mvp-api-contract.md） */
 type SoccerMvpCloudJobResult = {
@@ -3957,6 +3973,8 @@ const GalleryScreen = () => {
     setGalleryHybridDemoView,
     liveSoccerStats,
     updateSoccerMatchPresentation,
+    resolveSoccerMatchPresentationByVideoId,
+    setActiveSoccerPresentationVideoId,
     galleryListFlowMode,
   } = useAppContext();
   const [hasSeenAIGuide, setHasSeenAIGuide] = useState(
@@ -4103,7 +4121,11 @@ const GalleryScreen = () => {
     if (videoId) {
       const v = ALL_VIDEOS.find((x) => x.id === videoId);
       if (v?.category === 'soccer') {
-        updateSoccerMatchPresentation(getSoccerMatchPresentationForGalleryVideoId(videoId, t));
+        setActiveSoccerPresentationVideoId(videoId);
+        updateSoccerMatchPresentation({
+          ...resolveSoccerMatchPresentationByVideoId(videoId, t),
+          videoId,
+        });
       }
     }
     
@@ -4344,7 +4366,7 @@ const GalleryScreen = () => {
                   const cardVideo = ALL_VIDEOS.find((video) => video.id === card.videoId);
                   const isSoccerCard = cardVideo?.category === 'soccer';
                   const pres = isSoccerCard
-                    ? getSoccerMatchPresentationForGalleryVideoId(card.videoId, t)
+                    ? resolveSoccerMatchPresentationByVideoId(card.videoId, t)
                     : null;
                   const scoreA = pres ? pres.teamAScore : card.teamAScore;
                   const scoreB = pres ? pres.teamBScore : card.teamBScore;
@@ -6668,6 +6690,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       Record<number, { scoreType?: string; time?: string; name?: string }>
     >({});
     const [activeTimelineFilter, setActiveTimelineFilter] = useState<'all' | 'goal' | 'corner' | 'setpiece' | 'penalty' | 'user'>('all');
+    const [selectedPlayerNumbers, setSelectedPlayerNumbers] = useState<string[]>([]);
     const [selectedExportClipIds, setSelectedExportClipIds] = useState<number[]>([]);
     const [isMatchFlowExpanded, setIsMatchFlowExpanded] = useState(false);
     const isLandscape = analysisResultLayout === 'landscape';
@@ -6752,7 +6775,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)));
     }, [sourceClips, eventCorrections, userMarkedEventIds]);
 
-    const filteredTimelineEvents = React.useMemo(() => {
+    const baseFilteredTimelineEvents = React.useMemo(() => {
       if (activeTimelineFilter === 'all') return resolvedEvents;
       if (activeTimelineFilter === 'user') {
         if (viewMode !== 'fullMatch') return resolvedEvents;
@@ -6760,6 +6783,24 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       }
       return resolvedEvents.filter((event) => String(event.scoreType) === activeTimelineFilter);
     }, [resolvedEvents, activeTimelineFilter, userMarkedTimelineEvents, viewMode]);
+
+    const timelinePlayerNumberOptions = React.useMemo(() => {
+      const options = new Set<string>();
+      baseFilteredTimelineEvents.forEach((event) => {
+        const playerTag = extractPlayerNumberTag((event as { player?: unknown }).player);
+        if (playerTag) options.add(playerTag);
+      });
+      return [...options].sort((a, b) => Number.parseInt(a.slice(1), 10) - Number.parseInt(b.slice(1), 10));
+    }, [baseFilteredTimelineEvents]);
+
+    const filteredTimelineEvents = React.useMemo(() => {
+      if (selectedPlayerNumbers.length === 0) return baseFilteredTimelineEvents;
+      const selectedSet = new Set(selectedPlayerNumbers);
+      return baseFilteredTimelineEvents.filter((event) => {
+        const playerTag = extractPlayerNumberTag((event as { player?: unknown }).player);
+        return playerTag ? selectedSet.has(playerTag) : false;
+      });
+    }, [baseFilteredTimelineEvents, selectedPlayerNumbers]);
 
     const maxEventTimeSec = React.useMemo(
       () => resolvedEvents.reduce((acc, event) => Math.max(acc, parseMatchClockToSeconds(String(event.time))), 0),
@@ -6824,6 +6865,10 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         setActiveTimelineFilter('all');
       }
     }, [viewMode, activeTimelineFilter]);
+
+    useEffect(() => {
+      setSelectedPlayerNumbers((prev) => prev.filter((tag) => timelinePlayerNumberOptions.includes(tag)));
+    }, [timelinePlayerNumberOptions]);
 
     const seekAnalysisTime = React.useCallback(
       (next: number) => {
@@ -7119,6 +7164,23 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       { id: 'penalty', label: scoreTypeLabel('penalty') },
       ...(viewMode === 'fullMatch' ? [{ id: 'user' as const, label: t('ui.userMarkedEvents') }] : []),
     ];
+    const reportComparativeStats = React.useMemo(
+      () =>
+        [
+          { labelKey: 'timelineGoals' as const, t1: liveSoccerStats.teamA.score, t2: liveSoccerStats.teamB.score, max: 5 },
+          { labelKey: 'timelineAssists' as const, t1: 10, t2: 10, max: 20 },
+          { labelKey: 'timelinePossession' as const, t1: 44, t2: 56, max: 100 },
+          { labelKey: 'statTotalShots' as const, t1: 17, t2: 0, max: 20 },
+          { labelKey: 'statShotsOnTarget' as const, t1: 10, t2: 6, max: 16 },
+          { labelKey: 'timelineSaves' as const, t1: 5, t2: 5, max: 10 },
+          { labelKey: 'statDuelsWon' as const, t1: 13, t2: 50, max: 63 },
+          { labelKey: 'statFouls' as const, t1: 5, t2: 5, max: 10 },
+          { labelKey: 'statCorners' as const, t1: 3, t2: 3, max: 6 },
+          { labelKey: 'statFreeKicks' as const, t1: 10, t2: 6, max: 16 },
+          { labelKey: 'statPenalties' as const, t1: 0, t2: 0, max: 2 },
+        ] as const,
+      [liveSoccerStats.teamA.score, liveSoccerStats.teamB.score]
+    );
 
     if (!isSoccer) {
       return (
@@ -7331,21 +7393,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   </div>
                 </div>
 
-                {(
-                  [
-                    { labelKey: 'timelineGoals' as const, t1: 3, t2: 2, max: 5 },
-                    { labelKey: 'timelineAssists' as const, t1: 10, t2: 10, max: 20 },
-                    { labelKey: 'timelinePossession' as const, t1: 44, t2: 56, max: 100 },
-                    { labelKey: 'statTotalShots' as const, t1: 17, t2: 0, max: 20 },
-                    { labelKey: 'statShotsOnTarget' as const, t1: 10, t2: 6, max: 16 },
-                    { labelKey: 'timelineSaves' as const, t1: 5, t2: 5, max: 10 },
-                    { labelKey: 'statDuelsWon' as const, t1: 13, t2: 50, max: 63 },
-                    { labelKey: 'statFouls' as const, t1: 5, t2: 5, max: 10 },
-                    { labelKey: 'statCorners' as const, t1: 3, t2: 3, max: 6 },
-                    { labelKey: 'statFreeKicks' as const, t1: 10, t2: 6, max: 16 },
-                    { labelKey: 'statPenalties' as const, t1: 0, t2: 0, max: 2 },
-                  ] as const
-                ).map((stat) => (
+                {reportComparativeStats.map((stat) => (
                   <div key={stat.labelKey} className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
                     <span className="text-sm font-bold text-white w-6">{stat.t1}</span>
                     <div className="flex flex-col items-center">
@@ -7420,6 +7468,56 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                       </button>
                     ))}
                   </div>
+                  {timelinePlayerNumberOptions.length > 0 && (
+                    <div className="space-y-1.5 mb-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-semibold text-slate-400">{t('ui.markPlayer')}</span>
+                        {selectedPlayerNumbers.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPlayerNumbers([])}
+                            className="text-[10px] text-slate-300 hover:text-white"
+                          >
+                            {t('ui.clear')}
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPlayerNumbers([])}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap transition-colors ${
+                            selectedPlayerNumbers.length === 0
+                              ? 'bg-cyan-600/90 text-white border-cyan-500 shadow-sm shadow-cyan-900/40'
+                              : 'bg-slate-800/80 text-slate-300 border-white/10 hover:bg-slate-700/80'
+                          }`}
+                        >
+                          {t('filter.all')}
+                        </button>
+                        {timelinePlayerNumberOptions.map((tag) => {
+                          const selected = selectedPlayerNumbers.includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() =>
+                                setSelectedPlayerNumbers((prev) =>
+                                  prev.includes(tag) ? prev.filter((v) => v !== tag) : [...prev, tag]
+                                )
+                              }
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap transition-colors ${
+                                selected
+                                  ? 'bg-cyan-600/90 text-white border-cyan-500 shadow-sm shadow-cyan-900/40'
+                                  : 'bg-slate-800/80 text-slate-300 border-white/10 hover:bg-slate-700/80'
+                              }`}
+                            >
+                              {tag}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                   {activeKeyEvent ? (
                     <button
                       type="button"
@@ -8511,6 +8609,16 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     teamA: i18n.t('ui.teamA'),
     teamB: i18n.t('ui.teamB'),
   }));
+  const [soccerPresentationByVideoId, setSoccerPresentationByVideoId] = useState<Record<number, SoccerMatchPresentation>>({});
+  const [activeSoccerPresentationVideoId, setActiveSoccerPresentationVideoId] = useState<number | null>(null);
+  const resolveSoccerMatchPresentationByVideoId = React.useCallback(
+    (videoId: number, translate: (key: string) => string): SoccerMatchPresentation => {
+      const cached = soccerPresentationByVideoId[videoId];
+      if (cached) return cached;
+      return getSoccerMatchPresentationForGalleryVideoId(videoId, translate);
+    },
+    [soccerPresentationByVideoId]
+  );
   const liveSoccerStats = React.useMemo(
     () =>
       buildSoccerStatsWithScore(
@@ -8522,6 +8630,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     [soccerDisplayScore.teamA, soccerDisplayScore.teamB, soccerTeamLabels.teamA, soccerTeamLabels.teamB]
   );
   const updateSoccerMatchPresentation = (patch: {
+    videoId?: number;
     teamAScore?: number;
     teamBScore?: number;
     teamALabel?: string;
@@ -8533,16 +8642,32 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       const s = raw.trim().slice(0, 24);
       return s.length > 0 ? s : i18n.t(fallbackKey);
     };
+    const nextTeamAScore = patch.teamAScore !== undefined ? clampScore(patch.teamAScore) : soccerDisplayScore.teamA;
+    const nextTeamBScore = patch.teamBScore !== undefined ? clampScore(patch.teamBScore) : soccerDisplayScore.teamB;
+    const nextTeamALabel =
+      patch.teamALabel !== undefined ? normalizeName(patch.teamALabel, 'ui.teamA')! : soccerTeamLabels.teamA;
+    const nextTeamBLabel =
+      patch.teamBLabel !== undefined ? normalizeName(patch.teamBLabel, 'ui.teamB')! : soccerTeamLabels.teamB;
     setSoccerDisplayScore((prev) => ({
-      teamA: patch.teamAScore !== undefined ? clampScore(patch.teamAScore) : prev.teamA,
-      teamB: patch.teamBScore !== undefined ? clampScore(patch.teamBScore) : prev.teamB,
+      teamA: nextTeamAScore,
+      teamB: nextTeamBScore,
     }));
     setSoccerTeamLabels((prev) => ({
-      teamA:
-        patch.teamALabel !== undefined ? normalizeName(patch.teamALabel, 'ui.teamA')! : prev.teamA,
-      teamB:
-        patch.teamBLabel !== undefined ? normalizeName(patch.teamBLabel, 'ui.teamB')! : prev.teamB,
+      teamA: nextTeamALabel,
+      teamB: nextTeamBLabel,
     }));
+    const targetVideoId = patch.videoId ?? activeSoccerPresentationVideoId;
+    if (targetVideoId != null) {
+      setSoccerPresentationByVideoId((prev) => ({
+        ...prev,
+        [targetVideoId]: {
+          teamAScore: nextTeamAScore,
+          teamBScore: nextTeamBScore,
+          teamALabel: nextTeamALabel,
+          teamBLabel: nextTeamBLabel,
+        },
+      }));
+    }
   };
 
   const lastSubmittedAnalysisRef = useRef<{ sport: string; analysisType: AnalysisType } | null>(null);
@@ -8836,16 +8961,17 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     }));
   };
 
-  const completeTask = (taskId: string) => {
+  const completeTask = React.useCallback((taskId: string) => {
     setCloudTasks(prev => {
       const finishing = prev.find((t) => t.id === taskId);
       if (finishing) {
         const videoRow = ALL_VIDEOS.find((v) => v.id === finishing.videoId);
         if (videoRow?.category === 'soccer') {
           queueMicrotask(() => {
-            updateSoccerMatchPresentation(
-              getSoccerMatchPresentationForGalleryVideoId(finishing.videoId, (k) => i18n.t(k))
-            );
+            updateSoccerMatchPresentation({
+              ...resolveSoccerMatchPresentationByVideoId(finishing.videoId, (k) => i18n.t(k)),
+              videoId: finishing.videoId,
+            });
           });
         }
       }
@@ -8883,7 +9009,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     if (currentTaskId === taskId) {
       setCurrentTaskId(null);
     }
-  };
+  }, [currentTaskId, maxConcurrentTasks, resolveSoccerMatchPresentationByVideoId]);
 
   const pushView = (view: ViewState) => setViewStack([...viewStack, view]);
 
@@ -9803,6 +9929,8 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       soccerMvpCloudReadyAt,
       liveSoccerStats,
       updateSoccerMatchPresentation,
+      resolveSoccerMatchPresentationByVideoId,
+      setActiveSoccerPresentationVideoId,
 
       t,
 
