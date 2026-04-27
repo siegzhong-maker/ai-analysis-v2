@@ -2778,9 +2778,10 @@ const TaskCenterScreen = () => {
 
 const MediaPickerScreen = () => {
 
-  const { t, popView, targetAnalysisType, setSportType, handleSelect, handleNext, selectedMedia, sportType, submitAiAnalysis, cloudTasks } = useAppContext();
+  const { t, popView, pushView, targetAnalysisType, setSportType, handleSelect, handleNext, selectedMedia, sportType, submitAiAnalysis, cloudTasks, setToastMessage } = useAppContext();
   const [aiDecisionPayload, setAiDecisionPayload] = useState<{ videoId: number; relatedIds: number[]; origin: 'gallery_badge' | 'video_detail' } | null>(null);
   const [detailVideoId, setDetailVideoId] = useState<number | null>(null);
+  const [aggregateDetailVideoIds, setAggregateDetailVideoIds] = useState<number[] | null>(null);
 
   useEffect(() => {
     if (sportType !== 'soccer') {
@@ -2817,6 +2818,142 @@ const MediaPickerScreen = () => {
   const getVideoTaskMeta = React.useCallback(
     (videoId: number) => computeVideoTaskMeta(mediaPickerTaskMap, videoId, t),
     [mediaPickerTaskMap, t]
+  );
+
+  const getMergeStatusSummary = React.useCallback(
+    (videoIds: number[]) => {
+      let completed = 0;
+      let failed = 0;
+      let failedRecoverable = 0;
+      let failedBlocked = 0;
+      let inProgress = 0;
+      let notStarted = 0;
+      const retryableIds: number[] = [];
+      videoIds.forEach((id) => {
+        const meta = getVideoTaskMeta(id);
+        if (!meta.task) {
+          notStarted += 1;
+          return;
+        }
+        if (meta.task.status === 'completed') completed += 1;
+        else if (meta.task.status === 'failed' || meta.task.status === 'paused') {
+          failed += 1;
+          if (meta.action === 'retry') {
+            failedRecoverable += 1;
+            retryableIds.push(id);
+          } else {
+            failedBlocked += 1;
+          }
+        } else inProgress += 1;
+      });
+      const total = videoIds.length;
+      const hasInProgress = inProgress + notStarted > 0;
+      const allSuccess = completed === total && total > 0;
+      const partialSuccess = completed > 0 && failed > 0;
+      const allFailed = completed === 0 && failed === total && total > 0;
+      const canGenerateMergedResult = allSuccess;
+      return {
+        total,
+        completed,
+        failed,
+        failedRecoverable,
+        failedBlocked,
+        inProgress,
+        notStarted,
+        hasInProgress,
+        allSuccess,
+        partialSuccess,
+        allFailed,
+        canGenerateMergedResult,
+        retryableIds,
+      };
+    },
+    [getVideoTaskMeta]
+  );
+
+  const getFailureReasonText = React.useCallback(
+    (meta: GalleryCardTaskMeta) => {
+      const code = meta.task?.failureCode;
+      if (!code) return null;
+      if (code === 'unsupported_video') return t('ui.mergeFailUnsupported');
+      if (code === 'queue_timeout') return t('ui.mergeFailQueueTimeout');
+      if (code === 'storage_insufficient') return t('ui.mergeFailStorage');
+      if (code === 'analyze_failed') return t('ui.mergeFailAnalyze');
+      if (code === 'upload_interrupted' || code === 'network_interrupted') return t('ui.mergeFailNetwork');
+      if (code === 'device_disconnected') return t('ui.mergeFailDeviceDisconnected');
+      return t('ui.mergeFailUnknown');
+    },
+    [t]
+  );
+
+  const retryFailedInGroup = React.useCallback(
+    (videoIds: number[]) => {
+      const summary = getMergeStatusSummary(videoIds);
+      if (summary.retryableIds.length === 0) {
+        setToastMessage(t('ui.mergeNoRetryableClips'));
+        setTimeout(() => setToastMessage(null), 2200);
+        return;
+      }
+      summary.retryableIds.forEach((id) => {
+        submitAiAnalysis([id], 'video_detail', 'single');
+      });
+      setToastMessage(t('ui.mergeRetryStarted', { count: summary.retryableIds.length }));
+      setTimeout(() => setToastMessage(null), 2000);
+    },
+    [getMergeStatusSummary, setToastMessage, submitAiAnalysis, t]
+  );
+
+  const getDemoScenarioTaskMeta = React.useCallback(
+    (
+      videoId: number,
+      scenario: 'all_success' | 'partial_success' | 'all_failed',
+      indexInGroup: number
+    ): GalleryCardTaskMeta => {
+      const baseTask: CloudTask = {
+        id: `demo_${scenario}_${videoId}`,
+        videoId,
+        videoName: `demo_${videoId}`,
+        type: 'highlight',
+        status: 'completed',
+        progress: 100,
+        createdAt: Date.now(),
+      };
+      if (scenario === 'all_success') {
+        return {
+          task: { ...baseTask, status: 'completed' },
+          label: t('gallery.viewAnalysis'),
+          className: 'bg-emerald-500 text-white',
+          action: 'view',
+        };
+      }
+      if (scenario === 'partial_success') {
+        if (indexInGroup === 0) {
+          return {
+            task: { ...baseTask, status: 'completed' },
+            label: t('gallery.viewAnalysis'),
+            className: 'bg-emerald-500 text-white',
+            action: 'view',
+          };
+        }
+        return {
+          task: { ...baseTask, status: 'failed', failureCode: 'analyze_failed' },
+          label: t('gallery.taskAnalyzeFailedRetry'),
+          className: 'bg-rose-500 text-white',
+          action: 'retry',
+        };
+      }
+      return {
+        task: {
+          ...baseTask,
+          status: 'failed',
+          failureCode: indexInGroup % 2 === 0 ? 'analyze_failed' : 'storage_insufficient',
+        },
+        label: indexInGroup % 2 === 0 ? t('gallery.taskAnalyzeFailedRetry') : t('gallery.taskRetryAfterCloudCleanup'),
+        className: 'bg-rose-500 text-white',
+        action: 'retry',
+      };
+    },
+    [t]
   );
 
   const openAiDecision = (videoId: number, origin: 'gallery_badge' | 'video_detail') => {
@@ -2915,40 +3052,147 @@ const MediaPickerScreen = () => {
                 );
               })}
               {group.videos.length > 1 && (
-                <div className="w-full rounded-xl border border-orange-400/40 bg-orange-500/15 px-3 py-2.5 text-left space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-orange-300">
-                        {t('ui.aiAggregateCardTitle', { count: group.videos.length })}
-                      </p>
-                      <p className="text-[10px] text-orange-100/80 mt-0.5">{t('ui.aiAggregateCardDesc')}</p>
+                <div className="space-y-2.5">
+                  <div className="w-full rounded-xl border border-orange-400/40 bg-orange-500/15 px-3 py-2.5 text-left space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-orange-300">
+                          {t('ui.aiAggregateCardDemoPartialTitle', { count: group.videos.length })}
+                        </p>
+                        <p className="text-[10px] text-orange-100/80 mt-0.5">{t('ui.aiAggregateCardDemoPartialDesc')}</p>
+                      </div>
+                      {(() => {
+                        const videoIds = group.videos.map((video) => video.id);
+                        const summary = getMergeStatusSummary(videoIds);
+                        const label = summary.allSuccess
+                          ? t('ui.viewMergedAiResult')
+                          : summary.partialSuccess
+                            ? t('ui.retryFailedFirst')
+                            : summary.allFailed
+                              ? t('ui.openFailDetailAndRetry')
+                              : t('ui.aiAnalyzeMergeRecommended', { count: group.videos.length });
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (summary.allSuccess) {
+                                pushView('ai_result_analysis');
+                                return;
+                              }
+                              if (summary.partialSuccess) {
+                                retryFailedInGroup(videoIds);
+                                return;
+                              }
+                              if (summary.allFailed) {
+                                setAggregateDetailVideoIds(videoIds);
+                                return;
+                              }
+                              submitAiAnalysis(videoIds, 'gallery_aggregate', 'merge');
+                            }}
+                            className="px-2 py-1 rounded-full bg-orange-500 text-white text-[10px] font-bold shrink-0"
+                          >
+                            {label}
+                          </button>
+                        );
+                      })()}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        submitAiAnalysis(
-                          group.videos.map((video) => video.id),
-                          'gallery_aggregate',
-                          'merge'
-                        )
-                      }
-                      className="px-2 py-1 rounded-full bg-orange-500 text-white text-[10px] font-bold shrink-0"
-                    >
-                      {t('ui.aiAnalyzeMergeRecommended', { count: group.videos.length })}
-                    </button>
+                    {(() => {
+                      const summary = getMergeStatusSummary(group.videos.map((v) => v.id));
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 text-[10px] font-bold">
+                            {t('ui.mergeStatusCompleted', { count: summary.completed })}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-200 text-[10px] font-bold">
+                            {t('ui.mergeStatusFailed', { count: summary.failed })}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 text-[10px] font-bold">
+                            {t('ui.mergeStatusInProgress', { count: summary.inProgress + summary.notStarted })}
+                          </span>
+                          {summary.partialSuccess && (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-200 text-[10px] font-bold">
+                              {t('ui.mergeNeedRetryBadge')}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setAggregateDetailVideoIds(group.videos.map((v) => v.id))}
+                            className="ml-auto text-[10px] font-bold text-orange-200 underline underline-offset-2"
+                          >
+                            {t('ui.openMergeDetail')}
+                          </button>
+                        </div>
+                      );
+                    })()}
+                    <AggregateClipStrip
+                      videos={group.videos}
+                      getVideoTaskMeta={getVideoTaskMeta}
+                      variant="dark"
+                      t={t}
+                      onActivate={(video) => {
+                        setDetailVideoId(video.id);
+                      }}
+                      onOpenDetail={(video) => {
+                        setDetailVideoId(video.id);
+                      }}
+                    />
                   </div>
-                  <AggregateClipStrip
-                    videos={group.videos}
-                    getVideoTaskMeta={getVideoTaskMeta}
-                    variant="dark"
-                    t={t}
-                    onActivate={(video) => {
-                      setDetailVideoId(video.id);
-                    }}
-                    onOpenDetail={(video) => {
-                      setDetailVideoId(video.id);
-                    }}
-                  />
+
+                  {(() => {
+                    const videoIds = group.videos.map((v) => v.id);
+                    const indexMap = new Map<number, number>(videoIds.map((id, idx) => [Number(id), idx]));
+                    return (
+                      <>
+                        <div className="w-full rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-3 py-2.5 text-left space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-emerald-300">
+                                {t('ui.aiAggregateCardDemoAllSuccessTitle', { count: group.videos.length })}
+                              </p>
+                              <p className="text-[10px] text-emerald-100/80 mt-0.5">{t('ui.aiAggregateCardDemoAllSuccessDesc')}</p>
+                            </div>
+                            <span className="px-2 py-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold shrink-0">
+                              {t('ui.viewMergedAiResult')}
+                            </span>
+                          </div>
+                          <AggregateClipStrip
+                            videos={group.videos}
+                            getVideoTaskMeta={(videoId) =>
+                              getDemoScenarioTaskMeta(videoId, 'all_success', indexMap.get(videoId) ?? 0)
+                            }
+                            variant="dark"
+                            t={t}
+                            onActivate={(video) => setDetailVideoId(video.id)}
+                            onOpenDetail={(video) => setDetailVideoId(video.id)}
+                          />
+                        </div>
+
+                        <div className="w-full rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2.5 text-left space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-rose-300">
+                                {t('ui.aiAggregateCardDemoAllFailedTitle', { count: group.videos.length })}
+                              </p>
+                              <p className="text-[10px] text-rose-100/80 mt-0.5">{t('ui.aiAggregateCardDemoAllFailedDesc')}</p>
+                            </div>
+                            <span className="px-2 py-1 rounded-full bg-rose-500 text-white text-[10px] font-bold shrink-0">
+                              {t('ui.retryAllFailedClips')}
+                            </span>
+                          </div>
+                          <AggregateClipStrip
+                            videos={group.videos}
+                            getVideoTaskMeta={(videoId) =>
+                              getDemoScenarioTaskMeta(videoId, 'all_failed', indexMap.get(videoId) ?? 0)
+                            }
+                            variant="dark"
+                            t={t}
+                            onActivate={(video) => setDetailVideoId(video.id)}
+                            onOpenDetail={(video) => setDetailVideoId(video.id)}
+                          />
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </section>
@@ -3037,6 +3281,125 @@ const MediaPickerScreen = () => {
                 </span>
                 <span>{t('ui.aiEntryLabel')}</span>
               </button>
+            </div>
+          </div>
+        )}
+
+        {aggregateDetailVideoIds && (
+          <div className="absolute inset-0 z-[76] bg-[#0F172A] text-white flex flex-col">
+            <div className="h-12 flex items-center justify-between px-3 border-b border-white/10 shrink-0">
+              <button type="button" onClick={() => setAggregateDetailVideoIds(null)} className="p-2">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <span className="text-sm font-bold">{t('ui.mergeDetailTitle', { count: aggregateDetailVideoIds.length })}</span>
+              <div className="w-9" />
+            </div>
+            <div className="px-4 pt-3 pb-2 border-b border-white/10 bg-[#111827]">
+              {(() => {
+                const summary = getMergeStatusSummary(aggregateDetailVideoIds);
+                return (
+                  <>
+                    <p className="text-[11px] text-slate-300">{t('ui.mergeDetailSubtitle')}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 text-[10px] font-bold">
+                        {t('ui.mergeStatusCompleted', { count: summary.completed })}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-200 text-[10px] font-bold">
+                        {t('ui.mergeStatusFailed', { count: summary.failed })}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 text-[10px] font-bold">
+                        {t('ui.mergeStatusInProgress', { count: summary.inProgress + summary.notStarted })}
+                      </span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+              {aggregateDetailVideoIds.map((videoId, idx) => {
+                const video = ALL_VIDEOS.find((v) => v.id === videoId);
+                if (!video || video.type !== 'video') return null;
+                const meta = getVideoTaskMeta(videoId);
+                const canRetry = meta.action === 'retry' || meta.action === 'blocked';
+                const failureReason = getFailureReasonText(meta);
+                return (
+                  <div key={`merge-detail-${videoId}`} className="rounded-xl border border-white/10 bg-[#111827] p-3">
+                    <div className="flex gap-3">
+                      <div className="w-20 h-14 rounded-lg overflow-hidden shrink-0">
+                        <AssetThumbnail type="video" category={video.category as 'basketball' | 'soccer'} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-white truncate">
+                          {idx + 1}. {t((video as any).labelKey)}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{video.duration} · {meta.label}</p>
+                        {failureReason && (
+                          <p className={`text-[10px] mt-1 ${meta.action === 'blocked' ? 'text-amber-300' : 'text-rose-300'}`}>
+                            {failureReason}
+                          </p>
+                        )}
+                        {canRetry && (
+                          <button
+                            type="button"
+                            onClick={() => submitAiAnalysis([videoId], 'video_detail', 'single')}
+                            className={`mt-1.5 px-2 py-1 rounded-md text-white text-[10px] font-bold ${
+                              meta.action === 'blocked' ? 'bg-amber-500' : 'bg-rose-500'
+                            }`}
+                          >
+                            {meta.action === 'blocked' ? t('ui.handleBlockedClip') : t('ui.retryFailedClip')}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="shrink-0 border-t border-white/10 bg-[#111827] p-4">
+              {(() => {
+                const summary = getMergeStatusSummary(aggregateDetailVideoIds);
+                const actionLabel = summary.allSuccess
+                  ? t('ui.generateMergedAiResult')
+                  : summary.partialSuccess
+                    ? t('ui.retryFailedFirst')
+                    : summary.allFailed
+                      ? t('ui.retryAllFailedClips')
+                      : summary.hasInProgress
+                        ? t('ui.mergeWaitInProgress')
+                        : t('ui.aiAnalyzeMergeRecommended', { count: aggregateDetailVideoIds.length });
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (summary.allSuccess) {
+                        setAggregateDetailVideoIds(null);
+                        pushView('ai_result_analysis');
+                        return;
+                      }
+                      if (summary.partialSuccess) {
+                        retryFailedInGroup(aggregateDetailVideoIds);
+                        return;
+                      }
+                      if (summary.allFailed) {
+                        retryFailedInGroup(aggregateDetailVideoIds);
+                        return;
+                      }
+                      if (summary.hasInProgress) {
+                        setToastMessage(t('ui.mergeWaitInProgressToast'));
+                        setTimeout(() => setToastMessage(null), 2000);
+                        return;
+                      }
+                      submitAiAnalysis(aggregateDetailVideoIds, 'gallery_aggregate', 'merge');
+                    }}
+                    className={`w-full py-3 rounded-xl text-sm font-bold ${
+                      summary.hasInProgress ? 'bg-slate-700 text-slate-300' : 'bg-orange-500 text-white'
+                    }`}
+                    disabled={summary.hasInProgress}
+                  >
+                    {actionLabel}
+                  </button>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -3170,7 +3533,7 @@ function AggregateClipStrip({
       <div role="list" className="flex gap-2 overflow-x-auto scrollbar-hide -mx-0.5 px-0.5 py-0.5">
         {videos.map((video, idx) => {
           const meta = getVideoTaskMeta(video.id);
-          const showBadge = meta.action !== 'start';
+          const showBadge = meta.action !== 'start' && meta.action !== 'view';
           return (
             <div
               key={video.id}
@@ -4124,6 +4487,126 @@ const GalleryScreen = () => {
                     setDetailFromAnalyzedCard(false);
                   }}
                 />
+                {(() => {
+                  const indexMap = new Map<number, number>(localGroupVideos.map((video, idx) => [Number(video.id), idx]));
+                  const getDemoMeta = (
+                    videoId: number,
+                    scenario: 'all_success' | 'all_failed'
+                  ): GalleryCardTaskMeta => {
+                    const idx = indexMap.get(Number(videoId)) ?? 0;
+                    const baseTask: CloudTask = {
+                      id: `gallery_demo_${scenario}_${videoId}`,
+                      videoId,
+                      videoName: `demo_${videoId}`,
+                      type: 'highlight',
+                      status: 'completed',
+                      progress: 100,
+                      createdAt: Date.now(),
+                    };
+                    if (scenario === 'all_success') {
+                      return {
+                        task: { ...baseTask, status: 'completed' },
+                        label: t('gallery.viewAnalysis'),
+                        className: 'bg-emerald-500 text-white',
+                        action: 'view',
+                      };
+                    }
+                    return {
+                      task: {
+                        ...baseTask,
+                        status: 'failed',
+                        failureCode: idx % 2 === 0 ? 'analyze_failed' : 'storage_insufficient',
+                      },
+                      label: idx % 2 === 0 ? t('gallery.taskAnalyzeFailedRetry') : t('gallery.taskRetryAfterCloudCleanup'),
+                      className: 'bg-rose-500 text-white',
+                      action: 'retry',
+                    };
+                  };
+                  return (
+                    <>
+                      <div className="w-full rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-left space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] font-bold text-emerald-700">
+                            {t('ui.aiAggregateCardDemoAllSuccessTitle', { count: localGroupVideos.length })}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const leadVideoId = localGroupVideos[0]?.id;
+                              if (leadVideoId == null) return;
+                              openAnalyzedResult('highlight', leadVideoId);
+                            }}
+                            className="shrink-0 rounded-full bg-emerald-600 text-white px-2 py-0.5 text-[10px] font-bold"
+                          >
+                            {t('gallery.viewAnalysis')}
+                          </button>
+                        </div>
+                        {(() => {
+                          const leadVideoId = localGroupVideos[0]?.id;
+                          if (leadVideoId == null) return null;
+                          const pres = getSoccerMatchPresentationForGalleryVideoId(leadVideoId, t);
+                          return (
+                            <div className="rounded-lg border border-emerald-200 bg-white/70 px-2 py-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0 flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                                  <span className="text-[10px] font-semibold text-slate-700 truncate">{pres.teamALabel}</span>
+                                  <span className="text-[12px] font-black text-slate-900 tabular-nums">
+                                    {pres.teamAScore} - {pres.teamBScore}
+                                  </span>
+                                  <span className="text-[10px] font-semibold text-slate-700 text-right truncate">{pres.teamBLabel}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                        <AggregateClipStrip
+                          videos={localGroupVideos}
+                          getVideoTaskMeta={(videoId) => getDemoMeta(videoId, 'all_success')}
+                          variant="light"
+                          t={t}
+                          onActivate={(video) => {
+                            setDetailVideoId(video.id);
+                            setDetailFromAnalyzedCard(false);
+                          }}
+                          onOpenDetail={(video) => {
+                            setDetailVideoId(video.id);
+                            setDetailFromAnalyzedCard(false);
+                          }}
+                        />
+                      </div>
+                      <div className="w-full rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-2 text-left space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] font-bold text-rose-700">
+                            {t('ui.aiAggregateCardDemoAllFailedTitle', { count: localGroupVideos.length })}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              submitAiAnalysis(localGroupVideos.map((video) => video.id), 'gallery_aggregate', 'merge');
+                            }}
+                            className="shrink-0 rounded-full bg-rose-500 text-white px-2 py-0.5 text-[10px] font-bold"
+                          >
+                            {t('ui.retry')}
+                          </button>
+                        </div>
+                        <AggregateClipStrip
+                          videos={localGroupVideos}
+                          getVideoTaskMeta={(videoId) => getDemoMeta(videoId, 'all_failed')}
+                          variant="light"
+                          t={t}
+                          onActivate={(video) => {
+                            setDetailVideoId(video.id);
+                            setDetailFromAnalyzedCard(false);
+                          }}
+                          onOpenDetail={(video) => {
+                            setDetailVideoId(video.id);
+                            setDetailFromAnalyzedCard(false);
+                          }}
+                        />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
                 </>
