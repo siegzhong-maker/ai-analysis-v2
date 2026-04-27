@@ -106,7 +106,7 @@ interface CloudTask {
 
 type MediaPickerSessionState = {
   sourceTab: VideoSource | 'ai_analysis';
-  typeTab: 'all' | 'video';
+  typeTab: 'all' | 'video' | 'image' | 'favorite';
   detailVideoId: number | null;
 };
 
@@ -3964,7 +3964,7 @@ const GalleryScreen = () => {
   );
   const [showAIGuideSheet, setShowAIGuideSheet] = useState(false);
   const [sourceTab, setSourceTab] = useState<VideoSource | 'ai_analysis'>(() => mediaPickerSessionState.sourceTab);
-  const [typeTab, setTypeTab] = useState<'all' | 'video'>(() => (mediaPickerSessionState.typeTab as any) || 'all');
+  const [typeTab, setTypeTab] = useState<'all' | 'video' | 'image' | 'favorite'>(() => (mediaPickerSessionState.typeTab as any) || 'all');
   const [aiAnalysisFilter, setAiAnalysisFilter] = useState<'all' | 'in_progress' | 'failed' | 'completed'>('all');
   const [detailVideoId, setDetailVideoId] = useState<number | null>(() => mediaPickerSessionState.detailVideoId);
   const [detailFromAnalyzedCard, setDetailFromAnalyzedCard] = useState(false);
@@ -4015,6 +4015,8 @@ const GalleryScreen = () => {
       }
       if (sourceTab !== 'all' && video.source !== sourceTab) return false;
       if (typeTab === 'video') return video.type === 'video';
+      if (typeTab === 'image') return false;
+      if (typeTab === 'favorite') return video.type === 'video';
       return true;
     });
     if (sourceTab !== 'ai_analysis') return filtered;
@@ -4191,6 +4193,8 @@ const GalleryScreen = () => {
           {([
             { id: 'all', key: 'ui.mediaAll' },
             { id: 'video', key: 'ui.mediaVideo' },
+            { id: 'image', key: 'ui.mediaImage' },
+            { id: 'favorite', key: 'ui.mediaFavorite' },
           ] as const).map((item) => (
             <button
               key={item.id}

@@ -367,6 +367,7 @@
     "mediaAll": "全部",
     "mediaVideo": "视频",
     "mediaImage": "图片",
+    "mediaFavorite": "收藏",
     "aiDetectHighlight": "AI 识别高光片段",
     "aiMineTactics": "AI 挖掘战术数据",
     "selectedMediaCount": "已选 {{count}} 个片段",
