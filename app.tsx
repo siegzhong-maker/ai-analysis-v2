@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from './src/i18n';
 import soccerVideoBg from './下载.jpeg';
+import basketballVideoBg from './篮球.jpeg';
 
 import { 
 
@@ -75,6 +76,9 @@ type AnalysisType = 'highlight' | 'analysis';
 type VideoSource = 'all' | 'falcon' | 'cloud' | 'local';
 
 type SortOrder = 'newest' | 'oldest' | 'duration';
+
+/** 相册能力演示：一期仅足球 AI、二期足篮、三期多运动素材入库 */
+type GalleryProductPhase = 'phase1' | 'phase2' | 'phase3';
 
 type EventFilterType = 'all' | 'score' | 'highlight' | 3 | 2 | 1 | 'goal' | 'corner' | 'setpiece' | 'penalty' | 'rebound' | 'steal' | 'assist'; 
 
@@ -462,6 +466,10 @@ const ALL_VIDEOS = [
   { id: 204, type: 'video', source: 'local', dateKey: 'videos.monday', dateSuffix: '18:05', duration: '22:15', labelKey: 'videos.secondHalf', category: 'soccer' },
   { id: 205, type: 'video', source: 'local', dateKey: 'videos.monday', dateSuffix: '19:15', duration: '12:40', labelKey: 'videos.extraHighlights', category: 'soccer' },
   { id: 103, type: 'video', source: 'falcon', dateKey: 'videos.sunday', dateSuffix: '15:20', duration: '15:20', labelKey: 'videos.halfCourt', device: 'Falcon Mini', battery: 100, synced: false, category: 'soccer' },
+  /** 篮球：与足球同源 Falcon/本地/云端演示结构对应，供相册多运动 Tab 演示 */
+  { id: 701, type: 'video', source: 'falcon', dateKey: 'videos.monday', dateSuffix: '07:55', duration: '48:00', labelKey: 'videos.bbDemoFalcon', category: 'basketball', device: 'Falcon' },
+  { id: 702, type: 'video', source: 'local', dateKey: 'videos.monday', dateSuffix: '07:58', duration: '48:00', labelKey: 'videos.bbDemoLocal', category: 'basketball' },
+  { id: 703, type: 'video', source: 'cloud', dateKey: 'videos.monday', dateSuffix: '08:01', duration: '48:00', labelKey: 'videos.bbDemoCloud', category: 'basketball' },
   { id: 303, type: 'video', source: 'local', dateKey: 'videos.lastFriday', dateSuffix: '', duration: '20:00', labelKey: 'videos.battingPractice', category: 'baseball' },
 
   /** 第四条路线相册演示：详情页内触发 AI（走当前分析管线，需选「端侧优先·云端全量」） */
@@ -553,18 +561,62 @@ const GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER: { falcon: number; local: number; cloud
   cloud: 603,
 };
 
-const getGalleryPinnedDemoIds = (tab: VideoSource | 'ai_analysis'): number[] => {
-  if (tab === 'ai_analysis') return [];
-  if (tab === 'all') {
-    return [
-      GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.falcon,
-      GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.local,
-      GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.cloud,
-    ];
+const GALLERY_DEMO_BB_TOP_ORDER: { falcon: number; local: number; cloud: number } = {
+  falcon: 701,
+  local: 702,
+  cloud: 703,
+};
+
+/** 二期相册：演示「篮球 AI 分析落地页」入口（与 basketball 演示素材一致） */
+const GALLERY_BB_AI_PREVIEW_VIDEO_ID = GALLERY_DEMO_BB_TOP_ORDER.falcon;
+
+function galleryCategoriesAllowed(phase: GalleryProductPhase): Set<string> {
+  switch (phase) {
+    case 'phase1':
+    case 'phase2':
+      return new Set(['soccer', 'basketball']);
+    case 'phase3':
+      return new Set(['soccer', 'basketball', 'baseball']);
+    default:
+      return new Set(['soccer']);
   }
-  if (tab === 'falcon') return [GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.falcon];
-  if (tab === 'local') return [GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.local];
-  if (tab === 'cloud') return [GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER.cloud];
+}
+
+/** 相册内是否允许发起 / 继续 AI 分析（与「能看见素材」解耦） */
+function isGalleryAiAnalysisEnabled(phase: GalleryProductPhase, category: string): boolean {
+  if (phase === 'phase1') return category === 'soccer';
+  return category === 'soccer' || category === 'basketball';
+}
+
+const getGalleryPinnedDemoIds = (tab: VideoSource | 'ai_analysis', phase: GalleryProductPhase): number[] => {
+  if (tab === 'ai_analysis') return [];
+  const sc = GALLERY_DEMO_NORMAL_FLOW_TOP_ORDER;
+  const bb = GALLERY_DEMO_BB_TOP_ORDER;
+  const showBb = phase === 'phase1' || phase === 'phase2' || phase === 'phase3';
+  const showBaseball = phase === 'phase3';
+
+  if (tab === 'all') {
+    const ids = [sc.falcon, sc.local, sc.cloud];
+    if (showBb) ids.push(bb.falcon, bb.local, bb.cloud);
+    if (showBaseball) ids.push(303);
+    return ids;
+  }
+  if (tab === 'falcon') {
+    const ids = [sc.falcon];
+    if (showBb) ids.push(bb.falcon);
+    return ids;
+  }
+  if (tab === 'local') {
+    const ids = [sc.local];
+    if (showBb) ids.push(bb.local);
+    if (showBaseball) ids.push(303);
+    return ids;
+  }
+  if (tab === 'cloud') {
+    const ids = [sc.cloud];
+    if (showBb) ids.push(bb.cloud);
+    return ids;
+  }
   return [];
 };
 
@@ -754,17 +806,24 @@ const AssetThumbnail = ({ type, category }: { type: string, category: string }) 
 
   const isBaseball = category === 'baseball';
 
-  
+  const useSoccerVideoImage = isSoccer && type === 'video';
+
+  const useBasketballVideoImage = isBasketball && type === 'video';
 
   let bgClass = 'bg-slate-800';
 
-  if (isBasketball) bgClass = 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-orange-600 via-orange-700 to-orange-900';
+  if (isBasketball) {
+    bgClass = useBasketballVideoImage
+      ? 'bg-slate-950'
+      : 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-orange-600 via-orange-700 to-orange-900';
+  } else if (isSoccer) {
+    bgClass = 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-600 via-emerald-700 to-emerald-900';
+  } else if (isBaseball) {
+    bgClass = 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-600 via-blue-700 to-blue-900';
+  }
 
-  else if (isSoccer) bgClass = 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-600 via-emerald-700 to-emerald-900';
-
-  else if (isBaseball) bgClass = 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-600 via-blue-700 to-blue-900';
-
-  const useSoccerVideoImage = isSoccer && type === 'video';
+  const overlayOpacity =
+    useSoccerVideoImage ? 'opacity-30' : useBasketballVideoImage ? 'opacity-35' : 'opacity-40';
 
   return (
 
@@ -778,9 +837,30 @@ const AssetThumbnail = ({ type, category }: { type: string, category: string }) 
         />
       )}
 
-      <div className={`absolute inset-0 ${useSoccerVideoImage ? 'opacity-30' : 'opacity-40'} mix-blend-overlay`}>
+      {useBasketballVideoImage && (
+        <img
+          src={basketballVideoBg}
+          alt="basketball video background"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
 
-        {isBasketball && <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"><defs><pattern id="floor" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0 0h10v1H0z" fill="black" opacity="0.1"/><path d="M5 0v10h1V0z" fill="black" opacity="0.05"/></pattern></defs><rect width="100%" height="100%" fill="url(#floor)" /><path d="M0 0 H100 V100 H0 Z" fill="none" stroke="white" strokeWidth="0.5" opacity="0.5"/><circle cx="50" cy="50" r="20" stroke="white" strokeWidth="1.5" fill="none" opacity="0.8"/><path d="M0 50 Q 50 100 100 50" stroke="white" strokeWidth="1.5" fill="none" opacity="0.8"/></svg>}
+      <div className={`absolute inset-0 ${overlayOpacity} mix-blend-overlay`}>
+
+        {isBasketball && !useBasketballVideoImage && (
+          <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <defs>
+              <pattern id="floor" width="10" height="10" patternUnits="userSpaceOnUse">
+                <path d="M0 0h10v1H0z" fill="black" opacity="0.1" />
+                <path d="M5 0v10h1V0z" fill="black" opacity="0.05" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#floor)" />
+            <path d="M0 0 H100 V100 H0 Z" fill="none" stroke="white" strokeWidth="0.5" opacity="0.5" />
+            <circle cx="50" cy="50" r="20" stroke="white" strokeWidth="1.5" fill="none" opacity="0.8" />
+            <path d="M0 50 Q 50 100 100 50" stroke="white" strokeWidth="1.5" fill="none" opacity="0.8" />
+          </svg>
+        )}
 
         {isSoccer && <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"><defs><pattern id="grass" width="20" height="20" patternUnits="userSpaceOnUse"><rect width="20" height="10" fill="white" opacity="0.05"/></pattern></defs><rect width="100%" height="100%" fill="url(#grass)" /><rect x="0" y="0" width="100" height="100" fill="none" stroke="white" strokeWidth="0.5" opacity="0.5"/><line x1="50" y1="0" x2="50" y2="100" stroke="white" strokeWidth="1" opacity="0.8"/><circle cx="50" cy="50" r="15" stroke="white" strokeWidth="1" fill="none" opacity="0.8"/></svg>}
 
@@ -2069,6 +2149,39 @@ const GalleryFlowModeToggle = () => {
   );
 };
 
+const GalleryProductPhaseToggle = () => {
+  const { t, galleryProductPhase, setGalleryProductPhase } = useAppContext();
+  const phases: { id: GalleryProductPhase; labelKey: string }[] = [
+    { id: 'phase1', labelKey: 'gallery.productPhase1Short' },
+    { id: 'phase2', labelKey: 'gallery.productPhase2Short' },
+    { id: 'phase3', labelKey: 'gallery.productPhase3Short' },
+  ];
+  return (
+    <div className="flex flex-col gap-1.5 min-w-[220px] max-w-[min(100vw-2rem,320px)]">
+      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">
+        {t('gallery.productPhaseToggleTitle')}
+      </span>
+      <div className="flex rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm gap-0.5">
+        {phases.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setGalleryProductPhase(p.id)}
+            className={`flex-1 px-1.5 py-2 rounded-lg text-[11px] font-bold transition-colors leading-tight text-center ${
+              galleryProductPhase === p.id ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {t(p.labelKey)}
+          </button>
+        ))}
+      </div>
+      <p className="text-[10px] text-slate-500 leading-snug">
+        {t(`gallery.productPhaseHint_${galleryProductPhase}`)}
+      </p>
+    </div>
+  );
+};
+
 const AnalysisOrientationToggle = () => {
   const { t, currentView, analysisResultLayout, setAnalysisResultLayout } = useAppContext();
   if (currentView !== 'ai_result_analysis') return null;
@@ -3080,27 +3193,45 @@ const TaskCenterScreen = () => {
 
 const MediaPickerScreen = () => {
 
-  const { t, popView, pushView, targetAnalysisType, setSportType, handleSelect, handleNext, selectedMedia, sportType, submitAiAnalysis, cloudTasks, setToastMessage } = useAppContext();
+  const {
+    t,
+    popView,
+    pushView,
+    targetAnalysisType,
+    handleSelect,
+    handleNext,
+    selectedMedia,
+    submitAiAnalysis,
+    cloudTasks,
+    setToastMessage,
+    setSelectedMedia,
+    galleryProductPhase,
+  } = useAppContext();
   const [aiDecisionPayload, setAiDecisionPayload] = useState<{ videoId: number; relatedIds: number[]; origin: 'gallery_badge' | 'video_detail' } | null>(null);
   const [detailVideoId, setDetailVideoId] = useState<number | null>(null);
   const [aggregateDetailVideoIds, setAggregateDetailVideoIds] = useState<number[] | null>(null);
+  /** 一期素材与分析流程仅足球；篮球为预览态，由下方按钮切入 */
+  const [pickerSportTab, setPickerSportTab] = useState<'soccer' | 'basketball'>('soccer');
 
   useEffect(() => {
-    if (sportType !== 'soccer') {
-      setSportType('soccer');
-    }
-  }, [sportType, setSportType]);
+    setSelectedMedia([]);
+  }, [pickerSportTab, setSelectedMedia]);
 
   const SPORTS_ROW = [
-    { id: 'basketball' as const, labelKey: 'ui.sportBasketball', icon: CircleDot, activeClass: 'bg-orange-600 border-orange-500 text-white shadow-lg shadow-orange-900/50' },
     { id: 'soccer' as const, labelKey: 'ui.sportSoccer', icon: Hexagon, activeClass: 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-900/50' },
+    { id: 'basketball' as const, labelKey: 'ui.sportBasketball', icon: CircleDot, activeClass: 'bg-orange-600 border-orange-500 text-white shadow-lg shadow-orange-900/50' },
   ];
 
-  const recentMatches = ALL_VIDEOS.filter(
+  const recentSoccerMatches = ALL_VIDEOS.filter(
     (item) => item.type === 'video' && item.category === 'soccer'
   ).slice(0, 5);
 
-  const filteredBySport = recentMatches.filter((item) => item.category === sportType);
+  const filteredBySport =
+    pickerSportTab === 'soccer'
+      ? recentSoccerMatches
+      : ALL_VIDEOS.filter(
+          (item) => item.type === 'video' && (item as { category: string }).category === 'basketball'
+        );
   const groupedVideos = React.useMemo(() => {
     const groups = new Map<string, typeof filteredBySport>();
     filteredBySport.forEach((video) => {
@@ -3273,17 +3404,24 @@ const MediaPickerScreen = () => {
         </div>
 
         <div className="bg-[#121212] pt-3 pb-2 px-4">
-          <p className="text-[10px] text-slate-500 mb-2">{t('ui.pickerRecentHint')}</p>
+          <p className="text-[10px] text-slate-500 mb-2">
+            {pickerSportTab === 'soccer' ? t('ui.pickerRecentHintSoccer') : t('ui.pickerRecentHintBasketballPreview')}
+          </p>
           <div className="flex gap-2">
             {SPORTS_ROW.map((sport) => {
-              const isSelected = sportType === sport.id;
+              const isSelected = pickerSportTab === sport.id;
               const Icon = sport.icon;
+              const basketballLocked = sport.id === 'basketball' && pickerSportTab === 'soccer';
               return (
                 <button
                   key={sport.id}
                   type="button"
-                  onClick={() => { setSportType(sport.id); }}
-                  className={`flex-1 py-2.5 rounded-xl border flex items-center justify-center gap-2 transition-all ${isSelected ? sport.activeClass : 'bg-[#1E1E1E] border-white/5 text-slate-500'}`}
+                  aria-disabled={basketballLocked}
+                  onClick={() => {
+                    if (sport.id === 'basketball' && pickerSportTab === 'soccer') return;
+                    setPickerSportTab(sport.id);
+                  }}
+                  className={`flex-1 py-2.5 rounded-xl border flex items-center justify-center gap-2 transition-all ${isSelected ? sport.activeClass : 'bg-[#1E1E1E] border-white/5 text-slate-500'} ${basketballLocked ? 'opacity-45 cursor-not-allowed' : ''}`}
                 >
                   <Icon className={`w-5 h-5 ${isSelected ? 'text-white' : 'text-slate-600'}`} />
                   <span className="text-xs font-bold">{t(sport.labelKey)}</span>
@@ -3291,11 +3429,20 @@ const MediaPickerScreen = () => {
               );
             })}
           </div>
+          <button
+            type="button"
+            onClick={() => setPickerSportTab((prev) => (prev === 'soccer' ? 'basketball' : 'soccer'))}
+            className="mt-2 w-full py-2 rounded-xl border border-white/10 bg-[#1E1E1E] text-[11px] font-bold text-slate-300 hover:bg-white/5 transition-colors"
+          >
+            {pickerSportTab === 'soccer' ? t('ui.pickerBasketballPreviewEnter') : t('ui.pickerBasketballPreviewExit')}
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-32 pt-2 space-y-4">
           {filteredBySport.length === 0 && (
-            <div className="text-center text-slate-500 text-xs py-12">{t('ui.pickerNoMatches')}</div>
+            <div className="text-center text-slate-500 text-xs py-12">
+              {pickerSportTab === 'basketball' ? t('ui.pickerNoMatchesBasketballPreview') : t('ui.pickerNoMatches')}
+            </div>
           )}
           {groupedVideos.map((group) => (
             <section key={group.dateKey} className="space-y-2.5">
@@ -3508,8 +3655,8 @@ const MediaPickerScreen = () => {
           <button
             type="button"
             onClick={handleNext}
-            disabled={selectedMedia.length === 0}
-            className={`px-6 py-2 rounded-full text-sm font-bold transition-all shrink-0 ${selectedMedia.length > 0 ? (targetAnalysisType === 'highlight' ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white') : 'bg-[#333] text-gray-500'}`}
+            disabled={selectedMedia.length === 0 || pickerSportTab === 'basketball'}
+            className={`px-6 py-2 rounded-full text-sm font-bold transition-all shrink-0 ${selectedMedia.length > 0 && pickerSportTab === 'soccer' ? (targetAnalysisType === 'highlight' ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white') : 'bg-[#333] text-gray-500'}`}
           >
             {targetAnalysisType === 'highlight' ? t('ui.generateHighlight') : t('ui.startStats')}
           </button>
@@ -3571,18 +3718,23 @@ const MediaPickerScreen = () => {
                 <Download className="w-5 h-5" />
                 <span>{t('ui.videoDownload')}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => openAiDecision(detailVideo.id, 'video_detail')}
-                className="flex flex-col items-center gap-1 text-xs text-orange-300"
-                aria-label={t('ui.aiEntryLabel')}
-              >
-                <span className="w-10 h-10 rounded-xl border-2 border-rose-400 bg-black/35 flex flex-col items-center justify-center leading-none">
-                  <Sparkles className="w-3.5 h-3.5 text-orange-300" />
-                  <span className="text-[10px] font-black text-orange-300 mt-0.5">AI</span>
-                </span>
-                <span>{t('ui.aiEntryLabel')}</span>
-              </button>
+              {!(
+                galleryProductPhase === 'phase1' &&
+                (detailVideo.category as string) === 'basketball'
+              ) && (
+                <button
+                  type="button"
+                  onClick={() => openAiDecision(detailVideo.id, 'video_detail')}
+                  className="flex flex-col items-center gap-1 text-xs text-orange-300"
+                  aria-label={t('ui.aiEntryLabel')}
+                >
+                  <span className="w-10 h-10 rounded-xl border-2 border-rose-400 bg-black/35 flex flex-col items-center justify-center leading-none">
+                    <Sparkles className="w-3.5 h-3.5 text-orange-300" />
+                    <span className="text-[10px] font-black text-orange-300 mt-0.5">AI</span>
+                  </span>
+                  <span>{t('ui.aiEntryLabel')}</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -3716,7 +3868,7 @@ const GALLERY_CARD_SWIPE_REVEAL_PX = 72;
 
 type GalleryListVideoItem = {
   id: number;
-  category: 'basketball' | 'soccer';
+  category: 'basketball' | 'soccer' | 'baseball';
   duration: string;
 };
 
@@ -3898,6 +4050,7 @@ function AggregateClipStrip({
 type GalleryVideoCardProps = {
   video: GalleryListVideoItem;
   hasSeenAIGuide: boolean;
+  galleryProductPhase: GalleryProductPhase;
   sourceTab: VideoSource | 'ai_analysis';
   getVideoTaskMeta: (videoId: number) => GalleryCardTaskMeta;
   openAnalyzedResult: (analysisType: 'highlight' | 'analysis', videoId?: number) => void;
@@ -3912,6 +4065,7 @@ type GalleryVideoCardProps = {
 function GalleryVideoCard({
   video,
   hasSeenAIGuide,
+  galleryProductPhase,
   sourceTab,
   getVideoTaskMeta,
   openAnalyzedResult,
@@ -3929,6 +4083,7 @@ function GalleryVideoCard({
   swipeOffsetRef.current = swipeOffset;
 
   const taskMeta = getVideoTaskMeta(video.id);
+  const aiAnalysisEnabled = isGalleryAiAnalysisEnabled(galleryProductPhase, video.category);
   const isQueueWaiting =
     taskMeta.action === 'progress' && taskMeta.task != null && taskMeta.task.status === 'queued';
   const isConnectDeviceBlocked =
@@ -3939,6 +4094,17 @@ function GalleryVideoCard({
     taskMeta.action === 'blocked' && taskMeta.task?.failureCode === 'unsupported_video';
 
   const runAiPrimaryAction = () => {
+    if (!aiAnalysisEnabled) {
+      const key =
+        video.category === 'baseball'
+          ? 'gallery.toastBaseballAiSoon'
+          : video.category === 'basketball'
+            ? 'gallery.toastBasketballAiPhase1'
+            : 'gallery.sportAiComingSoon';
+      setToastMessage(t(key));
+      setTimeout(() => setToastMessage(null), 2800);
+      return;
+    }
     if (taskMeta.action === 'view') {
       openAnalyzedResult((taskMeta.task?.type || 'highlight') as 'highlight' | 'analysis', video.id);
       return;
@@ -3986,13 +4152,15 @@ function GalleryVideoCard({
   };
 
   const footerCtaLabel =
-    taskMeta.action === 'start'
-      ? t('ui.aiEntryLabel')
-      : taskMeta.action === 'view'
-        ? t('gallery.viewAnalysis')
-        : isConnectDeviceBlocked || isStorageInsufficientRetry
-          ? t('ui.aiEntryLabel')
-          : taskMeta.label;
+    !aiAnalysisEnabled && taskMeta.action === 'start'
+      ? t('gallery.ctaAiPreviewOnly')
+      : taskMeta.action === 'start'
+        ? t('ui.aiEntryLabel')
+        : taskMeta.action === 'view'
+          ? t('gallery.viewAnalysis')
+          : isConnectDeviceBlocked || isStorageInsufficientRetry
+            ? t('ui.aiEntryLabel')
+            : taskMeta.label;
 
   const onAiControlClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -4001,13 +4169,17 @@ function GalleryVideoCard({
     setSwipeOffset(0);
   };
 
+  const aiRailMuted = !aiAnalysisEnabled && taskMeta.action === 'start';
+
   const isCloudListVideo = ALL_VIDEOS.find((v) => v.id === video.id && v.type === 'video')?.source === 'cloud';
   const progressUploading =
     taskMeta.action === 'progress' && taskMeta.task?.status === 'uploading' && !isCloudListVideo;
 
   const footerButtonClass = isQueueWaiting || isDurationBlocked
     ? 'bg-slate-500/55 text-slate-200 border-slate-400/25 cursor-not-allowed'
-    : taskMeta.action === 'view'
+    : aiRailMuted
+      ? 'bg-slate-600 text-white border-slate-400/45'
+      : taskMeta.action === 'view'
       ? 'bg-emerald-600 text-white border-emerald-400/40'
       : taskMeta.action === 'progress'
         ? progressUploading
@@ -4062,6 +4234,59 @@ function GalleryVideoCard({
   const gallerySoccerPres = showSoccerResultOverlay
     ? getSoccerMatchPresentationForGalleryVideoId(video.id, t)
     : null;
+
+  /** 一期：篮球在 Falcon/本地/云端仅详情；足球沿用完整卡片（可走 AI 分析） */
+  const phase1BasketballLibraryDetailOnly =
+    galleryProductPhase === 'phase1' &&
+    (sourceTab === 'falcon' || sourceTab === 'local' || sourceTab === 'cloud') &&
+    video.category === 'basketball';
+
+  if (phase1BasketballLibraryDetailOnly) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDetailVideoId(video.id);
+          setDetailFromAnalyzedCard(false);
+        }}
+        className="relative w-full rounded-xl overflow-hidden aspect-[16/8.5] text-left shadow-sm ring-1 ring-black/10"
+      >
+        <AssetThumbnail type="video" category={video.category} />
+        <div
+          className={`absolute inset-0 ${
+            showSoccerResultOverlay
+              ? 'bg-gradient-to-r from-[#0E2A3C]/94 via-[#12324A]/78 to-black/52'
+              : 'bg-gradient-to-r from-[#0E2A3C]/55 via-[#12324A]/30 to-black/25'
+          }`}
+        />
+        {gallerySoccerPres && (
+          <div className="absolute inset-0 flex items-center justify-center text-white px-6 sm:px-10 pointer-events-none">
+            <div className="flex items-center justify-center gap-8 sm:gap-12 max-w-[min(100%,18rem)] w-full">
+              <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
+                <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">
+                  {gallerySoccerPres.teamALabel}
+                </span>
+                <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
+                  {gallerySoccerPres.teamAScore}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1 flex flex-col items-center gap-1 text-center">
+                <span className="text-[12px] font-bold leading-tight truncate w-full px-0.5">
+                  {gallerySoccerPres.teamBLabel}
+                </span>
+                <span className="text-[28px] sm:text-[32px] font-black leading-none tabular-nums drop-shadow-md">
+                  {gallerySoccerPres.teamBScore}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="absolute left-3 right-3 bottom-3 flex items-end justify-end text-white pointer-events-none">
+          <span className="text-[11px] font-semibold">{video.duration}</span>
+        </div>
+      </button>
+    );
+  }
 
   if (!hasSeenAIGuide) {
     return (
@@ -4126,7 +4351,9 @@ function GalleryVideoCard({
           className={`w-[72px] h-full flex flex-col items-center justify-center px-1 gap-1 border-l border-white/15 pointer-events-auto ${
             isQueueWaiting || isDurationBlocked
               ? 'bg-gradient-to-b from-slate-600 to-slate-700 border-slate-500/40'
-              : 'bg-gradient-to-b from-orange-500 to-orange-600'
+              : aiRailMuted
+                ? 'bg-gradient-to-b from-slate-500 to-slate-600 border-slate-500/35'
+                : 'bg-gradient-to-b from-orange-500 to-orange-600'
           }`}
         >
           <button
@@ -4141,7 +4368,9 @@ function GalleryVideoCard({
             className={`flex flex-col items-center justify-center gap-0.5 p-1 rounded-lg ${
               isQueueWaiting || isDurationBlocked
                 ? 'text-slate-300 cursor-not-allowed'
-                : 'text-white active:bg-white/10'
+                : aiRailMuted
+                  ? 'text-white/90 active:bg-white/10'
+                  : 'text-white active:bg-white/10'
             }`}
             aria-label={
               isQueueWaiting
@@ -4152,10 +4381,12 @@ function GalleryVideoCard({
             }
           >
             <Sparkles className="w-5 h-5" />
-            <span className="text-[9px] font-black leading-tight text-center">{t('gallery.badgeAiShort')}</span>
+            <span className="text-[9px] font-black leading-tight text-center">
+              {aiRailMuted ? t('gallery.badgeAiPreview') : t('gallery.badgeAiShort')}
+            </span>
           </button>
           <span className="text-[7px] font-semibold text-white/85 text-center leading-tight px-0.5">
-            {t('gallery.cardCtaSwipeHint')}
+            {aiRailMuted ? t('gallery.cardCtaPreviewHint') : t('gallery.cardCtaSwipeHint')}
           </span>
         </div>
       </div>
@@ -4263,6 +4494,7 @@ const GalleryScreen = () => {
     setActiveSoccerPresentationVideoId,
     galleryListFlowMode,
     analysisCredits,
+    galleryProductPhase,
   } = useAppContext();
   const [hasSeenAIGuide, setHasSeenAIGuide] = useState(
     typeof localStorage !== 'undefined' ? localStorage.getItem('hasSeenAIGuide') === 'true' : false
@@ -4295,9 +4527,13 @@ const GalleryScreen = () => {
     [latestTaskByVideoId, t]
   );
 
-  const soccerVideos = React.useMemo(() => {
-    const bySport = ALL_VIDEOS.filter((video) => video.category === 'soccer');
+  const galleryVideos = React.useMemo(() => {
+    const allowed = galleryCategoriesAllowed(galleryProductPhase);
+    const bySport = ALL_VIDEOS.filter((video) => allowed.has(String(video.category)));
     const filtered = bySport.filter((video) => {
+      if (galleryProductPhase === 'phase1' && sourceTab === 'ai_analysis' && video.category === 'basketball') {
+        return false;
+      }
       if (galleryListFlowMode === 'normal' && isAbnormalGalleryCard(getVideoTaskMeta(video.id))) {
         return false;
       }
@@ -4343,26 +4579,29 @@ const GalleryScreen = () => {
       if (aTaskCreatedAt !== bTaskCreatedAt) return bTaskCreatedAt - aTaskCreatedAt;
       return (b.dateSuffix || '').localeCompare(a.dateSuffix || '');
     });
-  }, [sourceTab, typeTab, aiAnalysisFilter, getVideoTaskMeta, galleryListFlowMode]);
+  }, [sourceTab, typeTab, aiAnalysisFilter, getVideoTaskMeta, galleryListFlowMode, galleryProductPhase]);
 
-  const galleryPinnedDemoIdOrder = React.useMemo(() => getGalleryPinnedDemoIds(sourceTab), [sourceTab]);
+  const galleryPinnedDemoIdOrder = React.useMemo(
+    () => getGalleryPinnedDemoIds(sourceTab, galleryProductPhase),
+    [sourceTab, galleryProductPhase]
+  );
 
-  const soccerVideosForGrouping = React.useMemo(() => {
-    if (galleryPinnedDemoIdOrder.length === 0) return soccerVideos;
+  const galleryVideosForGrouping = React.useMemo(() => {
+    if (galleryPinnedDemoIdOrder.length === 0) return galleryVideos;
     const drop = new Set(galleryPinnedDemoIdOrder);
-    return soccerVideos.filter((v) => !drop.has(v.id));
-  }, [soccerVideos, galleryPinnedDemoIdOrder]);
+    return galleryVideos.filter((v) => !drop.has(v.id));
+  }, [galleryVideos, galleryPinnedDemoIdOrder]);
 
   const pinnedNormalFlowVideos = React.useMemo(() => {
     if (galleryPinnedDemoIdOrder.length === 0) return [];
     return galleryPinnedDemoIdOrder
-      .map((id) => soccerVideos.find((v) => v.id === id))
-      .filter((v): v is (typeof soccerVideos)[number] => v != null);
-  }, [soccerVideos, galleryPinnedDemoIdOrder]);
+      .map((id) => galleryVideos.find((v) => v.id === id))
+      .filter((v): v is (typeof galleryVideos)[number] => v != null);
+  }, [galleryVideos, galleryPinnedDemoIdOrder]);
 
   const groupedVideos = React.useMemo(() => {
-    const groups = new Map<string, typeof soccerVideosForGrouping>();
-    soccerVideosForGrouping.forEach((video) => {
+    const groups = new Map<string, typeof galleryVideosForGrouping>();
+    galleryVideosForGrouping.forEach((video) => {
       const key = String((video as any).dateKey);
       const existing = groups.get(key) || [];
       existing.push(video);
@@ -4378,7 +4617,7 @@ const GalleryScreen = () => {
         const bTop = b.videos[0]?.dateSuffix || '';
         return bTop.localeCompare(aTop);
       });
-  }, [soccerVideosForGrouping]);
+  }, [galleryVideosForGrouping]);
   const successCards = React.useMemo(() => {
     if (!hasSeenAIGuide) return [];
     let list: typeof GALLERY_ANALYSIS_SUCCESS_CARDS;
@@ -4403,10 +4642,9 @@ const GalleryScreen = () => {
     setTargetAnalysisType(analysisType);
     setAiMode('cloud');
     setIsTaskCompleted(true);
-    setResultSport('soccer');
-    
     if (videoId) {
       const v = ALL_VIDEOS.find((x) => x.id === videoId);
+      setResultSport(v?.category === 'basketball' ? 'basketball' : 'soccer');
       if (v?.category === 'soccer') {
         setActiveSoccerPresentationVideoId(videoId);
         updateSoccerMatchPresentation({
@@ -4414,8 +4652,9 @@ const GalleryScreen = () => {
           videoId,
         });
       }
+    } else {
+      setResultSport('soccer');
     }
-    
     pushView('ai_result_analysis');
   };
   const detailVideo = detailVideoId != null ? ALL_VIDEOS.find((video) => video.id === detailVideoId) : null;
@@ -4423,7 +4662,9 @@ const GalleryScreen = () => {
   const queueHybridOrSubmit = (videoIds: number[], mode: 'single' | 'merge') => {
     setTargetAnalysisType('highlight');
     setSelectionMode(mode === 'merge' ? 'multiple' : 'single');
-    setSportType('soccer');
+    const main = ALL_VIDEOS.find((v) => v.id === videoIds[0]);
+    const cat = String(main?.category ?? 'soccer');
+    setSportType(cat === 'basketball' ? 'basketball' : cat === 'baseball' ? 'baseball' : 'soccer');
     setAiDecisionPayload(null);
     if (analysisPipeline === 'edge_cloud_hybrid') {
       setHybridAnalysisTierSheet({ videoIds, mode });
@@ -4650,7 +4891,35 @@ const GalleryScreen = () => {
             </div>
           </section>
         )}
-        {soccerVideos.length === 0 && (
+        {galleryProductPhase === 'phase2' && (typeTab === 'all' || typeTab === 'video') && (
+          <section className="space-y-2 mb-1">
+            <p className="text-[11px] font-bold text-slate-500 px-0.5">{t('gallery.bbAiPreviewSectionTitle')}</p>
+            <button
+              type="button"
+              onClick={() => openAnalyzedResult('analysis', GALLERY_BB_AI_PREVIEW_VIDEO_ID)}
+              className="w-full rounded-xl overflow-hidden border border-orange-300/70 bg-white shadow-sm text-left ring-1 ring-orange-500/15"
+            >
+              <div className="relative aspect-[16/8.5]">
+                <AssetThumbnail type="video" category="basketball" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/20 to-transparent pointer-events-none" />
+                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-orange-500 text-white text-[10px] font-black shadow">
+                  {t('gallery.bbAiPreviewBadge')}
+                </div>
+                <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-black text-white drop-shadow">{t('gallery.bbAiPreviewTitle')}</p>
+                    <p className="text-[10px] text-white/88 mt-0.5 leading-snug">{t('gallery.bbAiPreviewSubtitle')}</p>
+                  </div>
+                  <span className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-orange-500 text-white text-[10px] font-black shadow-md">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    {t('gallery.bbAiPreviewCta')}
+                  </span>
+                </div>
+              </div>
+            </button>
+          </section>
+        )}
+        {galleryVideos.length === 0 && (
           <div className="text-center text-slate-400 text-sm py-10">{t('ui.pickerNoMatches')}</div>
         )}
         {pinnedNormalFlowVideos.length > 0 && (
@@ -4660,6 +4929,7 @@ const GalleryScreen = () => {
                 key={`pinned-flow-${video.id}`}
                 video={video}
                 hasSeenAIGuide={hasSeenAIGuide}
+                galleryProductPhase={galleryProductPhase}
                 sourceTab={sourceTab}
                 getVideoTaskMeta={getVideoTaskMeta}
                 openAnalyzedResult={openAnalyzedResult}
@@ -4781,6 +5051,7 @@ const GalleryScreen = () => {
                     key={video.id}
                     video={video}
                     hasSeenAIGuide={hasSeenAIGuide}
+                    galleryProductPhase={galleryProductPhase}
                     sourceTab={sourceTab}
                     getVideoTaskMeta={getVideoTaskMeta}
                     openAnalyzedResult={openAnalyzedResult}
@@ -4810,9 +5081,19 @@ const GalleryScreen = () => {
                   <button
                     type="button"
                     onClick={() => {
+                      const unsupported = localGroupVideos.some(
+                        (v) => !isGalleryAiAnalysisEnabled(galleryProductPhase, String(v.category))
+                      );
+                      if (unsupported) {
+                        setToastMessage(t('gallery.mergeContainsUnsupportedSport'));
+                        setTimeout(() => setToastMessage(null), 3200);
+                        return;
+                      }
                       setTargetAnalysisType('highlight');
                       setSelectionMode('multiple');
-                      setSportType('soccer');
+                      const main = localGroupVideos[0];
+                      const cat = String(main?.category ?? 'soccer');
+                      setSportType(cat === 'basketball' ? 'basketball' : cat === 'baseball' ? 'baseball' : 'soccer');
                       submitAiAnalysis(localGroupVideos.map((video) => video.id), 'gallery_aggregate', 'merge');
                     }}
                     className="px-2 py-1 rounded-full bg-orange-500 text-white text-[10px] font-bold shrink-0"
@@ -5020,6 +5301,7 @@ const GalleryScreen = () => {
               <span>{t('ui.videoDownload')}</span>
             </button>
             {hasSeenAIGuide &&
+              !(galleryProductPhase === 'phase1' && detailVideo.category === 'basketball') &&
               (() => {
                 const detailAiMeta = getVideoTaskMeta(detailVideo.id);
                 const detailAiQueued =
@@ -6994,6 +7276,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     } = useAppContext();
 
     const isSoccer = resultSport === 'soccer';
+    const isBasketball = resultSport === 'basketball';
     const [viewMode, setViewMode] = useState<'review' | 'fullMatch' | 'report'>('review');
     const [isPlaying, setIsPlaying] = useState(true);
     const [currentTimeSec, setCurrentTimeSec] = useState(0);
@@ -7014,6 +7297,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       Record<number, { scoreType?: string; time?: string; name?: string }>
     >({});
     const [activeTimelineFilter, setActiveTimelineFilter] = useState<'all' | 'goal' | 'corner' | 'setpiece' | 'penalty' | 'user'>('all');
+    const [bbTimelineFilter, setBbTimelineFilter] = useState<'all' | '1' | '2' | '3'>('all');
     const [selectedPlayerNumbers, setSelectedPlayerNumbers] = useState<string[]>([]);
     const [selectedExportClipIds, setSelectedExportClipIds] = useState<number[]>([]);
     const [isMatchFlowExpanded, setIsMatchFlowExpanded] = useState(false);
@@ -7046,6 +7330,21 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     }, [eventClaims, eventCorrections]);
 
     const resolvedEvents = React.useMemo(() => {
+      if (isBasketball) {
+        return sourceClips
+          .filter((clip) => clip.sport === 'basketball' && clip.type === 'score')
+          .map((clip) => {
+            const c = eventCorrections[clip.id];
+            return {
+              ...clip,
+              scoreType: c?.scoreType ?? String(clip.scoreType),
+              time: c?.time ?? String(clip.time),
+              customEventName: c?.name,
+              isUserMarked: false,
+            };
+          })
+          .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)));
+      }
       if (!isSoccer) return [] as any[];
       return sourceClips
         .filter((clip) => {
@@ -7065,9 +7364,10 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           };
         })
         .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)));
-    }, [isSoccer, sourceClips, eventCorrections, userMarkedEventIds, viewMode]);
+    }, [isSoccer, isBasketball, sourceClips, eventCorrections, userMarkedEventIds, viewMode]);
 
     const userMarkedTimelineEvents = React.useMemo(() => {
+      if (isBasketball) return [] as any[];
       const actualMarked = sourceClips
         .filter((clip) => clip.sport === 'soccer' && userMarkedEventIds.has(clip.id))
         .map((clip) => {
@@ -7097,16 +7397,27 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
           };
         })
         .sort((a, b) => parseMatchClockToSeconds(String(a.time)) - parseMatchClockToSeconds(String(b.time)));
-    }, [sourceClips, eventCorrections, userMarkedEventIds]);
+    }, [isBasketball, sourceClips, eventCorrections, userMarkedEventIds]);
 
     const baseFilteredTimelineEvents = React.useMemo(() => {
+      if (isBasketball) {
+        if (bbTimelineFilter === 'all') return resolvedEvents;
+        return resolvedEvents.filter((event) => String(event.scoreType) === bbTimelineFilter);
+      }
       if (activeTimelineFilter === 'all') return resolvedEvents;
       if (activeTimelineFilter === 'user') {
         if (viewMode !== 'fullMatch') return resolvedEvents;
         return userMarkedTimelineEvents;
       }
       return resolvedEvents.filter((event) => String(event.scoreType) === activeTimelineFilter);
-    }, [resolvedEvents, activeTimelineFilter, userMarkedTimelineEvents, viewMode]);
+    }, [
+      isBasketball,
+      bbTimelineFilter,
+      resolvedEvents,
+      activeTimelineFilter,
+      userMarkedTimelineEvents,
+      viewMode,
+    ]);
 
     const timelinePlayerNumberOptions = React.useMemo(() => {
       const options = new Set<string>();
@@ -7185,10 +7496,10 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     }, [selectedVideoDuration, viewMode]);
 
     useEffect(() => {
-      if (viewMode !== 'fullMatch' && activeTimelineFilter === 'user') {
+      if (!isBasketball && viewMode !== 'fullMatch' && activeTimelineFilter === 'user') {
         setActiveTimelineFilter('all');
       }
-    }, [viewMode, activeTimelineFilter]);
+    }, [isBasketball, viewMode, activeTimelineFilter]);
 
     useEffect(() => {
       setSelectedPlayerNumbers((prev) => prev.filter((tag) => timelinePlayerNumberOptions.includes(tag)));
@@ -7316,21 +7627,29 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
     };
 
     const scoreTypeLabel = (scoreType: string) => {
+      if (scoreType === '1') return t('clips.1ptFt');
+      if (scoreType === '2') return t('clips.2pt');
+      if (scoreType === '3') return t('clips.3pt');
       if (scoreType === 'goal') return t('ui.eventGoal');
       if (scoreType === 'corner') return t('ui.eventCornerKick');
       if (scoreType === 'setpiece') return t('ui.eventFreeKick');
       return t('ui.eventPenaltyKicks');
     };
 
-    const eventTypeDisplayLabel = (event: { id: number; scoreType: string; customEventName?: string }) => {
+    const eventTypeDisplayLabel = (event: { id: number; scoreType: string; customEventName?: string; labelKey?: string }) => {
       if (event.customEventName != null && String(event.customEventName).trim() !== '') {
         return String(event.customEventName).trim();
       }
+      if (event.labelKey) return t(event.labelKey);
+      if (['1', '2', '3'].includes(String(event.scoreType))) return scoreTypeLabel(String(event.scoreType));
       if (event.id === 20) return t('ui.eventDemoGoalByPlayer6');
       return scoreTypeLabel(String(event.scoreType));
     };
 
     const scoreTypeIcon = (scoreType: string) => {
+      if (scoreType === '1') return <Target className="w-3.5 h-3.5 text-amber-300" />;
+      if (scoreType === '2') return <CircleDot className="w-3.5 h-3.5 text-orange-300" />;
+      if (scoreType === '3') return <Hexagon className="w-3.5 h-3.5 text-violet-300" />;
       if (scoreType === 'goal') return <CircleDot className="w-3.5 h-3.5 text-emerald-300" />;
       if (scoreType === 'corner') return <Hexagon className="w-3.5 h-3.5 text-sky-300" />;
       if (scoreType === 'setpiece') return <Disc className="w-3.5 h-3.5 text-violet-300" />;
@@ -7477,8 +7796,23 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       return pe?.team === 'B' ? 'bg-red-500 ring-2 ring-red-400/45' : 'bg-blue-500 ring-2 ring-blue-400/45';
     }, [activeEventId, filteredTimelineEvents]);
 
-    const teamADisplayName = String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel);
-    const teamBDisplayName = String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel);
+    const teamADisplayName = isBasketball
+      ? t(TEAM_MATCH_STATS.teamA.nameKey)
+      : String((liveSoccerStats.teamA as { displayLabel: string }).displayLabel);
+    const teamBDisplayName = isBasketball
+      ? t(TEAM_MATCH_STATS.teamB.nameKey)
+      : String((liveSoccerStats.teamB as { displayLabel: string }).displayLabel);
+
+    const bbTimelineFilters = React.useMemo(
+      () =>
+        [
+          { id: 'all' as const, label: t('filter.all') },
+          { id: '2' as const, label: t('clips.2pt') },
+          { id: '1' as const, label: t('clips.1ptFt') },
+          { id: '3' as const, label: t('clips.3pt') },
+        ] as const,
+      [t]
+    );
 
     const timelineFilters: Array<{ id: 'all' | 'goal' | 'corner' | 'setpiece' | 'penalty' | 'user'; label: string }> = [
       { id: 'all', label: t('filter.all') },
@@ -7506,7 +7840,20 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
       [liveSoccerStats.teamA.score, liveSoccerStats.teamB.score]
     );
 
-    if (!isSoccer) {
+    const bbReportComparativeStats = React.useMemo(
+      () =>
+        TEAM_MATCH_STATS.comparison
+          .filter((row) => typeof row.a === 'number' && typeof row.b === 'number')
+          .map((row) => ({
+            labelKey: row.rowKey,
+            t1: row.a as number,
+            t2: row.b as number,
+            max: Math.max((row.a as number), (row.b as number), 1),
+          })),
+      []
+    );
+
+    if (!isSoccer && !isBasketball) {
       return (
         <div className="h-full bg-[#0F172A] text-white flex flex-col items-center justify-center px-6 text-center">
           <FileText className="w-10 h-10 text-slate-500 mb-3" />
@@ -7550,11 +7897,11 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                 <div className="text-center px-1">
                   <div className="flex items-end justify-center gap-2">
                     <p className="text-[24px] font-black tabular-nums text-white leading-none">
-                      {liveSoccerStats.teamA.score}
+                      {isBasketball ? TEAM_MATCH_STATS.teamA.score : liveSoccerStats.teamA.score}
                     </p>
                     <span className="text-[20px] font-black text-slate-300 leading-none">-</span>
                     <p className="text-[24px] font-black tabular-nums text-white leading-none">
-                      {liveSoccerStats.teamB.score}
+                      {isBasketball ? TEAM_MATCH_STATS.teamB.score : liveSoccerStats.teamB.score}
                     </p>
                   </div>
                 </div>
@@ -7564,15 +7911,17 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowScoreEditModal(true)}
-                className="absolute right-2.5 top-2 inline-flex items-center justify-center p-1 rounded-md bg-white/10 border border-white/20 text-slate-100 shrink-0"
-                aria-label={t('ui.edit')}
-                title={t('ui.edit')}
-              >
-                <Edit3 className="w-3 h-3" />
-              </button>
+              {!isBasketball && (
+                <button
+                  type="button"
+                  onClick={() => setShowScoreEditModal(true)}
+                  className="absolute right-2.5 top-2 inline-flex items-center justify-center p-1 rounded-md bg-white/10 border border-white/20 text-slate-100 shrink-0"
+                  aria-label={t('ui.edit')}
+                  title={t('ui.edit')}
+                >
+                  <Edit3 className="w-3 h-3" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -7654,24 +8003,30 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                       </div>
                       <div className="text-center px-1">
                         <div className="flex items-end justify-center gap-2">
-                          <p className="text-[24px] font-black tabular-nums text-white leading-none">{liveSoccerStats.teamA.score}</p>
+                          <p className="text-[24px] font-black tabular-nums text-white leading-none">
+                            {isBasketball ? TEAM_MATCH_STATS.teamA.score : liveSoccerStats.teamA.score}
+                          </p>
                           <span className="text-[20px] font-black text-slate-300 leading-none">-</span>
-                          <p className="text-[24px] font-black tabular-nums text-white leading-none">{liveSoccerStats.teamB.score}</p>
+                          <p className="text-[24px] font-black tabular-nums text-white leading-none">
+                            {isBasketball ? TEAM_MATCH_STATS.teamB.score : liveSoccerStats.teamB.score}
+                          </p>
                         </div>
                       </div>
                       <div className="min-w-0 text-right pr-8">
                         <span className="block text-[11px] font-semibold text-slate-100 truncate">{teamBDisplayName}</span>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowScoreEditModal(true)}
-                      className="absolute right-2.5 top-2 inline-flex items-center justify-center p-1 rounded-md bg-white/10 border border-white/20 text-slate-100 shrink-0"
-                      aria-label={t('ui.edit')}
-                      title={t('ui.edit')}
-                    >
-                      <Edit3 className="w-3 h-3" />
-                    </button>
+                    {!isBasketball && (
+                      <button
+                        type="button"
+                        onClick={() => setShowScoreEditModal(true)}
+                        className="absolute right-2.5 top-2 inline-flex items-center justify-center p-1 rounded-md bg-white/10 border border-white/20 text-slate-100 shrink-0"
+                        aria-label={t('ui.edit')}
+                        title={t('ui.edit')}
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -7709,20 +8064,24 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                 <div className="flex justify-between items-center text-[10px] font-bold pb-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <div className="w-3 h-3 rounded-full bg-orange-500 shrink-0" />
-                    <span className="text-slate-200 truncate">{(liveSoccerStats.teamA as { displayLabel: string }).displayLabel}</span>
+                    <span className="text-slate-200 truncate">
+                      {isBasketball ? t(TEAM_MATCH_STATS.teamA.nameKey) : (liveSoccerStats.teamA as { displayLabel: string }).displayLabel}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1.5 min-w-0 justify-end">
-                    <span className="text-slate-200 truncate">{(liveSoccerStats.teamB as { displayLabel: string }).displayLabel}</span>
+                    <span className="text-slate-200 truncate">
+                      {isBasketball ? t(TEAM_MATCH_STATS.teamB.nameKey) : (liveSoccerStats.teamB as { displayLabel: string }).displayLabel}
+                    </span>
                     <div className="w-3 h-3 rounded-full bg-red-600 shrink-0" />
                   </div>
                 </div>
 
-                {reportComparativeStats.map((stat) => (
+                {(isBasketball ? bbReportComparativeStats : reportComparativeStats).map((stat) => (
                   <div key={stat.labelKey} className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
                     <span className="text-sm font-bold text-white w-6">{stat.t1}</span>
                     <div className="flex flex-col items-center">
                       <span className="text-[10px] text-slate-400 mb-1 text-center leading-tight px-1">
-                        {t(`matchReport.${stat.labelKey}`)}
+                        {isBasketball ? t(`report.${stat.labelKey}` as 'report.totalPoints') : t(`matchReport.${stat.labelKey}`)}
                       </span>
                       <div className="flex w-full gap-1">
                         <div className="flex-1 h-1 bg-slate-800 rounded-full flex justify-end">
@@ -7770,27 +8129,37 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
               {isMatchFlowExpanded && (
                 <>
                   <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-2 mt-3">
-                    {timelineFilters.map((filter) => (
-                      <button
-                        key={filter.id}
-                        type="button"
-                        onClick={() => setActiveTimelineFilter(filter.id)}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
-                          activeTimelineFilter === filter.id
-                            ? 'bg-blue-600/95 text-white border-blue-500 shadow-sm shadow-blue-900/40'
-                            : 'bg-slate-800/80 text-slate-300 border-white/10 hover:bg-slate-700/80'
-                        }`}
-                      >
-                        {filter.id === 'all' ? (
-                          <Filter className="w-3.5 h-3.5" />
-                        ) : filter.id === 'user' ? (
-                          <User className="w-3.5 h-3.5" />
-                        ) : (
-                          scoreTypeIcon(filter.id)
-                        )}
-                        {filter.label}
-                      </button>
-                    ))}
+                    {(isBasketball ? bbTimelineFilters : timelineFilters).map((filter) => {
+                      const fid = filter.id;
+                      const active = isBasketball
+                        ? bbTimelineFilter === fid
+                        : activeTimelineFilter === fid;
+                      return (
+                        <button
+                          key={String(fid)}
+                          type="button"
+                          onClick={() =>
+                            isBasketball
+                              ? setBbTimelineFilter(fid as 'all' | '1' | '2' | '3')
+                              : setActiveTimelineFilter(fid as typeof activeTimelineFilter)
+                          }
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap inline-flex items-center gap-1.5 transition-colors ${
+                            active
+                              ? 'bg-blue-600/95 text-white border-blue-500 shadow-sm shadow-blue-900/40'
+                              : 'bg-slate-800/80 text-slate-300 border-white/10 hover:bg-slate-700/80'
+                          }`}
+                        >
+                          {fid === 'all' ? (
+                            <Filter className="w-3.5 h-3.5" />
+                          ) : fid === 'user' ? (
+                            <User className="w-3.5 h-3.5" />
+                          ) : (
+                            scoreTypeIcon(String(fid))
+                          )}
+                          {filter.label}
+                        </button>
+                      );
+                    })}
                   </div>
                   {timelinePlayerNumberOptions.length > 0 && (
                     <div className="space-y-1.5 mb-2">
@@ -7938,23 +8307,25 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                         )}
                                       </div>
                                       <span className="mt-0.5 block text-[11px] font-bold text-slate-100 leading-[1.2] break-words line-clamp-2">
-                                        {eventTypeDisplayLabel(event as { id: number; scoreType: string })}
+                                        {eventTypeDisplayLabel(event as { id: number; scoreType: string; labelKey?: string })}
                                       </span>
                                     </div>
                                     <div className="mt-1 flex items-end justify-between gap-1">
                                       <span className="text-[10px] font-mono text-slate-400 tabular-nums shrink-0">{event.time}</span>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          startEditEvent(event as any);
-                                        }}
-                                        className="p-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center justify-center shrink-0"
-                                        aria-label={t('ui.edit')}
-                                        title={t('ui.edit')}
-                                      >
-                                        <Edit3 className="w-3 h-3" />
-                                      </button>
+                                      {!isBasketball && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            startEditEvent(event as any);
+                                          }}
+                                          className="p-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center justify-center shrink-0"
+                                          aria-label={t('ui.edit')}
+                                          title={t('ui.edit')}
+                                        >
+                                          <Edit3 className="w-3 h-3" />
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 </>
@@ -8011,23 +8382,25 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
                                         )}
                                       </div>
                                       <span className="mt-0.5 block text-[11px] font-bold text-slate-100 leading-[1.2] break-words line-clamp-2">
-                                        {eventTypeDisplayLabel(event as { id: number; scoreType: string })}
+                                        {eventTypeDisplayLabel(event as { id: number; scoreType: string; labelKey?: string })}
                                       </span>
                                     </div>
                                     <div className="mt-1 flex items-end justify-between gap-1">
                                       <span className="text-[10px] font-mono text-slate-400 tabular-nums shrink-0">{event.time}</span>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          startEditEvent(event as any);
-                                        }}
-                                        className="p-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center justify-center shrink-0"
-                                        aria-label={t('ui.edit')}
-                                        title={t('ui.edit')}
-                                      >
-                                        <Edit3 className="w-3 h-3" />
-                                      </button>
+                                      {!isBasketball && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            startEditEvent(event as any);
+                                          }}
+                                          className="p-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-200 inline-flex items-center justify-center shrink-0"
+                                          aria-label={t('ui.edit')}
+                                          title={t('ui.edit')}
+                                        >
+                                          <Edit3 className="w-3 h-3" />
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 </>
@@ -8841,6 +9214,9 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
   /** 相册列表：全流程展示含重试/阻断等边界态；正常流程仍展示进行中云任务，仅收敛边界态 */
   const [galleryListFlowMode, setGalleryListFlowMode] = useState<'full' | 'normal'>('normal');
+
+  /** 产品阶段演示（界面外切换）：一期仅足球 AI、二期足篮、三期多运动素材 */
+  const [galleryProductPhase, setGalleryProductPhase] = useState<GalleryProductPhase>('phase1');
   const [analysisResultLayout, setAnalysisResultLayout] = useState<'portrait' | 'landscape'>('portrait');
 
   /** Hybrid pipeline: false = 端侧核心分析阶段；true = 已完成端侧，进入上传/云端全量阶段 */
@@ -10166,6 +10542,10 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
 
       galleryListFlowMode,
       setGalleryListFlowMode,
+
+      galleryProductPhase,
+      setGalleryProductPhase,
+
       analysisResultLayout,
       setAnalysisResultLayout,
 
@@ -10280,6 +10660,7 @@ const PlayerDetailView = ({ player, sport, onClose }: { player: any, sport: stri
         <TechRouteToggle />
 
         <GalleryFlowModeToggle />
+        <GalleryProductPhaseToggle />
         <AnalysisOrientationToggle />
 
         <div className={`${deviceShellClass} bg-black overflow-hidden relative shadow-2xl flex flex-col rounded-[40px] border-[8px] border-slate-900 ring-4 ring-slate-300/50 shrink-0`}>
